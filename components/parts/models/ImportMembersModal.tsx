@@ -70,10 +70,7 @@ const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
     setIsUploading(true);
     setUploadError(null);
 
-    // **ACTION**: Call the API to save the previewData
-    // onConfirmImport(previewData);
 
-    // Simulate API call delay
     setTimeout(() => {
       console.log("Bulk import confirmed for:", previewData);
       setIsUploading(false);
