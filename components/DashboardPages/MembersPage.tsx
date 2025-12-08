@@ -195,10 +195,7 @@ const MembersPage = () => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Members");
 
-    XLSX.writeFile(
-      workbook,
-      `members-export-${new Date().toISOString().slice(0, 10)}.xlsx`
-    );
+    XLSX.writeFile(workbook, `members-export-${Date.now()}.xlsx`);
 
     setExporting(false);
     toastSuccess("Excel file exported successfully!");
