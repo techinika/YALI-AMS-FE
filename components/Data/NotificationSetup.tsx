@@ -9,6 +9,7 @@ import {
 } from "@/lib/features/notificationSlice";
 import { CustomButton } from "../ui/button1";
 import { toastError, toastSuccess, toastWarning } from "@/lib/toast";
+import RichTextEditor from "../ui/rich-text-editor";
 
 export const notificationTypes = {
   SIGNUP: "signup",
@@ -135,7 +136,7 @@ function NotificationSetup() {
             {notifications.length > 0 ? (
               notifications.map((noti: any, index: number) => (
                 <li
-                  key={noti.id || index}
+                  key={noti.id || index + 1}
                   className={`border-b border-gray-100 p-3 px-4 cursor-pointer transition duration-150 ${
                     currentNotificationId === noti.id
                       ? "bg-blue-100 border-l-4 border-primary font-semibold"
@@ -159,7 +160,6 @@ function NotificationSetup() {
           </ul>
         </div>
 
-        {/* Right Section: Notification Editor */}
         <div className="lg:w-2/3 bg-white rounded-xl shadow-lg border border-gray-100 flex flex-col">
           <div className="sticky top-0 bg-white p-4 border-b z-10">
             <div className="flex justify-between items-center w-full">
@@ -185,17 +185,9 @@ function NotificationSetup() {
                 >
                   Message:
                 </label>
-                {/* Assuming simple textarea replacement for Rich Text Editor */}
-                <textarea
-                  id="message"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg h-40 resize-y focus:ring-primary focus:border-primary transition duration-150"
-                  placeholder="Add the notification message here..."
-                />
+                <RichTextEditor message={message} setMessage={setMessage} />
               </div>
 
-              {/* Action Checkboxes */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">
                   Actions:

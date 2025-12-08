@@ -140,35 +140,48 @@ const MembersPage = () => {
     setExporting(true);
     const exportData = filteredMembers.map((member: Member, index: number) => ({
       ID: index + 1,
-      FirstName: member.firstName,
-      MiddleName: member.middleName || "",
-      LastName: member.lastName || "",
-      Email: member.email,
-      Gender: member?.gender?.name ?? "N/A",
-      Bio: member?.bio ?? "",
-      "Phone Number": member?.phoneNumber ?? "N/A",
-      "WhatsApp Number": member?.whatsappNumber ?? "N/A",
-      "Resident Country": member?.residentCountry?.name ?? "N/A",
-      "State/Province (If not in Rwanda)": member?.state?.name ?? "N/A",
-      "Resident District (If In Rwanda)":
-        member?.residentDistrict?.name ?? "N/A",
-      "Resident Sector (If In Rwanda)": member?.residentSector?.name ?? "N/A",
-      "Nearest Landmark": member?.nearestLandmark ?? "N/A",
-      Cohort: member?.cohort?.name ?? "N/A",
-      Track: member?.track?.name ?? "N/A",
+      "First Name": member.firstName,
+      "Middle Name": member.middleName ?? "",
+      "Last Name": member.lastName ?? "",
+      "Email Address": member.email,
+      "Phone Number": member?.phoneNumber ?? "",
+      "WhatsApp Number": member?.whatsappNumber ?? "",
+      "LinkedIn Profile": member?.linkedin ?? "",
+      "Facebook Profile": member?.facebook ?? "",
+      "Instagram Profile": member?.instagram ?? "",
+      "X (Twitter) Account": member?.twitter ?? "",
+      Gender: member?.gender?.name ?? "",
+      Biography: member?.bio ?? "",
+      "Country of Residence": member?.residentCountry?.name ?? "",
+      "District of Residence": member?.residentDistrict?.name ?? "",
+      "Sector of Residence": member?.residentSector?.name ?? "",
+      "State/Province (If not in Rwanda)": member?.state?.name ?? "",
+      Cohort: member?.cohort?.name ?? "",
+      Track: member?.track?.name ?? "",
+      "Nearest Landmark": member?.nearestLandmark ?? "",
       "Organization/Initiative you started (If available)":
-        member?.organizationFounded?.name ?? "N/A",
+        member?.organizationFounded?.name ?? "",
       "Your Position in Initiative you Started":
         member?.positionInFounded ?? "",
+      "Website or any online presence of your initiative":
+        member?.organizationFounded?.website ?? "",
+      "Country of the initiative (District/Sector)":
+        member?.organizationFounded?.country?.name ?? "",
+      "Main Sector of intervention (Eg: Finance, Education, Agribusiness, Etc)":
+        member?.organizationFounded?.workingSector?.name ?? "",
+
       "Organization that employ you (If you are currently employed)":
-        member?.organizationEmployed?.name ?? "N/A",
+        member?.organizationEmployed?.name ?? "",
       "Your position in your employment": member?.positionInEmployed ?? "",
+      "Website of an Organization that Employs you (If available)":
+        member?.organizationEmployed?.website ?? "",
+      "Organization Address (Country)":
+        member?.organizationEmployed?.country?.name ?? "",
+      "Working Sector of your Employer":
+        member?.organizationEmployed?.workingSector?.name ?? "",
       "Profile Picture Link": member?.profileImage?.link,
-      "Created At": member?.createdAt,
-      "LinkedIn Account": member?.linkedin ?? "",
-      "Facebook Account": member?.facebook ?? "",
-      "Instagram Account": member?.instagram ?? "",
-      "X Account": member?.twitter ?? "",
+      "Created At": new Date(member?.createdAt).toLocaleString(),
+      "Last Updated": new Date(member?.updatedAt).toLocaleString(),
     }));
 
     if (exportData.length === 0) {
