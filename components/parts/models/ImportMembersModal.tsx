@@ -1,13 +1,13 @@
 "use client";
 
+import { useImportUsersMutation } from "@/lib/features/userSlice";
+import { toastError, toastSuccess } from "@/lib/toast";
 import React, { useState, ChangeEvent, useMemo } from "react";
 import { MdClose, MdUpload, MdCloudUpload, MdError } from "react-icons/md";
 import * as XLSX from "xlsx";
 
 interface ImportUsersModalProps {
   closeModal: () => void;
-  // Add logic here to handle the final save
-  // onConfirmImport: (users: any[]) => void;
 }
 
 const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
@@ -15,6 +15,8 @@ const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const [importUsers] = useImportUsersMutation();
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -65,18 +67,29 @@ const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
     reader.readAsBinaryString(file);
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (previewData.length === 0) return;
+
     setIsUploading(true);
     setUploadError(null);
 
+    try {
+      const response = await importUsers({
+        data: previewData,
+      }).unwrap();
 
-    setTimeout(() => {
-      console.log("Bulk import confirmed for:", previewData);
+      console.log(response);
+
+      toastSuccess("Members imported successfully, existing members skipped!");
+    } catch (error: any) {
+      toastError(error?.data?.message || "Import failed. Please try again.");
+
       setIsUploading(false);
-      // closeModal(); // Close upon success
-      // Optional: Show success message instead of closing immediately
-    }, 2000);
+    } finally {
+      setIsUploading(false);
+      setUploadError(null);
+      closeModal();
+    }
   };
 
   const headers = useMemo(() => {
@@ -92,15 +105,12 @@ const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
       aria-modal="true"
       role="dialog"
     >
-      {/* Overlay */}
       <div
         className="fixed inset-0 bg-gray-900 bg-opacity-70 backdrop-blur-sm"
         onClick={closeModal}
       ></div>
 
-      {/* Modal */}
       <div className="relative z-50 w-full max-w-4xl transform overflow-hidden rounded-xl bg-white text-left shadow-2xl transition-all">
-        {/* Header */}
         <div className="flex justify-between items-center p-6 border-b">
           <h3 className="text-xl font-bold text-gray-900 flex items-center">
             <MdCloudUpload className="w-6 h-6 mr-2 text-primary" />
