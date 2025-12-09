@@ -26,7 +26,6 @@ function ProfilePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const userId = searchParams.get("userId");
-  console.log(userId);
 
   const [activeTab, setActiveTab] = useState(0);
   const [roleModal, setRoleModal] = useState(false);
@@ -109,8 +108,12 @@ function ProfilePage() {
       )}
 
       <PageHeader
-        title={"My Profile"}
-        description="View and manage your profile information."
+        title={userId ? "Member Profile" : "My Profile"}
+        description={
+          userId
+            ? "View member's profile."
+            : "View and manage your profile information."
+        }
         actionTitle="Update Profile"
         Icon={EditIcon}
         onAction={() => router.push(`/dashboard/profile/update`)}
