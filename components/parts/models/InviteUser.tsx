@@ -38,7 +38,6 @@ const InviteUserModal: React.FC<InviteUserModalProps> = ({
       }).unwrap();
 
       toastSuccess(`Invitation sent to ${name}!`);
-      console.log("Invite response:", response);
     } catch (err: any) {
       console.error("Invite error:", err);
 

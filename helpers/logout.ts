@@ -8,8 +8,4 @@ export const logout = () => {
 
   deleteCookie(AUTH_STORED_DATA.TOKEN);
   deleteCookie(AUTH_STORED_DATA.USER);
-
-  if (typeof window !== "undefined") {
-    window.location.href = "/";
-  }
 };

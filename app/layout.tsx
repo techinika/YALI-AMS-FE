@@ -17,12 +17,12 @@ export default function RootLayout({
   return (
     <html>
       <body>
-        <AuthProvider>
-          <StoreProvider>
+        <StoreProvider>
+          <AuthProvider>
             <AccessibilityLoader />
             {children}
-          </StoreProvider>
-        </AuthProvider>
+          </AuthProvider>
+        </StoreProvider>
       </body>
     </html>
   );

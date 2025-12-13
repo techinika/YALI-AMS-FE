@@ -18,6 +18,7 @@ import {
   useStatesByCountryQuery,
 } from "@/lib/features/otherSlice";
 import { Loader2 } from "lucide-react";
+import { toastSuccess } from "@/lib/toast";
 
 const initialEmployedInfoState: EmployedInfoState = {
   companyName: "",
@@ -169,7 +170,8 @@ function AddEmployedInfo({
         };
 
         const response = await associateOrganization(payload).unwrap();
-        console.log("Existing organization associated:", response);
+        toastSuccess("Existing organization associated:"),
+          console.log(response);
 
         onSuccess();
         return;

@@ -2,17 +2,11 @@
 
 import { getUser } from "@/helpers/auth";
 import { logout } from "@/helpers/logout";
+import { processLogout } from "@/lib/features/auth";
+import { useAppDispatch } from "@/lib/hooks";
+import { useRouter } from "next/navigation";
 import React from "react";
 import { MdLogout, MdAccountCircle } from "react-icons/md";
-
-const SignOutButton = () => (
-  <button
-    onClick={() => logout()}
-    className="w-full text-left flex items-center p-2 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 rounded-md transition-colors"
-  >
-    <MdLogout className="w-5 h-5 mr-3" /> Sign Out
-  </button>
-);
 
 const AccountPreview = ({ mini }: { mini: boolean }) => {
   const [user, setUser] = React.useState<any>(null);
@@ -39,6 +33,9 @@ const AccountPreview = ({ mini }: { mini: boolean }) => {
 };
 
 export default function SidebarFooterAccount({ mini }: { mini: boolean }) {
+  const dispatch = useAppDispatch();
+  const router = useRouter();
+
   if (mini) {
     return (
       <div className="p-3 border-t border-gray-200">
@@ -52,11 +49,23 @@ export default function SidebarFooterAccount({ mini }: { mini: boolean }) {
     );
   }
 
+  const handleLogout = async (e: { preventDefault: () => void }) => {
+    e.preventDefault();
+    await logout();
+    dispatch(processLogout());
+    router.push("/");
+  };
+
   return (
     <footer className="p-1 border-t border-gray-200">
       <AccountPreview mini={mini} />
       <div className="px-2 pb-2">
-        <SignOutButton />
+        <button
+          onClick={handleLogout}
+          className="w-full text-left flex items-center p-2 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 rounded-md transition-colors"
+        >
+          <MdLogout className="w-5 h-5 mr-3" /> Sign Out
+        </button>
       </div>
     </footer>
   );

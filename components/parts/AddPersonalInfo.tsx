@@ -242,8 +242,6 @@ function AddPersonalInfo({
     }
   }, [success, error]);
 
-  console.log("formValues", formValues);
-
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement

@@ -33,7 +33,6 @@ const useOpenNotificationMutation = () => {
   const openNotification = useCallback(async ({ id }: { id: string }) => {
     await new Promise((resolve) => setTimeout(resolve, 300));
     localStorage.setItem(`opened_${id}`, "true");
-    console.log(`Notification ${id} marked as opened.`);
   }, []);
   return [openNotification];
 };

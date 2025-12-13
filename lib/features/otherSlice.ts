@@ -1,10 +1,9 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { baseQueryWithAuth } from "../fetchBaseQuery";
 
 export const otherSlices = createApi({
   reducerPath: "otherSlices",
-  baseQuery: fetchBaseQuery({
-    baseUrl: process.env.NEXT_PUBLIC_API_URL,
-  }),
+  baseQuery: baseQueryWithAuth,
   endpoints: (builder) => ({
     gender: builder.query({
       query: (code) => `data/genders`,

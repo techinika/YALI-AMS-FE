@@ -1,6 +1,7 @@
 "use client";
 
 import { getUser, isAuthenticated } from "@/helpers/auth";
+import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 export const AccessDashboard = ({ children }: { children: any }) => {
@@ -14,13 +15,14 @@ export const AccessDashboard = ({ children }: { children: any }) => {
 };
 
 export const OnlyAdmin = ({ children }: { children: any }) => {
+  const router = useRouter();
   const user = getUser();
 
   const isAdmin = user?.role?.name == "ADMIN";
 
   useEffect(() => {
     if (!isAdmin) {
-      globalThis.location.href = "/dashboard/profile";
+      router.push("/dashboard/profile");
     }
   }, [isAdmin]);
 

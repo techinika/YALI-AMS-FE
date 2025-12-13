@@ -3,6 +3,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import Header from "./Header";
 import { ErrorType } from "@/types/feedback";
 import Link from "next/link";
+import { toastError } from "@/lib/toast";
 
 const InputError = ({ error }: { error: string }) => {
   if (!error) return null;
@@ -58,7 +59,7 @@ const ForgotPasswordPage = () => {
     const isValid = handleValidate();
 
     if (!isValid) {
-      console.log("Validation failed on submission.");
+      toastError("Validation failed on submission.");
       return;
     }
 

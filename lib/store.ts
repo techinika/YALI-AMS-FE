@@ -6,10 +6,12 @@ import { chatSlices } from "./features/chatSlice";
 import { notificationSlices } from "./features/notificationSlice";
 import { statSlice } from "./features/statsSlice";
 import { orgsSlices } from "./features/orgSlice";
+import authReducer from "./features/auth";
 
 export const makeStore = () => {
   return configureStore({
     reducer: {
+      auth: authReducer,
       [authSlices.reducerPath]: authSlices.reducer,
       [usersSlices.reducerPath]: usersSlices.reducer,
       [otherSlices.reducerPath]: otherSlices.reducer,

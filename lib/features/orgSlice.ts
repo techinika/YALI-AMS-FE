@@ -1,10 +1,9 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { baseQueryWithAuth } from "../fetchBaseQuery";
 
 export const orgsSlices = createApi({
   reducerPath: "orgsSlices",
-  baseQuery: fetchBaseQuery({
-    baseUrl: process.env.NEXT_PUBLIC_API_URL,
-  }),
+  baseQuery: baseQueryWithAuth,
   endpoints: (builder) => ({
     organizations: builder.query({
       query: (code) => `organizations`,

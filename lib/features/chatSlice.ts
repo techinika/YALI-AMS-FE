@@ -1,10 +1,9 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { baseQueryWithAuth } from "../fetchBaseQuery";
 
 export const chatSlices = createApi({
   reducerPath: "chatSlices",
-  baseQuery: fetchBaseQuery({
-    baseUrl: process.env.NEXT_PUBLIC_API_URL,
-  }),
+  baseQuery: baseQueryWithAuth,
   endpoints: (builder) => ({
     chats: builder.query({
       query: () => `chat`,

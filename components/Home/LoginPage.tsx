@@ -6,6 +6,9 @@ import { CustomInputError } from "../ui/input-error";
 import Header from "./Header";
 import { ErrorType } from "@/types/feedback";
 import { setCookie } from "cookies-next";
+import { useAppDispatch } from "@/lib/hooks";
+import { useRouter } from "next/navigation";
+import { setCredentials } from "@/lib/features/auth";
 
 const AUTH_STORED_DATA = {
   USER: "auth_user_data",
@@ -13,7 +16,8 @@ const AUTH_STORED_DATA = {
 };
 
 const LoginPage = () => {
-  const [credentials, setCredentials] = useState({
+  const router = useRouter();
+  const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
@@ -26,10 +30,11 @@ const LoginPage = () => {
   const [generalError, setGeneralError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [login] = useLoginMutation();
+  const dispatch = useAppDispatch();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setCredentials((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
     setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
@@ -37,15 +42,15 @@ const LoginPage = () => {
     let isValid = true;
     const newErrors = { email: "", password: "" };
 
-    if (!credentials.email) {
+    if (!formData.email) {
       newErrors.email = "Email is required";
       isValid = false;
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(credentials.email)) {
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = "Invalid Email format";
       isValid = false;
     }
 
-    if (!credentials.password) {
+    if (!formData.password) {
       newErrors.password = "Password is required";
       isValid = false;
     }
@@ -65,7 +70,7 @@ const LoginPage = () => {
 
     setIsLoading(true);
     try {
-      const result = await login(credentials).unwrap();
+      const result = await login(formData).unwrap();
 
       localStorage.setItem(
         AUTH_STORED_DATA?.USER,
@@ -74,11 +79,18 @@ const LoginPage = () => {
       setCookie(AUTH_STORED_DATA?.TOKEN, result?.token);
       setCookie(AUTH_STORED_DATA?.USER, JSON.stringify(result?.user));
 
+      dispatch(
+        setCredentials({
+          token: result?.token,
+          user: result?.user,
+        })
+      );
+
       if (result?.status === 200) {
         if (result?.user?.role?.name === "ADMIN") {
-          window.location.href = "/dashboard";
+          router.push("/dashboard");
         } else {
-          window.location.href = "/dashboard/profile";
+          router.push("/dashboard/profile");
         }
       }
     } catch (err) {
@@ -131,7 +143,7 @@ const LoginPage = () => {
               id="email"
               name="email"
               type="email"
-              value={credentials.email}
+              value={formData.email}
               onChange={handleInputChange}
               disabled={isLoading}
               className="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm transition"
@@ -159,7 +171,7 @@ const LoginPage = () => {
               id="password"
               name="password"
               type="password"
-              value={credentials.password}
+              value={formData.password}
               onChange={handleInputChange}
               disabled={isLoading}
               className="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm transition"

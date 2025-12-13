@@ -7,7 +7,6 @@ const nextConfig: NextConfig = {
   productionBrowserSourceMaps: false,
   experimental: {
     serverSourceMaps: false,
-    enablePrerenderSourceMaps: false,
   },
 };
 

@@ -2,13 +2,17 @@
 "use client";
 
 import React, { useState, ChangeEvent, FormEvent } from "react";
-import { useChangePasswordMutation } from "@/lib/features/authSlice";
-import { AUTH_STORED_DATA, getUser } from "@/helpers/auth";
-import { deleteCookie } from "cookies-next";
-import { MdLockOpen, MdDone, MdError, MdVpnKey } from "react-icons/md"; // Added icons
+import {
+  useChangePasswordMutation,
+} from "@/lib/features/authSlice";
+import { getUser } from "@/helpers/auth";
+import { MdDone, MdError, MdVpnKey } from "react-icons/md"; // Added icons
 import { Nut, Save } from "lucide-react";
 import { PageHeader } from "../parts/PageHeader";
 import { logout } from "@/helpers/logout";
+import { useAppDispatch } from "@/lib/hooks";
+import { useRouter } from "next/navigation";
+import { processLogout } from "@/lib/features/auth";
 
 interface PasswordState {
   oldPassword: string;
@@ -67,11 +71,13 @@ const PasswordInputField: React.FC<PasswordInputFieldProps> = ({
 );
 
 const ChangePasswordPage = () => {
+  const router = useRouter();
   const [formData, setFormData] = useState<PasswordState>(initialPasswordState);
   const [errors, setErrors] = useState<Partial<PasswordState>>({});
   const [message, setMessage] = useState("");
   const [globalError, setGlobalError] = useState("");
   const [loading, setLoading] = useState(false);
+  const dispatch = useAppDispatch();
 
   const user = getUser();
   const [changePassword] = useChangePasswordMutation();
@@ -147,9 +153,8 @@ const ChangePasswordPage = () => {
           "Password changed successfully. Logging out for security..."
         );
         await logout();
-        setTimeout(() => {
-          globalThis.location.href = "/";
-        }, 1500);
+        dispatch(processLogout());
+        router.push("/");
       } else {
         setGlobalError(result?.message || "Password change failed.");
       }

@@ -78,8 +78,6 @@ const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
         data: previewData,
       }).unwrap();
 
-      console.log(response);
-
       toastSuccess("Members imported successfully, existing members skipped!");
     } catch (error: any) {
       toastError(error?.data?.message || "Import failed. Please try again.");

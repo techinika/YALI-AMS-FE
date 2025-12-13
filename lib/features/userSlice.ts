@@ -1,10 +1,9 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { baseQueryWithAuth } from "../fetchBaseQuery";
 
 export const usersSlices = createApi({
   reducerPath: "usersSlices",
-  baseQuery: fetchBaseQuery({
-    baseUrl: process.env.NEXT_PUBLIC_API_URL,
-  }),
+  baseQuery: baseQueryWithAuth,
   tagTypes: ["Users"],
   endpoints: (builder) => ({
     users: builder.query({
@@ -85,5 +84,5 @@ export const {
   useImportUsersMutation,
   useCreateUserProfileMutation,
   useInviteUserMutation,
-  useAssociateOrganizationMutation
+  useAssociateOrganizationMutation,
 } = usersSlices;

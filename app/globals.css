@@ -2,6 +2,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+@plugin "@tailwindcss/typography";
+
 * {
   font-family: "Stack Sans Text", sans-serif;
 }
