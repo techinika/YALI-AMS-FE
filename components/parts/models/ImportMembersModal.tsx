@@ -4,7 +4,7 @@ import { useImportUsersMutation } from "@/lib/features/userSlice";
 import { toastError, toastSuccess } from "@/lib/toast";
 import React, { useState, ChangeEvent, useMemo } from "react";
 import { MdClose, MdUpload, MdCloudUpload, MdError } from "react-icons/md";
-import * as XLSX from "xlsx";
+// import * as XLSX from "xlsx";
 
 interface ImportUsersModalProps {
   closeModal: () => void;
@@ -40,26 +40,26 @@ const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const data = e.target?.result;
-      const workbook = XLSX.read(data, { type: "binary" });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
+      // const workbook = XLSX.read(data, { type: "binary" });
+      // const sheetName = workbook.SheetNames[0];
+      // const worksheet = workbook.Sheets[sheetName];
 
-      const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      // const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-      if (json.length > 1) {
-        const headers = json[0] as string[];
-        const users = json.slice(1).map((row: any) => {
-          const user: any = {};
-          headers.forEach((header, index) => {
-            user[header] = row[index];
-          });
-          return user;
-        });
-        setPreviewData(users);
-      } else {
-        setUploadError("File is empty or only contains headers.");
-        setPreviewData([]);
-      }
+      // if (json.length > 1) {
+      //   const headers = json[0] as string[];
+      //   const users = json.slice(1).map((row: any) => {
+      //     const user: any = {};
+      //     headers.forEach((header, index) => {
+      //       user[header] = row[index];
+      //     });
+      //     return user;
+      //   });
+      //   setPreviewData(users);
+      // } else {
+      //   setUploadError("File is empty or only contains headers.");
+      //   setPreviewData([]);
+      // }
     };
     reader.onerror = () => {
       setUploadError("Failed to read the file.");

@@ -23,7 +23,7 @@ import InviteUserModal from "../parts/models/InviteUser";
 import ConfirmModal from "../parts/models/confirmModal";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { getUser } from "@/helpers/auth";
-import * as XLSX from "xlsx";
+// import * as XLSX from "xlsx";
 import { BiExport } from "react-icons/bi";
 
 const MembersPage = () => {
@@ -190,12 +190,12 @@ const MembersPage = () => {
       return;
     }
 
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    // const worksheet = XLSX.utils.json_to_sheet(exportData);
 
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Members");
+    // const workbook = XLSX.utils.book_new();
+    // XLSX.utils.book_append_sheet(workbook, worksheet, "Members");
 
-    XLSX.writeFile(workbook, `members-export-${Date.now()}.xlsx`);
+    // XLSX.writeFile(workbook, `members-export-${Date.now()}.xlsx`);
 
     setExporting(false);
     toastSuccess("Excel file exported successfully!");
