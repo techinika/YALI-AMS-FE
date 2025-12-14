@@ -4,7 +4,7 @@ import { useImportUsersMutation } from "@/lib/features/userSlice";
 import { toastError, toastSuccess } from "@/lib/toast";
 import React, { useState, ChangeEvent, useMemo } from "react";
 import { MdClose, MdUpload, MdCloudUpload, MdError } from "react-icons/md";
-// import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 interface ImportUsersModalProps {
   closeModal: () => void;
@@ -38,33 +38,59 @@ const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
 
   const handlePreview = (file: File) => {
     const reader = new FileReader();
-    reader.onload = (e) => {
+
+    reader.onload = async (e) => {
       const data = e.target?.result;
-      // const workbook = XLSX.read(data, { type: "binary" });
-      // const sheetName = workbook.SheetNames[0];
-      // const worksheet = workbook.Sheets[sheetName];
+      if (!data) {
+        setUploadError("Failed to read file data.");
+        return;
+      }
 
-      // const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      try {
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(data as ArrayBuffer);
 
-      // if (json.length > 1) {
-      //   const headers = json[0] as string[];
-      //   const users = json.slice(1).map((row: any) => {
-      //     const user: any = {};
-      //     headers.forEach((header, index) => {
-      //       user[header] = row[index];
-      //     });
-      //     return user;
-      //   });
-      //   setPreviewData(users);
-      // } else {
-      //   setUploadError("File is empty or only contains headers.");
-      //   setPreviewData([]);
-      // }
+        const worksheet = workbook.worksheets[0];
+
+        if (!worksheet) {
+          setUploadError("No worksheet found in file.");
+          setPreviewData([]);
+          return;
+        }
+
+        const rows = worksheet.getSheetValues();
+        if (rows.length <= 1) {
+          setUploadError("File is empty or only contains headers.");
+          setPreviewData([]);
+          return;
+        }
+
+        const headers: string[] = rows[1] as string[];
+
+        const users = rows.slice(2).map((row: any) => {
+          const user: any = {};
+          headers.forEach((header, index) => {
+            user[header] = row[index + 1] ?? "";
+          });
+          return user;
+        });
+
+        console.log(users);
+        setPreviewData(users);
+        setUploadError("");
+      } catch (err) {
+        console.error(err);
+        setUploadError("Failed to parse Excel file.");
+        setPreviewData([]);
+      }
     };
+
     reader.onerror = () => {
       setUploadError("Failed to read the file.");
     };
-    reader.readAsBinaryString(file);
+
+    // ExcelJS works with ArrayBuffer
+    reader.readAsArrayBuffer(file);
   };
 
   const handleConfirm = async () => {

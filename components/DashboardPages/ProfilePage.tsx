@@ -61,9 +61,6 @@ function ProfilePage() {
         (org: any) => org.relation === "employed"
       );
 
-      console.log("founded", foundedOrgs);
-      console.log("employed", employedOrgs);
-
       setFoundedOrganizations(foundedOrgs);
       setEmployedOrganizations(employedOrgs);
     }

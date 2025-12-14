@@ -1,23 +1,18 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import AddPersonalInfo from "../parts/AddPersonalInfo";
-import AddFoundedInfo from "../parts/AddFoundedInfo";
-import AddEmployedInfo from "../parts/AddEmployedInfo";
 import { MdCheck } from "react-icons/md";
 import ImportUsersModal from "../parts/models/ImportMembersModal";
 import { PageHeader } from "../parts/PageHeader";
 import { Upload, User } from "lucide-react";
 import {
   Country,
-  Organization,
   ResidentDistrict,
-  WorkingSector,
 } from "@/types/user";
 import {
   useCountriesQuery,
   useDistrictsQuery,
-  useWorkingSectorQuery,
 } from "@/lib/features/otherSlice";
 import SectionWrapper from "../parts/SessionWrapper";
 

@@ -23,8 +23,9 @@ import InviteUserModal from "../parts/models/InviteUser";
 import ConfirmModal from "../parts/models/confirmModal";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { getUser } from "@/helpers/auth";
-// import * as XLSX from "xlsx";
 import { BiExport } from "react-icons/bi";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
 
 const MembersPage = () => {
   const authUser: Member = getUser();
@@ -136,7 +137,7 @@ const MembersPage = () => {
     }
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     setExporting(true);
     const exportData = filteredMembers.map((member: Member, index: number) => ({
       ID: index + 1,
@@ -190,15 +191,36 @@ const MembersPage = () => {
       return;
     }
 
-    // const worksheet = XLSX.utils.json_to_sheet(exportData);
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Members");
 
-    // const workbook = XLSX.utils.book_new();
-    // XLSX.utils.book_append_sheet(workbook, worksheet, "Members");
+      worksheet.columns = Object.keys(exportData[0]).map((key) => ({
+        header: key,
+        key: key,
+        width: 25,
+      }));
 
-    // XLSX.writeFile(workbook, `members-export-${Date.now()}.xlsx`);
+      exportData.forEach((row: any) => {
+        worksheet.addRow(row);
+      });
 
-    setExporting(false);
-    toastSuccess("Excel file exported successfully!");
+      worksheet.getRow(1).eachCell((cell) => {
+        cell.font = { bold: true };
+        cell.alignment = { horizontal: "center" };
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: "application/octet-stream" });
+      saveAs(blob, `members-export-${Date.now()}.xlsx`);
+
+      toastSuccess("Excel file exported successfully!");
+    } catch (error) {
+      console.error(error);
+      toastError("Failed to export Excel file.");
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -238,7 +260,7 @@ const MembersPage = () => {
 
       <div className="bg-white p-5 rounded-xl shadow-lg mb-6">
         <div className="flex flex-wrap items-end justify-between gap-4 mb-4">
-          <div className="flex-1 min-w-[200px]">
+          <div className="flex-1 min-w-50">
             <label className="text-sm font-medium text-gray-600 mb-1 flex items-center">
               <MdSearch className="w-5 h-5 mr-1" />
               Search (Name or Email)

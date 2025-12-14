@@ -29,6 +29,7 @@ import {
 } from "@/lib/features/chatSlice";
 import { getUser } from "@/helpers/auth";
 import { Message } from "@/types/message";
+import { useRouter } from "next/navigation";
 
 dayjs.extend(relativeTime);
 
@@ -65,6 +66,7 @@ const ChatInterface = ({
 }: {
   username?: string;
 }) => {
+  const router = useRouter();
   const user = getUser();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -231,7 +233,7 @@ const ChatInterface = ({
         title="Conversations"
         description="Chat with the community and build relationships privately."
         actionTitle="Settings"
-        onAction={() => console.log("n")}
+        onAction={() => router.push("/dashboard/settings")}
         loading={false}
         Icon={Settings}
         disabled={false}
