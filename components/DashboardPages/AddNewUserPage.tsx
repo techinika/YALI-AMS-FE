@@ -19,7 +19,6 @@ import {
   useDistrictsQuery,
   useWorkingSectorQuery,
 } from "@/lib/features/otherSlice";
-import { useOrganizationsQuery } from "@/lib/features/orgSlice";
 import SectionWrapper from "../parts/SessionWrapper";
 
 const SECTIONS = [
@@ -35,32 +34,6 @@ const SECTIONS = [
       countries,
     }),
   },
-  {
-    id: 2,
-    title: "Founded Initiative Information (Optional)",
-    component: AddFoundedInfo,
-    mandatory: false,
-    canRevisit: true,
-    skip: true,
-    props: (
-      districts: ResidentDistrict[],
-      countries: Country[],
-      organizations: Organization[]
-    ) => ({ districts, countries, organizations }),
-  },
-  {
-    id: 3,
-    title: "Current Employment Information (Optional)",
-    component: AddEmployedInfo,
-    mandatory: false,
-    canRevisit: true,
-    skip: true,
-    props: (
-      districts: ResidentDistrict[],
-      countries: Country[],
-      organizations: Organization[]
-    ) => ({ districts, countries, organizations }),
-  },
 ];
 
 function NewProfile() {
@@ -70,20 +43,16 @@ function NewProfile() {
   >("idle");
   const [districts, setDistricts] = useState<ResidentDistrict[]>([]);
   const [countries, setCountries] = useState<Country[]>([]);
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [activeSection, setActiveSection] = useState<number>(1);
   const [sectionFeedback, setSectionFeedback] = useState<{
     [key: number]: "idle" | "success" | "error" | "skipped";
   }>({});
-  const [workingSectors, setWorkingSectors] = useState<WorkingSector[]>([]);
-  const [userId, setUserId] = useState<string>("");
+  const [userId, setUserId] = useState("");
 
   const newUserId = `AMS-MEM-${Date.now()}`;
 
   const { data: CountryData } = useCountriesQuery("");
   const { data: DistrictData } = useDistrictsQuery("");
-  const { data: OrganizationsData } = useOrganizationsQuery("");
-  const { data: WorkingSectorsData } = useWorkingSectorQuery("");
 
   useEffect(() => {
     if (DistrictData?.data) {
@@ -92,8 +61,7 @@ function NewProfile() {
     if (CountryData?.data) {
       setCountries(CountryData.data);
     }
-    if (OrganizationsData?.data) setOrganizations(OrganizationsData.data);
-  }, [DistrictData, CountryData, OrganizationsData]);
+  }, [DistrictData, CountryData]);
   const isProfileComplete = useMemo(() => {
     return SECTIONS.every((section) =>
       ["success", "skipped"].includes(sectionFeedback[section.id])
@@ -116,19 +84,10 @@ function NewProfile() {
     }
   }, []);
 
-  const handleSectionSkip = useCallback((sectionId: number) => {
-    setSectionFeedback((prev) => ({ ...prev, [sectionId]: "skipped" }));
-    setActiveSection(sectionId + 1);
-  }, []);
-
   const handleSectionError = useCallback((sectionId: number) => {
     setSectionFeedback((prev) => ({ ...prev, [sectionId]: "error" }));
     setActiveSection(sectionId);
   }, []);
-
-  useEffect(() => {
-    if (WorkingSectorsData?.data) setWorkingSectors(WorkingSectorsData.data);
-  }, [WorkingSectorsData]);
 
   const handleReactivate = useCallback(
     (sectionId: number) => {
@@ -209,30 +168,6 @@ function NewProfile() {
                 onError={() => handleSectionError(1)}
                 newId={newUserId}
                 setUserId={setUserId}
-              />
-            )}
-            {section.id === 2 && (
-              <AddFoundedInfo
-                countries={countries}
-                districts={districts}
-                organizations={organizations}
-                workingSectors={workingSectors}
-                onSuccess={() => handleSectionSuccess(2)}
-                onError={() => handleSectionError(2)}
-                onSkip={() => handleSectionSkip(2)}
-                newId={userId}
-              />
-            )}
-            {section.id === 3 && (
-              <AddEmployedInfo
-                countries={countries}
-                districts={districts}
-                organizations={organizations}
-                workingSectors={workingSectors}
-                onSuccess={() => handleSectionSuccess(3)}
-                onError={() => handleSectionError(3)}
-                onSkip={() => handleSectionSkip(3)}
-                newId={userId}
               />
             )}
           </SectionWrapper>

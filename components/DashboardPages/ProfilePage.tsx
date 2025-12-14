@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import relativeTime from "dayjs/plugin/relativeTime";
 import dayjs from "dayjs";
 import {
@@ -19,6 +19,7 @@ import { EditIcon, Nut } from "lucide-react";
 import { getUser } from "@/helpers/auth";
 import { useRouter, useSearchParams } from "next/navigation";
 import { RoleChip } from "../ui/role-chip";
+import { useGetOrganizationsForUserQuery } from "@/lib/features/orgSlice";
 
 function ProfilePage() {
   dayjs.extend(relativeTime);
@@ -30,11 +31,16 @@ function ProfilePage() {
   const [activeTab, setActiveTab] = useState(0);
   const [roleModal, setRoleModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [foundedOrganizations, setFoundedOrganizations] = useState<any[]>([]);
+  const [employedOrganizations, setEmployedOrganizations] = useState<any[]>([]);
 
   const targetId = userId ?? authUser?.id;
   const userProfile = useGetOneUserQuery(targetId, {
     skip: !targetId,
   });
+
+  const { data: organizations, isLoading } =
+    useGetOrganizationsForUserQuery(targetId);
 
   const [change] = useChangeMutation();
   const user: Member = userProfile?.data;
@@ -45,6 +51,24 @@ function ProfilePage() {
     setActiveTab(index);
   };
 
+  useEffect(() => {
+    if (organizations?.data?.length) {
+      const foundedOrgs = organizations.data.filter(
+        (org: any) => org.relation === "founded"
+      );
+
+      const employedOrgs = organizations.data.filter(
+        (org: any) => org.relation === "employed"
+      );
+
+      console.log("founded", foundedOrgs);
+      console.log("employed", employedOrgs);
+
+      setFoundedOrganizations(foundedOrgs);
+      setEmployedOrganizations(employedOrgs);
+    }
+  }, [organizations]);
+
   const tabs = [
     {
       label: "Personal Details",
@@ -52,15 +76,15 @@ function ProfilePage() {
     },
     {
       label: "Initiative / Organization",
-      content: <Founded user={user} />,
+      content: <Founded orgs={foundedOrganizations} />,
     },
     {
       label: "Employment History",
-      content: <Employment user={user} />,
+      content: <Employment orgs={employedOrganizations} />,
     },
   ];
 
-  if (loading || !authUser) {
+  if (loading || !authUser || isLoading) {
     return <Loading />;
   }
 

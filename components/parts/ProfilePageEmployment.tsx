@@ -1,66 +1,120 @@
 "use client";
 
-import { Member } from "@/types/user";
+import { Building2, PlusCircle } from "lucide-react";
 import DisplayField from "../ui/DisplayField";
 
-export const Employment = ({ user }: { user: Member | null }) => (
-  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
-    <div className="flex flex-col">
-      <label className="text-sm font-semibold text-gray-500 mb-1">
-        Company Name:
-      </label>
-      <DisplayField text={user?.organizationEmployed?.name} />
+export const NoOrg = () => {
+  return (
+    <div className="flex flex-col items-center justify-center text-center p-8 border border-dashed border-gray-300 rounded-xl bg-gray-50">
+      <Building2 className="w-12 h-12 text-gray-400 mb-4" />
+      <h3 className="text-lg font-semibold text-gray-700">
+        No organizations yet
+      </h3>
+      <p className="text-sm text-gray-500 mt-1 mb-4 max-w-sm">
+        You haven’t added or been linked to any organization. Click button below
+        to create or add an organization so it appears here.
+      </p>
+      <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition">
+        <PlusCircle className="w-4 h-4" />
+        Add or Link an Organization
+      </button>
     </div>
-    <div className="flex flex-col">
-      <label className="text-sm font-semibold text-gray-500 mb-1">
-        Company Sector:
-      </label>
-      <DisplayField text={user?.organizationEmployed?.workingSector?.name} />
-    </div>
-    <div className="flex flex-col">
-      <label className="text-sm font-semibold text-gray-500 mb-1">
-        Your Position:
-      </label>
-      <DisplayField text={user?.positionInEmployed || "--"} />
-    </div>
-    <div className="flex flex-col">
-      <label className="text-sm font-semibold text-gray-500 mb-1">
-        Website:
-      </label>
-      <DisplayField text={user?.organizationEmployed?.website} />
-    </div>
-    <div className="flex flex-col">
-      <label className="text-sm font-semibold text-gray-500 mb-1">
-        Country:
-      </label>
-      <DisplayField text={user?.organizationEmployed?.country?.name} />
-    </div>
-    {user?.organizationEmployed &&
-      user?.organizationEmployed?.country?.id === "RW" && (
-        <div className="flex flex-col">
-          <label className="text-sm font-semibold text-gray-500 mb-1">
-            District:
-          </label>
-          <DisplayField text={user?.organizationEmployed?.district?.name} />
+  );
+};
+
+export const Employment = ({ orgs }: { orgs: any[] }) => {
+  if (orgs.length === 0) {
+    return <NoOrg />;
+  }
+
+  return (
+    <div className="space-y-10">
+      {orgs.map((org, index) => (
+        <div
+          key={org?.id}
+          className="p-6 rounded-xl border border-gray-200 bg-white shadow-sm"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-base font-semibold text-gray-800">
+              Organization {index + 1}
+            </h3>
+            {org?.relation && (
+              <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600 capitalize">
+                {org.relation}
+              </span>
+            )}
+          </div>
+
+          {/* Organization details */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+            <div className="flex flex-col">
+              <label className="text-sm font-semibold text-gray-500 mb-1">
+                Company Name:
+              </label>
+              <DisplayField text={org?.name} />
+            </div>
+
+            <div className="flex flex-col">
+              <label className="text-sm font-semibold text-gray-500 mb-1">
+                Company Sectors:
+              </label>
+              <DisplayField
+                text={(org?.workingSectors ?? [])
+                  .map((v: any) => v.name)
+                  .join(", ")}
+              />
+            </div>
+
+            <div className="flex flex-col">
+              <label className="text-sm font-semibold text-gray-500 mb-1">
+                Your Position:
+              </label>
+              <DisplayField text={org?.position} />
+            </div>
+
+            <div className="flex flex-col">
+              <label className="text-sm font-semibold text-gray-500 mb-1">
+                Website:
+              </label>
+              <DisplayField text={org?.website} />
+            </div>
+
+            <div className="flex flex-col">
+              <label className="text-sm font-semibold text-gray-500 mb-1">
+                Country:
+              </label>
+              <DisplayField text={org?.country?.name} />
+            </div>
+
+            {org?.country?.id === "RW" && (
+              <>
+                <div className="flex flex-col">
+                  <label className="text-sm font-semibold text-gray-500 mb-1">
+                    District:
+                  </label>
+                  <DisplayField text={org?.district?.name} />
+                </div>
+
+                <div className="flex flex-col">
+                  <label className="text-sm font-semibold text-gray-500 mb-1">
+                    Sector:
+                  </label>
+                  <DisplayField text={org?.sector?.name} />
+                </div>
+              </>
+            )}
+
+            {org?.country?.id !== "RW" && (
+              <div className="flex flex-col">
+                <label className="text-sm font-semibold text-gray-500 mb-1">
+                  State:
+                </label>
+                <DisplayField text={org?.state?.name} />
+              </div>
+            )}
+          </div>
         </div>
-      )}
-    {user?.organizationEmployed &&
-      user?.organizationEmployed?.country?.id === "RW" && (
-        <div className="flex flex-col">
-          <label className="text-sm font-semibold text-gray-500 mb-1">
-            Sector:
-          </label>
-          <DisplayField text={user?.organizationEmployed?.sector?.name} />
-        </div>
-      )}
-    {user?.organizationEmployed &&
-      user?.organizationEmployed?.country?.id !== "RW" && (
-        <div className="flex flex-col">
-          <label className="text-sm font-semibold text-gray-500 mb-1">
-            State:
-          </label>
-          <DisplayField text={user?.organizationEmployed?.state?.name} />
-        </div>
-      )}
-  </div>
-);
+      ))}
+    </div>
+  );
+};
