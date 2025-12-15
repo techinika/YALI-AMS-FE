@@ -60,7 +60,6 @@ function Notifications() {
 
   const rawNotifications = data?.notifications || [];
 
-  // Use useMemo to sort the notifications only when the raw list changes
   const sortedNotifications: NotificationItem[] = useMemo(() => {
     return [...rawNotifications].sort(
       (a: NotificationItem, b: NotificationItem) =>

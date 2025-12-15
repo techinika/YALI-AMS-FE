@@ -7,9 +7,6 @@ import {
   useChangeMutation,
   useGetOneUserQuery,
 } from "@/lib/features/userSlice";
-import { Personal } from "../parts/ProfilePagePersonal";
-import { Founded } from "../parts/ProfilePageFounded";
-import { Employment } from "../parts/ProfilePageEmployment";
 import Loading from "@/app/loading";
 import ConfirmModal from "../parts/models/confirmModal";
 import { Member } from "@/types/user";
@@ -19,7 +16,12 @@ import { EditIcon, Nut } from "lucide-react";
 import { getUser } from "@/helpers/auth";
 import { useRouter, useSearchParams } from "next/navigation";
 import { RoleChip } from "../ui/role-chip";
-import { useGetOrganizationsForUserQuery } from "@/lib/features/orgSlice";
+import {
+  useGetOrganizationsForUserQuery,
+  useOrganizationsQuery,
+} from "@/lib/features/orgSlice";
+import { Personal } from "../parts/profile/ProfilePagePersonal";
+import { ShowOrganizationOnProfile } from "../parts/profile/ShowOrganizations";
 
 function ProfilePage() {
   dayjs.extend(relativeTime);
@@ -33,6 +35,7 @@ function ProfilePage() {
   const [loading, setLoading] = useState(false);
   const [foundedOrganizations, setFoundedOrganizations] = useState<any[]>([]);
   const [employedOrganizations, setEmployedOrganizations] = useState<any[]>([]);
+  const [allOrganizations, setAllOrganizations] = useState([]);
 
   const targetId = userId ?? authUser?.id;
   const userProfile = useGetOneUserQuery(targetId, {
@@ -41,6 +44,7 @@ function ProfilePage() {
 
   const { data: organizations, isLoading } =
     useGetOrganizationsForUserQuery(targetId);
+  const { data: OrganizationsData } = useOrganizationsQuery("");
 
   const [change] = useChangeMutation();
   const user: Member = userProfile?.data;
@@ -52,7 +56,7 @@ function ProfilePage() {
   };
 
   useEffect(() => {
-    if (organizations?.data?.length) {
+    if (organizations?.data?.length > 0) {
       const foundedOrgs = organizations.data.filter(
         (org: any) => org.relation === "founded"
       );
@@ -66,6 +70,12 @@ function ProfilePage() {
     }
   }, [organizations]);
 
+  useEffect(() => {
+    if (OrganizationsData?.data) {
+      setAllOrganizations(OrganizationsData?.data);
+    }
+  }, [OrganizationsData]);
+
   const tabs = [
     {
       label: "Personal Details",
@@ -73,11 +83,23 @@ function ProfilePage() {
     },
     {
       label: "Initiative / Organization",
-      content: <Founded orgs={foundedOrganizations} />,
+      content: (
+        <ShowOrganizationOnProfile
+          orgs={foundedOrganizations}
+          targetId={targetId}
+          allOrganizations={allOrganizations}
+        />
+      ),
     },
     {
       label: "Employment History",
-      content: <Employment orgs={employedOrganizations} />,
+      content: (
+        <ShowOrganizationOnProfile
+          orgs={employedOrganizations}
+          targetId={targetId}
+          allOrganizations={allOrganizations}
+        />
+      ),
     },
   ];
 

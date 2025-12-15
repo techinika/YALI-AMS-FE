@@ -75,7 +75,6 @@ const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
           return user;
         });
 
-        console.log(users);
         setPreviewData(users);
         setUploadError("");
       } catch (err) {

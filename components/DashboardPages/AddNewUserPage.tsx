@@ -1,20 +1,17 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import AddPersonalInfo from "../parts/AddPersonalInfo";
 import { MdCheck } from "react-icons/md";
 import ImportUsersModal from "../parts/models/ImportMembersModal";
 import { PageHeader } from "../parts/PageHeader";
 import { Upload, User } from "lucide-react";
-import {
-  Country,
-  ResidentDistrict,
-} from "@/types/user";
+import { Country, ResidentDistrict } from "@/types/user";
 import {
   useCountriesQuery,
   useDistrictsQuery,
 } from "@/lib/features/otherSlice";
 import SectionWrapper from "../parts/SessionWrapper";
+import AddPersonalInfo from "../parts/insertUser/AddPersonalInfo";
 
 const SECTIONS = [
   {
@@ -84,27 +81,6 @@ function NewProfile() {
     setActiveSection(sectionId);
   }, []);
 
-  const handleReactivate = useCallback(
-    (sectionId: number) => {
-      const section = SECTIONS.find((s) => s.id === sectionId);
-      const status = sectionFeedback[sectionId];
-      if (section && section.canRevisit && status !== "success") {
-        setSectionFeedback((prev) => ({ ...prev, [sectionId]: "idle" }));
-        setActiveSection(sectionId);
-      }
-    },
-    [sectionFeedback]
-  );
-  const isSectionReady = useCallback(
-    (sectionId: number): boolean => {
-      if (sectionId === 1) return true;
-      const prevSectionId = sectionId - 1;
-      const prevStatus = sectionFeedback[prevSectionId];
-      return prevStatus === "success" || prevStatus === "skipped";
-    },
-    [sectionFeedback]
-  );
-
   if (submissionStatus === "success") {
     return (
       <div className="mt-8 p-8 bg-green-50 rounded-xl shadow-lg border border-green-200 text-center max-w-lg mx-auto">
@@ -149,11 +125,6 @@ function NewProfile() {
             id={section.id}
             title={section.title}
             mandatory={section.mandatory}
-            isOptional={!section.mandatory && section.skip}
-            currentStatus={sectionFeedback[section.id] || "idle"}
-            isActive={activeSection === section.id}
-            isReady={isSectionReady(section.id)}
-            onReactivate={handleReactivate}
           >
             {section.id === 1 && (
               <AddPersonalInfo
