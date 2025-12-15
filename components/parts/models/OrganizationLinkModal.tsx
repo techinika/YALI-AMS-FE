@@ -5,13 +5,13 @@ import { MultiSelectSearch } from "@/components/ui/muti-select-search";
 import { TailwindInput } from "@/components/ui/tail-input";
 import { TailwindSelect } from "@/components/ui/tail-select";
 import { getUser } from "@/helpers/auth";
-import { useAddNewOrganizationMutation } from "@/lib/features/orgSlice";
 import {
-  useCountriesQuery,
-  useDistrictsQuery,
+  useAddNewOrganizationMutation,
+  useAddWStoOrgMutation,
+} from "@/lib/features/orgSlice";
+import {
   useSectorsByDistrictQuery,
   useStatesByCountryQuery,
-  useWorkingSectorQuery,
 } from "@/lib/features/otherSlice";
 import { useAssociateOrganizationMutation } from "@/lib/features/userSlice";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -29,12 +29,18 @@ interface OrganizationLinkModalProps {
   closeModal: () => void;
   organizations?: Organization[];
   userId: string;
+  workingSectors: any[];
+  countries: any[];
+  districts: any[];
 }
 
 export default function OrganizationLinkModal({
   closeModal,
   organizations = [],
   userId,
+  workingSectors,
+  countries,
+  districts,
 }: OrganizationLinkModalProps) {
   const user = getUser();
   const router = useRouter();
@@ -57,21 +63,15 @@ export default function OrganizationLinkModal({
   const [query, setQuery] = useState("");
   const [associateOrganization] = useAssociateOrganizationMutation();
   const [addNewOrganization] = useAddNewOrganizationMutation();
+  const [addWStoOrg] = useAddWStoOrgMutation();
   const [formData, setFormData] = useState(initData);
   const [formData2, setFormData2] = useState(initData2);
   const [activeTab, setActiveTab] = useState(0);
   const [saving, setSaving] = useState(false);
   const [sectors, setSectors] = useState([]);
-  const [districts, setDistricts] = useState([]);
-  const [countries, setCountries] = useState([]);
-  const [workingSectors, setWorkingSectors] = useState([]);
   const [states, setStates] = useState<any>([]);
   const [selectedCountry, setSelectedCountry] = useState("");
   const [selectedDistrict, setSelectedDistrict] = useState("");
-
-  const { data: CountryData } = useCountriesQuery("");
-  const { data: DistrictData } = useDistrictsQuery("");
-  const { data: WorkingSectorsData } = useWorkingSectorQuery("");
 
   const { data: SectorsData } = useSectorsByDistrictQuery(selectedDistrict, {
     skip: !selectedDistrict,
@@ -82,28 +82,10 @@ export default function OrganizationLinkModal({
   });
 
   useEffect(() => {
-    if (WorkingSectorsData) {
-      setWorkingSectors(WorkingSectorsData?.data || []);
-    }
-  }, [WorkingSectorsData]);
-
-  useEffect(() => {
     if (SectorsData) {
       setSectors(SectorsData?.data || []);
     }
   }, [SectorsData]);
-
-  useEffect(() => {
-    if (CountryData) {
-      setCountries(CountryData?.data || []);
-    }
-  }, [CountryData]);
-
-  useEffect(() => {
-    if (DistrictData) {
-      setDistricts(DistrictData?.data || []);
-    }
-  }, [DistrictData]);
 
   useEffect(() => {
     if (StatesData) {
@@ -143,6 +125,10 @@ export default function OrganizationLinkModal({
         name: formData2?.name,
         website: formData2.website,
         addedById: user?.id,
+        countryId: formData2.countryId,
+        districtId: formData2.districtId,
+        sectorId: formData2.sectorId,
+        stateId: formData2.stateId,
       }).unwrap();
       const res2 = await associateOrganization({
         organizationId: res?.data?.id,
@@ -150,6 +136,15 @@ export default function OrganizationLinkModal({
         relation: formData2?.relation,
         position: formData2?.position,
       }).unwrap();
+      await Promise.all(
+        formData2.workingSectors.map((v) =>
+          addWStoOrg({
+            userId,
+            organizationId: res.data.id,
+            wsId: v,
+          }).unwrap()
+        )
+      );
       toastSuccess("Organization created and added Successfully!");
     } catch (error) {
       console.log(error);
@@ -162,8 +157,24 @@ export default function OrganizationLinkModal({
     }
   };
 
+  const wsOptions = React.useMemo(
+    () =>
+      (workingSectors ?? []).map((ws: any) => ({
+        id: ws.id,
+        name: ws.name,
+      })),
+    [workingSectors]
+  );
+
   const handleTabClick = (index: number) => {
     setActiveTab(index);
+  };
+
+  const handleMultiChange = (key: string) => (values: string[]) => {
+    setFormData2((prev) => ({
+      ...prev,
+      [key]: values,
+    }));
   };
 
   const tabs = [
@@ -217,33 +228,35 @@ export default function OrganizationLinkModal({
               <label className="block text-sm font-medium mb-1">
                 Add Additional Data
               </label>
-              <TailwindInput
-                label="Your position in this organization?"
-                id="position"
-                value={formData.position}
-                onChange={(e: any) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    position: e.target.value,
-                  }))
-                }
-                placeholder="Your position in this organization?"
-              />
-              <TailwindSelect
-                label="Relationship with this Organization"
-                id="relation"
-                value={formData.relation}
-                onChange={(e: any) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    relation: e.target.value,
-                  }))
-                }
-                options={[
-                  { id: "founded", name: "Organization You Founded" },
-                  { id: "employed", name: "Organization that Employs you" },
-                ]}
-              />
+              <div className="grid grid-cols-2 gap-3">
+                <TailwindInput
+                  label="Your position in this organization?"
+                  id="position"
+                  value={formData.position}
+                  onChange={(e: any) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      position: e.target.value,
+                    }))
+                  }
+                  placeholder="Your position in this organization?"
+                />
+                <TailwindSelect
+                  label="Relationship with this Organization"
+                  id="relation"
+                  value={formData.relation}
+                  onChange={(e: any) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      relation: e.target.value,
+                    }))
+                  }
+                  options={[
+                    { id: "founded", name: "Organization You Founded" },
+                    { id: "employed", name: "Organization that Employs you" },
+                  ]}
+                />
+              </div>
             </div>
           )}
         </div>
@@ -282,14 +295,9 @@ export default function OrganizationLinkModal({
 
             <MultiSelectSearch
               label="Working Sectors"
-              options={workingSectors ?? []}
+              options={wsOptions}
               value={formData2.workingSectors || []}
-              onChange={(e: any) =>
-                setFormData2((prev) => ({
-                  ...prev,
-                  WorkingSectors: e.target.value,
-                }))
-              }
+              onChange={handleMultiChange("workingSectors")}
             />
 
             <TailwindSelect
@@ -341,7 +349,7 @@ export default function OrganizationLinkModal({
                 <TailwindSelect
                   label="State/Province"
                   id="org_state"
-                  value={formData2.districtId}
+                  value={formData2.stateId}
                   onChange={(e: any) =>
                     setFormData2((prev) => ({
                       ...prev,

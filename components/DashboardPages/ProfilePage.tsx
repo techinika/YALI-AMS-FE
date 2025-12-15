@@ -22,6 +22,11 @@ import {
 } from "@/lib/features/orgSlice";
 import { Personal } from "../parts/profile/ProfilePagePersonal";
 import { ShowOrganizationOnProfile } from "../parts/profile/ShowOrganizations";
+import {
+  useCountriesQuery,
+  useDistrictsQuery,
+  useWorkingSectorQuery,
+} from "@/lib/features/otherSlice";
 
 function ProfilePage() {
   dayjs.extend(relativeTime);
@@ -36,11 +41,18 @@ function ProfilePage() {
   const [foundedOrganizations, setFoundedOrganizations] = useState<any[]>([]);
   const [employedOrganizations, setEmployedOrganizations] = useState<any[]>([]);
   const [allOrganizations, setAllOrganizations] = useState([]);
+  const [districts, setDistricts] = useState<any>([]);
+  const [countries, setCountries] = useState<any>([]);
+  const [workingSectors, setWorkingSectors] = useState<any>([]);
 
   const targetId = userId ?? authUser?.id;
   const userProfile = useGetOneUserQuery(targetId, {
     skip: !targetId,
   });
+
+  const { data: CountryData } = useCountriesQuery("");
+  const { data: DistrictData } = useDistrictsQuery("");
+  const { data: WorkingSectorsData } = useWorkingSectorQuery("");
 
   const { data: organizations, isLoading } =
     useGetOrganizationsForUserQuery(targetId);
@@ -50,6 +62,24 @@ function ProfilePage() {
   const user: Member = userProfile?.data;
 
   const isAdmin = authUser?.role?.name === "ADMIN";
+
+  useEffect(() => {
+    if (DistrictData) {
+      setDistricts(DistrictData?.data || []);
+    }
+  }, [DistrictData]);
+
+  useEffect(() => {
+    if (WorkingSectorsData) {
+      setWorkingSectors(WorkingSectorsData?.data || []);
+    }
+  }, [WorkingSectorsData]);
+
+  useEffect(() => {
+    if (CountryData) {
+      setCountries(CountryData?.data || []);
+    }
+  }, [CountryData]);
 
   const handleTabClick = (index: number) => {
     setActiveTab(index);
@@ -88,6 +118,9 @@ function ProfilePage() {
           orgs={foundedOrganizations}
           targetId={targetId}
           allOrganizations={allOrganizations}
+          districts={districts}
+          countries={countries}
+          workingSectors={workingSectors}
         />
       ),
     },
@@ -98,6 +131,9 @@ function ProfilePage() {
           orgs={employedOrganizations}
           targetId={targetId}
           allOrganizations={allOrganizations}
+          districts={districts}
+          countries={countries}
+          workingSectors={workingSectors}
         />
       ),
     },

@@ -16,11 +16,17 @@ export const ShowOrganizationToUpdate = ({
   userId,
   refetch,
   organizations,
+  districts,
+  countries,
+  workingSectors,
 }: {
   orgs: any[];
   userId: string;
   refetch: any;
   organizations: any[];
+  districts: any[];
+  countries: any[];
+  workingSectors: any[];
 }) => {
   const router = useRouter();
   const initDeleteData = {
@@ -34,6 +40,7 @@ export const ShowOrganizationToUpdate = ({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [idToEdit, setIdToEdit] = useState(0);
+  const [connectId, setConnectId] = useState("");
   const [orgLinkModalOpen, setOrgLinkModalOpen] = useState(false);
 
   const [removeUserOrganization] = useRemoveUserOrganizationMutation();
@@ -63,7 +70,15 @@ export const ShowOrganizationToUpdate = ({
   };
 
   if (orgs.length === 0) {
-    return <NoOrg organizations={organizations} targetId={userId} />;
+    return (
+      <NoOrg
+        districts={districts}
+        countries={countries}
+        workingSectors={workingSectors}
+        organizations={organizations}
+        targetId={userId}
+      />
+    );
   }
 
   return (
@@ -84,10 +99,23 @@ export const ShowOrganizationToUpdate = ({
           closeModal={() => setOrgLinkModalOpen(false)}
           organizations={organizations ?? []}
           userId={userId}
+          districts={districts}
+          countries={countries}
+          workingSectors={workingSectors}
         />
       )}
 
-      {editOpen && <UpdateOrgForm closeModal={() => setEditOpen(false)} />}
+      {editOpen && (
+        <UpdateOrgForm
+          districts={districts}
+          countries={countries}
+          workingSectors={workingSectors}
+          closeModal={() => setEditOpen(false)}
+          idToEdit={idToEdit}
+          connectionId={connectId}
+          userId={userId}
+        />
+      )}
       <div className="flex items-center justify-center">
         <button
           onClick={() => setOrgLinkModalOpen(true)}
@@ -117,6 +145,7 @@ export const ShowOrganizationToUpdate = ({
                 onClick={() => {
                   setIdToEdit(org?.id);
                   setEditOpen(true);
+                  setConnectId(org?.connectId);
                 }}
                 className="text-xs px-2 py-1 rounded-full bg-green-600 text-white capitalize"
               >

@@ -9,6 +9,7 @@ import {
   useSectorsByDistrictQuery,
   useStatesByCountryQuery,
   useTracksQuery,
+  useWorkingSectorQuery,
 } from "@/lib/features/otherSlice";
 import {
   useGetOneUserQuery,
@@ -67,6 +68,7 @@ function UpdateProfilePage() {
   const [countries, setCountries] = useState<any>([]);
   const [sectors, setSectors] = useState<any>([]);
   const [tracks, setTracks] = useState<any>([]);
+  const [workingSectors, setWorkingSectors] = useState<any>([]);
   const [selectedDistrict, setSelectedDistrict] = useState<string>("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -85,6 +87,7 @@ function UpdateProfilePage() {
   const { data: UserData, refetch } = useGetOneUserQuery<{ data: Member }>(
     targetId
   );
+
   const usr: Member | undefined = UserData;
 
   const [values, setValues] = useState<any>(getInitialValues(usr));
@@ -96,11 +99,18 @@ function UpdateProfilePage() {
   const { data: DistrictData } = useDistrictsQuery("");
   const { data: TracksData } = useTracksQuery("");
   const { data: AllOrganizationsData } = useOrganizationsQuery("");
+  const { data: WorkingSectorsData } = useWorkingSectorQuery("");
   const { data: userOrganizations, refetch: organizationRefetch } =
     useGetOrganizationsForUserQuery(targetId);
   const { data: SectorsData } = useSectorsByDistrictQuery(selectedDistrict, {
     skip: !selectedDistrict,
   });
+
+  useEffect(() => {
+    if (WorkingSectorsData) {
+      setWorkingSectors(WorkingSectorsData?.data || []);
+    }
+  }, [WorkingSectorsData]);
 
   const { data: StatesData } = useStatesByCountryQuery(country, {
     skip: !country,
@@ -403,6 +413,9 @@ function UpdateProfilePage() {
           userId={targetId}
           refetch={organizationRefetch}
           organizations={allOrganizations}
+          districts={districts}
+          countries={countries}
+          workingSectors={workingSectors}
         />
       ),
     },
@@ -414,6 +427,9 @@ function UpdateProfilePage() {
           userId={targetId}
           refetch={organizationRefetch}
           organizations={allOrganizations}
+          districts={districts}
+          countries={countries}
+          workingSectors={workingSectors}
         />
       ),
     },

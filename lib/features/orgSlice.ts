@@ -21,6 +21,13 @@ export const orgsSlices = createApi({
         body: data,
       }),
     }),
+    updateOrganization: builder.mutation({
+      query: (data) => ({
+        url: `organizations/update`,
+        method: "PUT",
+        body: data,
+      }),
+    }),
     addWStoOrg: builder.mutation({
       query: (data) => ({
         url: `organizations/ws/add`,
@@ -45,4 +52,5 @@ export const {
   useAddNewOrganizationMutation,
   useAddWStoOrgMutation,
   useRemoveWStoOrgMutation,
+  useUpdateOrganizationMutation,
 } = orgsSlices;

@@ -110,7 +110,7 @@ export const MultiSelectSearch: React.FC<Props> = ({
 
       {/* Dropdown */}
       {open && !disabled && filteredOptions.length > 0 && (
-        <div className="mt-1 max-h-56 overflow-auto rounded-lg border bg-white shadow-sm z-20">
+        <div className="mt-1 max-h-32 overflow-auto rounded-lg border bg-white shadow-sm z-20">
           {filteredOptions.map((opt) => (
             <div
               key={opt.id}
