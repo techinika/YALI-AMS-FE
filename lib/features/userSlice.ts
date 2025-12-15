@@ -7,7 +7,7 @@ export const usersSlices = createApi({
   tagTypes: ["Users"],
   endpoints: (builder) => ({
     users: builder.query({
-      query: (code) => `users`,
+      query: () => `users`,
     }),
     getOneUser: builder.query({
       query: (userId) => `users/${userId}`,
@@ -30,8 +30,6 @@ export const usersSlices = createApi({
         method: "PUT",
         body: {
           user: data?.user,
-          organizationFounded: data?.organizationFounded,
-          organizationEmployed: data?.organizationEmployed,
         },
       }),
     }),
@@ -66,8 +64,15 @@ export const usersSlices = createApi({
     }),
     associateOrganization: builder.mutation({
       query: (data) => ({
-        url: "users/org",
-        method: "PUT",
+        url: "users/org/add",
+        method: "POST",
+        body: data,
+      }),
+    }),
+    removeUserOrganization: builder.mutation({
+      query: (data) => ({
+        url: "users/org/remove",
+        method: "DELETE",
         body: data,
       }),
     }),
@@ -85,4 +90,5 @@ export const {
   useCreateUserProfileMutation,
   useInviteUserMutation,
   useAssociateOrganizationMutation,
+  useRemoveUserOrganizationMutation,
 } = usersSlices;

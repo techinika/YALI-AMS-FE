@@ -17,17 +17,20 @@ import {
   useUploadPictureMutation,
 } from "@/lib/features/userSlice";
 import { useEffect, useState } from "react";
-import { Founded } from "../parts/UpdateProfileFounded";
-import { Personal } from "../parts/UpdateProfilePersonal";
-import { Employment } from "../parts/UpdateProfileEmployment";
 import Loading from "@/app/loading";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { getUser } from "@/helpers/auth";
 import { MdCloudUpload, MdClose, MdEdit } from "react-icons/md";
 import { Member } from "@/types/user";
 import { PageHeader } from "../parts/PageHeader";
 import { Nut, Save } from "lucide-react";
 import { TextAreaField } from "../ui/textarea";
+import { Personal } from "../parts/update/UpdateProfilePersonal";
+import {
+  useGetOrganizationsForUserQuery,
+  useOrganizationsQuery,
+} from "@/lib/features/orgSlice";
+import { ShowOrganizationToUpdate } from "../parts/update/ShowOrganizations";
 
 const getInitialValues = (usr: Member | undefined) => ({
   firstName: usr?.firstName || "",
@@ -49,113 +52,76 @@ const getInitialValues = (usr: Member | undefined) => ({
   nearlestLandmark: usr?.nearestLandmark || "",
   track: usr?.track?.id || "",
   cohortId: usr?.cohort?.id || "",
-  initiativeName: usr?.organizationFounded?.name || "",
-  mainSector: usr?.organizationFounded?.workingSector?.id || "",
-  foundedPosition: usr?.positionInFounded || "",
-  foundedDistrictName: usr?.organizationFounded?.district?.id || "",
-  foundedSectorId: usr?.organizationFounded?.sector?.id || "",
-  foundedWebsite: usr?.organizationFounded?.website || "",
-  foundedCountry: usr?.organizationFounded?.country?.id || "",
-  foundedState: usr?.organizationFounded?.state?.id || "",
-  companyName: usr?.organizationEmployed?.name || "",
-  companySector: usr?.organizationEmployed?.workingSector?.id || "",
-  companyPosition: usr?.positionInEmployed || "",
-  companyWebsite: usr?.organizationEmployed?.website || "",
-  companyDistrictName: usr?.organizationEmployed?.district?.id || "",
-  companySectorId: usr?.organizationEmployed?.sector?.id || "",
-  companyState: usr?.organizationEmployed?.state?.id || "",
-  companyCountry: usr?.organizationEmployed?.country?.id || "",
   profileImageId: usr?.profileImage?.id || "",
 });
 
 function UpdateProfilePage() {
-  const { id } = useParams();
+  const searchParams = useSearchParams();
+  const userId = searchParams.get("userId");
   const user = getUser();
+  const targetId = userId ?? user?.id;
 
   const [activeTab, setActiveTab] = useState(0);
   const [genders, setGenders] = useState<any>([]);
   const [cohorts, setCohorts] = useState<any>([]);
   const [districts, setDistricts] = useState<any>([]);
-  const [districtsFounded, setDistrictsFounded] = useState<any>([]);
-  const [districtsEmployed, setDistrictsEmployed] = useState<any>([]);
   const [countries, setCountries] = useState<any>([]);
-  const [countriesFounded, setCountriesFounded] = useState<any>([]);
-  const [countriesEmployed, setCountriesEmployed] = useState<any>([]);
   const [sectors, setSectors] = useState<any>([]);
-  const [sectorsEmployed, setSectorsEmployed] = useState<any>([]);
-  const [sectorsFounded, setSectorsFounded] = useState<any>([]);
   const [tracks, setTracks] = useState<any>([]);
   const [workingSectors, setWorkingSectors] = useState<any>([]);
-  const [workingSectorsEmployed, setWorkingSectorsEmployed] = useState<any>([]);
-
   const [selectedDistrict, setSelectedDistrict] = useState<string>("");
-  const [selectedDistrictFounded, setSelectedDistrictFounded] =
-    useState<any>(null);
-  const [selectedDistrictEmployed, setSelectedDistrictEmployed] =
-    useState<any>(null);
-
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageData, setImageData] = useState<any>(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
-
   const [country, setCountry] = useState<string>("");
   const [states, setStates] = useState<any>([]);
-  const [employedCountry, setEmployedCountry] = useState("");
-  const [employedStates, setEmployedStates] = useState<any>([]);
-  const [foundedCountry, setFoundedCountry] = useState("");
-  const [foundedStates, setFoundedStates] = useState<any>([]);
   const [changeEmail, setChangeEmail] = useState(true);
+  const [allOrganizations, setAllOrganizations] = useState([]);
+  const [foundedOrganizations, setFoundedOrganizations] = useState<any[]>([]);
+  const [employedOrganizations, setEmployedOrganizations] = useState<any[]>([]);
 
   const [updatedUser] = useUpdatedUserMutation();
   const { data: UserData, refetch } = useGetOneUserQuery<{ data: Member }>(
-    id || user?.id
+    targetId
   );
+
   const usr: Member | undefined = UserData;
-  const authorized = false;
 
   const [values, setValues] = useState<any>(getInitialValues(usr));
   const [formErrors, setFormErrors] = useState<any>({});
 
   const { data: GenderData } = useGenderQuery("");
+  const { data: CohortsData } = useCohortsQuery("");
   const { data: CountryData } = useCountriesQuery("");
   const { data: DistrictData } = useDistrictsQuery("");
-  const { data: CohortsData } = useCohortsQuery("");
-  const { data: WorkingSectorsData } = useWorkingSectorQuery("");
   const { data: TracksData } = useTracksQuery("");
+  const { data: AllOrganizationsData } = useOrganizationsQuery("");
+  const { data: WorkingSectorsData } = useWorkingSectorQuery("");
+  const { data: userOrganizations, refetch: organizationRefetch } =
+    useGetOrganizationsForUserQuery(targetId);
   const { data: SectorsData } = useSectorsByDistrictQuery(selectedDistrict, {
     skip: !selectedDistrict,
   });
-  const { data: SectorsDataFounded } = useSectorsByDistrictQuery(
-    selectedDistrictFounded,
-    { skip: !selectedDistrictFounded }
-  );
-  const { data: SectorsDataEmployed } = useSectorsByDistrictQuery(
-    selectedDistrictEmployed,
-    { skip: !selectedDistrictEmployed }
-  );
+
+  useEffect(() => {
+    if (WorkingSectorsData) {
+      setWorkingSectors(WorkingSectorsData?.data || []);
+    }
+  }, [WorkingSectorsData]);
+
   const { data: StatesData } = useStatesByCountryQuery(country, {
     skip: !country,
   });
-  const { data: EmployedStatesData } = useStatesByCountryQuery(
-    employedCountry,
-    { skip: !employedCountry }
-  );
-  const { data: FoundedStatesData } = useStatesByCountryQuery(foundedCountry, {
-    skip: !foundedCountry,
-  });
+
   const [uploadPicture] = useUploadPictureMutation();
 
   useEffect(() => {
     if (usr) {
       setValues(getInitialValues(usr));
       if (usr?.residentCountry?.id) setCountry(usr.residentCountry.id);
-      if (usr?.organizationEmployed?.country?.id)
-        setEmployedCountry(usr.organizationEmployed.country.id);
-      if (usr?.organizationFounded?.country?.id)
-        setFoundedCountry(usr.organizationFounded.country.id);
 
       if (usr.profileImage?.id && !imagePreview) {
         setImagePreview(usr.profileImage.link);
@@ -168,11 +134,38 @@ function UpdateProfilePage() {
   }, [usr]);
 
   useEffect(() => {
-    if (WorkingSectorsData) {
-      setWorkingSectors(WorkingSectorsData?.data || []);
-      setWorkingSectorsEmployed(WorkingSectorsData?.data || []);
+    if (userOrganizations?.data?.length) {
+      const foundedOrgs = userOrganizations.data.filter(
+        (org: any) => org.relation === "founded"
+      );
+
+      const employedOrgs = userOrganizations.data.filter(
+        (org: any) => org.relation === "employed"
+      );
+
+      setFoundedOrganizations(foundedOrgs);
+      setEmployedOrganizations(employedOrgs);
     }
-  }, [WorkingSectorsData]);
+  }, [userOrganizations]);
+
+  useEffect(() => {
+    if (DistrictData) {
+      setDistricts(DistrictData?.data || []);
+    }
+  }, [DistrictData]);
+
+  useEffect(() => {
+    if (AllOrganizationsData) {
+      setAllOrganizations(AllOrganizationsData?.data || []);
+    }
+  }, [AllOrganizationsData]);
+
+  useEffect(() => {
+    if (CountryData) {
+      setCountries(CountryData?.data || []);
+    }
+  }, [CountryData]);
+
   useEffect(() => {
     if (TracksData) {
       setTracks(TracksData?.data || []);
@@ -194,47 +187,12 @@ function UpdateProfilePage() {
       setSectors(SectorsData?.data || []);
     }
   }, [SectorsData]);
-  useEffect(() => {
-    if (SectorsDataEmployed) {
-      setSectorsEmployed(SectorsDataEmployed?.data || []);
-    }
-  }, [SectorsDataEmployed]);
-  useEffect(() => {
-    if (SectorsDataFounded) {
-      setSectorsFounded(SectorsDataFounded?.data || []);
-    }
-  }, [SectorsDataFounded]);
-
-  useEffect(() => {
-    if (DistrictData) {
-      setDistricts(DistrictData?.data || []);
-      setDistrictsEmployed(DistrictData?.data || []);
-      setDistrictsFounded(DistrictData?.data || []);
-    }
-  }, [DistrictData]);
-  useEffect(() => {
-    if (CountryData) {
-      setCountries(CountryData?.data || []);
-      setCountriesEmployed(CountryData?.data || []);
-      setCountriesFounded(CountryData?.data || []);
-    }
-  }, [CountryData]);
 
   useEffect(() => {
     if (StatesData) {
       setStates(StatesData?.data || []);
     }
   }, [StatesData]);
-  useEffect(() => {
-    if (EmployedStatesData) {
-      setEmployedStates(EmployedStatesData?.data || []);
-    }
-  }, [EmployedStatesData]);
-  useEffect(() => {
-    if (FoundedStatesData) {
-      setFoundedStates(FoundedStatesData?.data || []);
-    }
-  }, [FoundedStatesData]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -278,26 +236,6 @@ function UpdateProfilePage() {
       setCountry(selectedValue.id === "RW" ? "RW" : selectedValue.id);
     } else if (id === "districtName") {
       setValues((prev: any) => ({ ...prev, sectorId: "" }));
-    } else if (id === "foundedCountry") {
-      setValues((prev: any) => ({
-        ...prev,
-        foundedState: "",
-        foundedDistrictName: "",
-        foundedSectorId: "",
-      }));
-      setFoundedCountry(selectedValue.id === "RW" ? "RW" : selectedValue.id);
-    } else if (id === "foundedDistrictName") {
-      setValues((prev: any) => ({ ...prev, foundedSectorId: "" }));
-    } else if (id === "companyCountry") {
-      setValues((prev: any) => ({
-        ...prev,
-        companyState: "",
-        companyDistrictName: "",
-        companySectorId: "",
-      }));
-      setEmployedCountry(selectedValue.id === "RW" ? "RW" : selectedValue.id);
-    } else if (id === "companyDistrictName") {
-      setValues((prev: any) => ({ ...prev, companySectorId: "" }));
     }
   };
 
@@ -313,8 +251,6 @@ function UpdateProfilePage() {
       errors.email = "Invalid email address";
     if (!values.residentCountryId)
       errors.residentCountryId = "Resident country is required";
-
-    // --- URL Validation ---
     if (values.linkedin && !urlRegex.test(values.linkedin))
       errors.linkedin = "Invalid LinkedIn URL";
     if (values.twitter && !urlRegex.test(values.twitter))
@@ -323,18 +259,10 @@ function UpdateProfilePage() {
       errors.instagram = "Invalid Instagram URL";
     if (values.facebook && !urlRegex.test(values.facebook))
       errors.facebook = "Invalid Facebook URL";
-    if (values.foundedWebsite && !urlRegex.test(values.foundedWebsite))
-      errors.foundedWebsite = "Invalid website URL";
-    if (values.companyWebsite && !urlRegex.test(values.companyWebsite))
-      errors.companyWebsite = "Invalid website URL";
-
-    // --- Phone Validation ---
     if (values.phoneNumber && !phoneRegex.test(values.phoneNumber))
       errors.phoneNumber = "Phone number must be digits and '+' only";
     if (values.whatsAppNumber && !phoneRegex.test(values.whatsAppNumber))
       errors.whatsAppNumber = "WhatsApp number must be digits and '+' only";
-
-    // --- Length Validation ---
     if (values.bio && values.bio.length > 500)
       errors.bio = "Bio cannot exceed 500 characters";
     if (values.nearlestLandmark && values.nearlestLandmark.length > 255)
@@ -376,42 +304,7 @@ function UpdateProfilePage() {
           residentSectorId: formValues.sectorId,
           residentCountryId: formValues.residentCountryId,
           state: formValues.state,
-          positionInFounded: formValues.foundedPosition,
-          positionInEmployed: formValues.companyPosition,
           profileImageId: formValues.profileImageId,
-        },
-        organizationFounded: {
-          id: usr?.organizationFounded?.id ?? undefined,
-          name:
-            formValues.initiativeName ??
-            usr?.organizationFounded?.name ??
-            undefined,
-          workingSectorId:
-            formValues.mainSector ??
-            usr?.organizationFounded?.workingSector?.id ??
-            undefined,
-          countryId: formValues.foundedCountry,
-          stateId:
-            formValues.foundedState ??
-            usr?.organizationFounded?.state?.id ??
-            undefined,
-          districtId: formValues.foundedDistrictName,
-          sectorId: formValues.foundedSectorId,
-          website: formValues.foundedWebsite,
-        },
-        organizationEmployed: {
-          id: usr?.organizationEmployed?.id ?? undefined,
-          name: formValues.companyName,
-          workingSectorId:
-            formValues.companySector ??
-            usr?.organizationEmployed?.workingSector?.id ??
-            undefined,
-          countryId: formValues.companyCountry,
-          stateId:
-            formValues.companyState ?? usr?.organizationEmployed?.state?.id,
-          districtId: formValues.companyDistrictName,
-          sectorId: formValues.companySectorId,
-          website: formValues.companyWebsite,
         },
       }).unwrap();
 
@@ -444,7 +337,7 @@ function UpdateProfilePage() {
     const file = e.target.files?.[0];
     if (file) {
       setImageData(file);
-      setUploadSuccess(false); // Reset upload status
+      setUploadSuccess(false);
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result as string);
@@ -504,7 +397,7 @@ function UpdateProfilePage() {
           usr={usr as Member}
           setSelectedDistrict={setSelectedDistrict}
           tracks={tracks}
-          auth={authorized}
+          auth={false}
           states={states}
           setCountry={setCountry}
           changeEmail={changeEmail}
@@ -515,40 +408,28 @@ function UpdateProfilePage() {
     {
       label: "Your Initiative (Founded)",
       content: (
-        <Founded
-          values={values}
-          handleChange={handleChange}
-          handleSelectChange={handleSelectChange}
-          errors={formErrors}
-          setSelectedDistrict={setSelectedDistrictFounded}
-          districts={districtsFounded}
-          sectors={sectorsFounded}
-          countries={countriesFounded}
+        <ShowOrganizationToUpdate
+          orgs={foundedOrganizations}
+          userId={targetId}
+          refetch={organizationRefetch}
+          organizations={allOrganizations}
+          districts={districts}
+          countries={countries}
           workingSectors={workingSectors}
-          usr={usr as Member}
-          auth={authorized}
-          states={foundedStates}
-          setCountry={setFoundedCountry}
         />
       ),
     },
     {
       label: "Employment History",
       content: (
-        <Employment
-          values={values}
-          handleChange={handleChange}
-          handleSelectChange={handleSelectChange}
-          errors={formErrors}
-          setSelectedDistrict={setSelectedDistrictEmployed}
-          districts={districtsEmployed}
-          sectors={sectorsEmployed}
-          countries={countriesEmployed}
-          workingSectors={workingSectorsEmployed}
-          usr={usr as Member}
-          auth={authorized}
-          states={employedStates}
-          setCountry={setEmployedCountry}
+        <ShowOrganizationToUpdate
+          orgs={employedOrganizations}
+          userId={targetId}
+          refetch={organizationRefetch}
+          organizations={allOrganizations}
+          districts={districts}
+          countries={countries}
+          workingSectors={workingSectors}
         />
       ),
     },
@@ -616,7 +497,6 @@ function UpdateProfilePage() {
                   type="file"
                   className="hidden"
                   onChange={handlePreview}
-                  disabled={authorized}
                 />
               </label>
             </div>
@@ -626,7 +506,7 @@ function UpdateProfilePage() {
                 <button
                   onClick={handleFileUpload}
                   className="flex items-center bg-green-500 hover:bg-green-600 text-white text-sm py-2 px-4 rounded-lg transition disabled:opacity-50"
-                  disabled={authorized || isLoading}
+                  disabled={isLoading}
                 >
                   <MdCloudUpload className="w-4 h-4 mr-2" />
                   {isLoading ? "Uploading..." : "Upload Image"}

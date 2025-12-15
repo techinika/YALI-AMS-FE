@@ -25,8 +25,8 @@ import { Cohort } from "@/types/cohort";
 import { TailwindInput } from "@/components/ui/tail-input";
 import { PhoneInputTailwind } from "@/components/ui/tail-phone";
 import { TailwindSelect } from "@/components/ui/tail-select";
-import { TailwindButton } from "../ui/tail-btn";
-import { TailwindAlert } from "../ui/tail0alert";
+import { TailwindButton } from "@/components/ui/tail-btn";
+import { TailwindAlert } from "@/components/ui/tail0alert";
 
 const CloudUploadIcon = (props: any) => (
   <svg

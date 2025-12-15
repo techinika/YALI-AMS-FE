@@ -1,7 +1,7 @@
 "use client";
 
+import DisplayField from "@/components/ui/DisplayField";
 import { Member } from "@/types/user";
-import DisplayField from "../ui/DisplayField";
 
 export const Personal = ({ user }: { user: Member }) => {
   return (

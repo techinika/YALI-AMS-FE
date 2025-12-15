@@ -1,15 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import relativeTime from "dayjs/plugin/relativeTime";
 import dayjs from "dayjs";
 import {
   useChangeMutation,
   useGetOneUserQuery,
 } from "@/lib/features/userSlice";
-import { Personal } from "../parts/ProfilePagePersonal";
-import { Founded } from "../parts/ProfilePageFounded";
-import { Employment } from "../parts/ProfilePageEmployment";
 import Loading from "@/app/loading";
 import ConfirmModal from "../parts/models/confirmModal";
 import { Member } from "@/types/user";
@@ -19,6 +16,17 @@ import { EditIcon, Nut } from "lucide-react";
 import { getUser } from "@/helpers/auth";
 import { useRouter, useSearchParams } from "next/navigation";
 import { RoleChip } from "../ui/role-chip";
+import {
+  useGetOrganizationsForUserQuery,
+  useOrganizationsQuery,
+} from "@/lib/features/orgSlice";
+import { Personal } from "../parts/profile/ProfilePagePersonal";
+import { ShowOrganizationOnProfile } from "../parts/profile/ShowOrganizations";
+import {
+  useCountriesQuery,
+  useDistrictsQuery,
+  useWorkingSectorQuery,
+} from "@/lib/features/otherSlice";
 
 function ProfilePage() {
   dayjs.extend(relativeTime);
@@ -30,20 +38,73 @@ function ProfilePage() {
   const [activeTab, setActiveTab] = useState(0);
   const [roleModal, setRoleModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [foundedOrganizations, setFoundedOrganizations] = useState<any[]>([]);
+  const [employedOrganizations, setEmployedOrganizations] = useState<any[]>([]);
+  const [allOrganizations, setAllOrganizations] = useState([]);
+  const [districts, setDistricts] = useState<any>([]);
+  const [countries, setCountries] = useState<any>([]);
+  const [workingSectors, setWorkingSectors] = useState<any>([]);
 
   const targetId = userId ?? authUser?.id;
   const userProfile = useGetOneUserQuery(targetId, {
     skip: !targetId,
   });
 
+  const { data: CountryData } = useCountriesQuery("");
+  const { data: DistrictData } = useDistrictsQuery("");
+  const { data: WorkingSectorsData } = useWorkingSectorQuery("");
+
+  const { data: organizations, isLoading } =
+    useGetOrganizationsForUserQuery(targetId);
+  const { data: OrganizationsData } = useOrganizationsQuery("");
+
   const [change] = useChangeMutation();
   const user: Member = userProfile?.data;
 
   const isAdmin = authUser?.role?.name === "ADMIN";
 
+  useEffect(() => {
+    if (DistrictData) {
+      setDistricts(DistrictData?.data || []);
+    }
+  }, [DistrictData]);
+
+  useEffect(() => {
+    if (WorkingSectorsData) {
+      setWorkingSectors(WorkingSectorsData?.data || []);
+    }
+  }, [WorkingSectorsData]);
+
+  useEffect(() => {
+    if (CountryData) {
+      setCountries(CountryData?.data || []);
+    }
+  }, [CountryData]);
+
   const handleTabClick = (index: number) => {
     setActiveTab(index);
   };
+
+  useEffect(() => {
+    if (organizations?.data?.length > 0) {
+      const foundedOrgs = organizations.data.filter(
+        (org: any) => org.relation === "founded"
+      );
+
+      const employedOrgs = organizations.data.filter(
+        (org: any) => org.relation === "employed"
+      );
+
+      setFoundedOrganizations(foundedOrgs);
+      setEmployedOrganizations(employedOrgs);
+    }
+  }, [organizations]);
+
+  useEffect(() => {
+    if (OrganizationsData?.data) {
+      setAllOrganizations(OrganizationsData?.data);
+    }
+  }, [OrganizationsData]);
 
   const tabs = [
     {
@@ -52,15 +113,33 @@ function ProfilePage() {
     },
     {
       label: "Initiative / Organization",
-      content: <Founded user={user} />,
+      content: (
+        <ShowOrganizationOnProfile
+          orgs={foundedOrganizations}
+          targetId={targetId}
+          allOrganizations={allOrganizations}
+          districts={districts}
+          countries={countries}
+          workingSectors={workingSectors}
+        />
+      ),
     },
     {
       label: "Employment History",
-      content: <Employment user={user} />,
+      content: (
+        <ShowOrganizationOnProfile
+          orgs={employedOrganizations}
+          targetId={targetId}
+          allOrganizations={allOrganizations}
+          districts={districts}
+          countries={countries}
+          workingSectors={workingSectors}
+        />
+      ),
     },
   ];
 
-  if (loading || !authUser) {
+  if (loading || !authUser || isLoading) {
     return <Loading />;
   }
 
