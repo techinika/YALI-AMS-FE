@@ -8,4 +8,5 @@ export interface Message {
   receiver: Member;
   senderId: string;
   createdAt: string;
+  public: boolean;
 }

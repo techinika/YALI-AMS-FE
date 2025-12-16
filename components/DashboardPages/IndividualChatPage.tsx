@@ -25,11 +25,13 @@ import { useUsersQuery } from "@/lib/features/userSlice";
 import {
   useAddMessageMutation,
   useChatsQuery,
+  usePrivateChatsQuery,
   usePrivateMessagesQuery,
 } from "@/lib/features/chatSlice";
 import { getUser } from "@/helpers/auth";
 import { Message } from "@/types/message";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { getSocket } from "@/lib/sockets";
 
 dayjs.extend(relativeTime);
 
@@ -61,17 +63,19 @@ const CustomAvatar = ({
   );
 };
 
-const ChatInterface = ({
-  username: initialUsername = "all",
-}: {
-  username?: string;
-}) => {
+const ChatInterface = () => {
   const router = useRouter();
   const user = getUser();
+  const searchParams = useSearchParams();
+  const oid: string = searchParams.get("rid") ?? "all";
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isFirstLoadRef = useRef(true);
+  const lastMessageIdRef = useRef<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
+  const socketRef = useRef<any>(null);
 
-  const [currentRecipientId, setCurrentRecipientId] =
-    useState<string>(initialUsername);
+  const [currentRecipientId, setCurrentRecipientId] = useState<string>(oid);
   const [messageInput, setMessageInput] = useState("");
   const [chatSearch, setChatSearch] = useState("");
   const [messageSearch, setMessageSearch] = useState("");
@@ -80,18 +84,65 @@ const ChatInterface = ({
 
   const { data: communityMessagesData } = useChatsQuery("", {
     skip: currentRecipientId !== "all",
-    pollingInterval: 500,
   });
   const { data: privateMessagesData } = usePrivateMessagesQuery(
     { id: currentRecipientId, oid: user?.id || "" },
-    { skip: currentRecipientId === "all", pollingInterval: 500 }
+    { skip: currentRecipientId === "all" }
   );
+
+  const { data: privateChatsData } = usePrivateChatsQuery(user?.id);
 
   const [addMessage] = useAddMessageMutation();
   const { data: allUsers } = useUsersQuery("");
   const { data: searchableUsers } = useUsersQuery(usersSearch);
 
   const members = allUsers?.data ?? [];
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const socket = getSocket();
+    socketRef.current = socket;
+
+    socket.emit("join-room", { room: user?.id });
+
+    socket.on("connection", () => {
+      console.log("Connected to socket:", socket.id);
+    });
+
+    socket.on("disconnect", () => {
+      console.log("Socket disconnected");
+    });
+
+    return () => {
+      socket.off("connection");
+      socket.off("disconnect");
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!socketRef.current) return;
+
+    const socket = socketRef.current;
+
+    const handleNewMessage = (message: Message) => {
+      if (
+        (currentRecipientId === "all" && message?.public) ||
+        (currentRecipientId !== "all" &&
+          !message?.public &&
+          (message.senderId === currentRecipientId ||
+            message.receiverId === currentRecipientId))
+      ) {
+        setMessages((prev) => [...prev, message]);
+      }
+    };
+
+    socket.on("new-message", handleNewMessage);
+
+    return () => {
+      socket.off("new-message", handleNewMessage);
+    };
+  }, [currentRecipientId]);
 
   const rawMessages: Message[] = useMemo(() => {
     if (currentRecipientId === "all") {
@@ -101,42 +152,41 @@ const ChatInterface = ({
     }
   }, [currentRecipientId, communityMessagesData, privateMessagesData]);
 
+  useEffect(() => {
+    if (rawMessages.length > 0) {
+      setMessages(rawMessages);
+    }
+  }, [rawMessages]);
+
   const privateChatPartners: Member[] = useMemo(() => {
-    const partnerIds = new Set<string>();
-    messages
-      .filter(
-        (m) =>
-          m.receiverId !== "" &&
-          (m.senderId === user?.id || m.receiverId === user?.id)
+    if (!privateChatsData?.data || !user?.id) return [];
+
+    const chatsMap = new Map<string, Message>();
+
+    [...privateChatsData.data]
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       )
-      .forEach((m) => {
-        const partnerId = m.senderId === user?.id ? m.receiverId : m.senderId;
-        partnerIds.add(partnerId);
+      .forEach((msg) => {
+        const otherUserId =
+          msg.senderId === user.id ? msg.receiverId : msg.senderId;
+
+        if (otherUserId && !chatsMap.has(otherUserId)) {
+          chatsMap.set(otherUserId, msg);
+        }
       });
 
-    const chatsMap = new Map();
-    [...messages].reverse().forEach((chat) => {
-      const otherUserId =
-        chat.senderId === user?.id ? chat.receiverId : chat.senderId;
-      if (otherUserId && otherUserId !== "") {
-        if (!chatsMap.has(otherUserId)) {
-          chatsMap.set(otherUserId, chat);
-        }
-      }
-    });
-
-    const latestChats = Array.from(chatsMap.values()) as Message[];
-
-    return latestChats
+    return Array.from(chatsMap.values())
       .map((chat) =>
-        members.data.find(
+        members.find(
           (u: Member) =>
             u.id ===
-            (chat.senderId === user?.id ? chat.receiverId : chat.senderId)
+            (chat.senderId === user.id ? chat.receiverId : chat.senderId)
         )
       )
-      .filter((u): u is Member => u !== undefined);
-  }, [user?.id, members]);
+      .filter((u): u is Member => Boolean(u));
+  }, [privateMessagesData?.data, members, user?.id]);
 
   const filteredChatList = useMemo(() => {
     const list = [
@@ -154,7 +204,7 @@ const ChatInterface = ({
         title: `${p.firstName} ${p.lastName}`,
         icon: User,
         isCommunity: false,
-        picture: p?.profileImage?.link,
+        picture: p?.profileImage?.link ?? "/placeholder.svg",
         lastMessage:
           messages.findLast(
             (m: Message) =>
@@ -172,7 +222,7 @@ const ChatInterface = ({
   }, [communityMessagesData, privateChatPartners, chatSearch, user?.id]);
 
   const displayedMessages = useMemo(() => {
-    let sorted = [...rawMessages].sort(
+    let sorted = [...messages].sort(
       (a, b) =>
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
@@ -183,10 +233,32 @@ const ChatInterface = ({
       );
     }
     return sorted;
-  }, [rawMessages, messageSearch]);
+  }, [messages, messageSearch]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!displayedMessages.length) return;
+
+    const lastMessage = displayedMessages.at(-1);
+    if (!lastMessage) return;
+
+    if (isFirstLoadRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+      isFirstLoadRef.current = false;
+      lastMessageIdRef.current = lastMessage.id;
+      return;
+    }
+
+    if (lastMessage.id !== lastMessageIdRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      lastMessageIdRef.current = lastMessage.id;
+    }
+
+    if (
+      lastMessage.id !== lastMessageIdRef.current &&
+      isNearBottomRef.current
+    ) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [displayedMessages]);
 
   const handleSubmit = useCallback(
@@ -202,7 +274,7 @@ const ChatInterface = ({
       };
 
       try {
-        await addMessage({ data: values }).unwrap();
+        socketRef.current?.emit("send-message", values);
         setMessageInput("");
       } catch (error) {
         console.error("Error sending message:", error);
@@ -228,7 +300,17 @@ const ChatInterface = ({
       : "Private conversation";
 
   return (
-    <div className="min-h-screen w-full p-4 md:p-8 bg-gray-50 font-sans">
+    <div
+      ref={containerRef}
+      onScroll={() => {
+        const el = containerRef.current;
+        if (!el) return;
+
+        isNearBottomRef.current =
+          el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+      }}
+      className="h-screen w-full m-2 bg-gray-50 overflow-hidden"
+    >
       <PageHeader
         title="Conversations"
         description="Chat with the community and build relationships privately."
@@ -244,7 +326,8 @@ const ChatInterface = ({
         disabled2={false}
         Icon2={Nut}
       />
-      <div className="container mx-auto h-full rounded-2xl shadow-2xl overflow-hidden bg-white flex flex-col lg:flex-row">
+
+      <div className="container mx-auto h-full rounded shadow-2xl overflow-hidden bg-white flex flex-col lg:flex-row">
         <div
           className={`flex flex-col w-full lg:w-80 shrink-0 border-r border-gray-100 ${
             currentRecipientId && "hidden md:flex"
@@ -320,6 +403,7 @@ const ChatInterface = ({
                                 : "hover:bg-gray-50"
                             }`}
                 onClick={() => {
+                  router.push(`/dashboard/chat?rid=${chat?.id}`);
                   setCurrentRecipientId(chat.id);
                   if (usersSearch) setUsersSearch("");
                 }}
@@ -362,7 +446,7 @@ const ChatInterface = ({
           <div className="p-4 border-b border-gray-100 bg-white shadow-md flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setCurrentRecipientId("all")} // Simple button to show sidebar on mobile
+                onClick={() => setCurrentRecipientId("all")}
                 className="md:hidden p-1 text-primary hover:text-indigo-800 transition"
                 aria-label="Back to chat list"
               >
@@ -372,7 +456,10 @@ const ChatInterface = ({
                 recipientUser?.profileImage?.link && (
                   <CustomAvatar
                     senderName={recipientUser.firstName}
-                    image={recipientUser?.profileImage?.link}
+                    image={
+                      `${recipientUser?.profileImage?.link}` ||
+                      "/placeholder.svg"
+                    }
                   />
                 )}
               <div className="flex flex-col">
@@ -407,7 +494,8 @@ const ChatInterface = ({
                 const senderName = senderUser
                   ? `${senderUser.firstName}`
                   : "Unknown";
-                const senderImage = senderUser?.profileImage?.link;
+                const senderImage =
+                  senderUser?.profileImage?.link ?? "/placeholder.svg";
 
                 return (
                   <div
