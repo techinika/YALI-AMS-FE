@@ -30,7 +30,8 @@ import {
 } from "@/lib/features/chatSlice";
 import { getUser } from "@/helpers/auth";
 import { Message } from "@/types/message";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { getSocket } from "@/lib/sockets";
 
 dayjs.extend(relativeTime);
 
@@ -62,21 +63,19 @@ const CustomAvatar = ({
   );
 };
 
-const ChatInterface = ({
-  username: initialUsername = "all",
-}: {
-  username?: string;
-}) => {
+const ChatInterface = () => {
   const router = useRouter();
   const user = getUser();
+  const searchParams = useSearchParams();
+  const oid: string = searchParams.get("rid") ?? "all";
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isFirstLoadRef = useRef(true);
   const lastMessageIdRef = useRef<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
+  const socketRef = useRef<any>(null);
 
-  const [currentRecipientId, setCurrentRecipientId] =
-    useState<string>(initialUsername);
+  const [currentRecipientId, setCurrentRecipientId] = useState<string>(oid);
   const [messageInput, setMessageInput] = useState("");
   const [chatSearch, setChatSearch] = useState("");
   const [messageSearch, setMessageSearch] = useState("");
@@ -99,6 +98,52 @@ const ChatInterface = ({
 
   const members = allUsers?.data ?? [];
 
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const socket = getSocket();
+    socketRef.current = socket;
+
+    socket.emit("join-room", { room: user?.id });
+
+    socket.on("connection", () => {
+      console.log("Connected to socket:", socket.id);
+    });
+
+    socket.on("disconnect", () => {
+      console.log("Socket disconnected");
+    });
+
+    return () => {
+      socket.off("connection");
+      socket.off("disconnect");
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!socketRef.current) return;
+
+    const socket = socketRef.current;
+
+    const handleNewMessage = (message: Message) => {
+      if (
+        (currentRecipientId === "all" && message?.public) ||
+        (currentRecipientId !== "all" &&
+          !message?.public &&
+          (message.senderId === currentRecipientId ||
+            message.receiverId === currentRecipientId))
+      ) {
+        setMessages((prev) => [...prev, message]);
+      }
+    };
+
+    socket.on("new-message", handleNewMessage);
+
+    return () => {
+      socket.off("new-message", handleNewMessage);
+    };
+  }, [currentRecipientId]);
+
   const rawMessages: Message[] = useMemo(() => {
     if (currentRecipientId === "all") {
       return communityMessagesData?.data || [];
@@ -106,6 +151,12 @@ const ChatInterface = ({
       return privateMessagesData?.data || [];
     }
   }, [currentRecipientId, communityMessagesData, privateMessagesData]);
+
+  useEffect(() => {
+    if (rawMessages.length > 0) {
+      setMessages(rawMessages);
+    }
+  }, [rawMessages]);
 
   const privateChatPartners: Member[] = useMemo(() => {
     if (!privateChatsData?.data || !user?.id) return [];
@@ -153,7 +204,7 @@ const ChatInterface = ({
         title: `${p.firstName} ${p.lastName}`,
         icon: User,
         isCommunity: false,
-        picture: p?.profileImage?.link,
+        picture: p?.profileImage?.link ?? "/placeholder.svg",
         lastMessage:
           messages.findLast(
             (m: Message) =>
@@ -171,7 +222,7 @@ const ChatInterface = ({
   }, [communityMessagesData, privateChatPartners, chatSearch, user?.id]);
 
   const displayedMessages = useMemo(() => {
-    let sorted = [...rawMessages].sort(
+    let sorted = [...messages].sort(
       (a, b) =>
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
@@ -182,7 +233,7 @@ const ChatInterface = ({
       );
     }
     return sorted;
-  }, [rawMessages, messageSearch]);
+  }, [messages, messageSearch]);
 
   useEffect(() => {
     if (!displayedMessages.length) return;
@@ -223,7 +274,7 @@ const ChatInterface = ({
       };
 
       try {
-        await addMessage({ data: values }).unwrap();
+        socketRef.current?.emit("send-message", values);
         setMessageInput("");
       } catch (error) {
         console.error("Error sending message:", error);
@@ -352,6 +403,7 @@ const ChatInterface = ({
                                 : "hover:bg-gray-50"
                             }`}
                 onClick={() => {
+                  router.push(`/dashboard/chat?rid=${chat?.id}`);
                   setCurrentRecipientId(chat.id);
                   if (usersSearch) setUsersSearch("");
                 }}
@@ -404,7 +456,10 @@ const ChatInterface = ({
                 recipientUser?.profileImage?.link && (
                   <CustomAvatar
                     senderName={recipientUser.firstName}
-                    image={recipientUser?.profileImage?.link}
+                    image={
+                      `${recipientUser?.profileImage?.link}` ||
+                      "/placeholder.svg"
+                    }
                   />
                 )}
               <div className="flex flex-col">
@@ -439,7 +494,8 @@ const ChatInterface = ({
                 const senderName = senderUser
                   ? `${senderUser.firstName}`
                   : "Unknown";
-                const senderImage = senderUser?.profileImage?.link;
+                const senderImage =
+                  senderUser?.profileImage?.link ?? "/placeholder.svg";
 
                 return (
                   <div
