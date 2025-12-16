@@ -6,6 +6,7 @@
 
 * {
   font-family: "Stack Sans Text", sans-serif;
+  scroll-behavior: auto;
 }
 
 @layer utilities {

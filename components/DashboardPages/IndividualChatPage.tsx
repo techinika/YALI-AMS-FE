@@ -25,6 +25,7 @@ import { useUsersQuery } from "@/lib/features/userSlice";
 import {
   useAddMessageMutation,
   useChatsQuery,
+  usePrivateChatsQuery,
   usePrivateMessagesQuery,
 } from "@/lib/features/chatSlice";
 import { getUser } from "@/helpers/auth";
@@ -69,6 +70,10 @@ const ChatInterface = ({
   const router = useRouter();
   const user = getUser();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isFirstLoadRef = useRef(true);
+  const lastMessageIdRef = useRef<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
 
   const [currentRecipientId, setCurrentRecipientId] =
     useState<string>(initialUsername);
@@ -80,12 +85,13 @@ const ChatInterface = ({
 
   const { data: communityMessagesData } = useChatsQuery("", {
     skip: currentRecipientId !== "all",
-    pollingInterval: 500,
   });
   const { data: privateMessagesData } = usePrivateMessagesQuery(
     { id: currentRecipientId, oid: user?.id || "" },
-    { skip: currentRecipientId === "all", pollingInterval: 500 }
+    { skip: currentRecipientId === "all" }
   );
+
+  const { data: privateChatsData } = usePrivateChatsQuery(user?.id);
 
   const [addMessage] = useAddMessageMutation();
   const { data: allUsers } = useUsersQuery("");
@@ -102,41 +108,34 @@ const ChatInterface = ({
   }, [currentRecipientId, communityMessagesData, privateMessagesData]);
 
   const privateChatPartners: Member[] = useMemo(() => {
-    const partnerIds = new Set<string>();
-    messages
-      .filter(
-        (m) =>
-          m.receiverId !== "" &&
-          (m.senderId === user?.id || m.receiverId === user?.id)
+    if (!privateChatsData?.data || !user?.id) return [];
+
+    const chatsMap = new Map<string, Message>();
+
+    [...privateChatsData.data]
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       )
-      .forEach((m) => {
-        const partnerId = m.senderId === user?.id ? m.receiverId : m.senderId;
-        partnerIds.add(partnerId);
+      .forEach((msg) => {
+        const otherUserId =
+          msg.senderId === user.id ? msg.receiverId : msg.senderId;
+
+        if (otherUserId && !chatsMap.has(otherUserId)) {
+          chatsMap.set(otherUserId, msg);
+        }
       });
 
-    const chatsMap = new Map();
-    [...messages].reverse().forEach((chat) => {
-      const otherUserId =
-        chat.senderId === user?.id ? chat.receiverId : chat.senderId;
-      if (otherUserId && otherUserId !== "") {
-        if (!chatsMap.has(otherUserId)) {
-          chatsMap.set(otherUserId, chat);
-        }
-      }
-    });
-
-    const latestChats = Array.from(chatsMap.values()) as Message[];
-
-    return latestChats
+    return Array.from(chatsMap.values())
       .map((chat) =>
-        members.data.find(
+        members.find(
           (u: Member) =>
             u.id ===
-            (chat.senderId === user?.id ? chat.receiverId : chat.senderId)
+            (chat.senderId === user.id ? chat.receiverId : chat.senderId)
         )
       )
-      .filter((u): u is Member => u !== undefined);
-  }, [user?.id, members]);
+      .filter((u): u is Member => Boolean(u));
+  }, [privateMessagesData?.data, members, user?.id]);
 
   const filteredChatList = useMemo(() => {
     const list = [
@@ -186,7 +185,29 @@ const ChatInterface = ({
   }, [rawMessages, messageSearch]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!displayedMessages.length) return;
+
+    const lastMessage = displayedMessages.at(-1);
+    if (!lastMessage) return;
+
+    if (isFirstLoadRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+      isFirstLoadRef.current = false;
+      lastMessageIdRef.current = lastMessage.id;
+      return;
+    }
+
+    if (lastMessage.id !== lastMessageIdRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      lastMessageIdRef.current = lastMessage.id;
+    }
+
+    if (
+      lastMessage.id !== lastMessageIdRef.current &&
+      isNearBottomRef.current
+    ) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [displayedMessages]);
 
   const handleSubmit = useCallback(
@@ -228,7 +249,17 @@ const ChatInterface = ({
       : "Private conversation";
 
   return (
-    <div className="min-h-screen w-full p-4 md:p-8 bg-gray-50 font-sans">
+    <div
+      ref={containerRef}
+      onScroll={() => {
+        const el = containerRef.current;
+        if (!el) return;
+
+        isNearBottomRef.current =
+          el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+      }}
+      className="h-screen w-full m-2 bg-gray-50 overflow-hidden"
+    >
       <PageHeader
         title="Conversations"
         description="Chat with the community and build relationships privately."
@@ -244,7 +275,8 @@ const ChatInterface = ({
         disabled2={false}
         Icon2={Nut}
       />
-      <div className="container mx-auto h-full rounded-2xl shadow-2xl overflow-hidden bg-white flex flex-col lg:flex-row">
+
+      <div className="container mx-auto h-full rounded shadow-2xl overflow-hidden bg-white flex flex-col lg:flex-row">
         <div
           className={`flex flex-col w-full lg:w-80 shrink-0 border-r border-gray-100 ${
             currentRecipientId && "hidden md:flex"
@@ -362,7 +394,7 @@ const ChatInterface = ({
           <div className="p-4 border-b border-gray-100 bg-white shadow-md flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setCurrentRecipientId("all")} // Simple button to show sidebar on mobile
+                onClick={() => setCurrentRecipientId("all")}
                 className="md:hidden p-1 text-primary hover:text-indigo-800 transition"
                 aria-label="Back to chat list"
               >
