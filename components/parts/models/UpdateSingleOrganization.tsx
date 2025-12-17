@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { TailwindInput } from "@/components/ui/tail-input";
 import { TailwindSelect } from "@/components/ui/tail-select";
-import { MultiSelectSearch } from "@/components/ui/muti-select-search";
+import { MultiSelectSearch } from "@/components/ui/multi-select-search";
 
 import {
   useSectorsByDistrictQuery,

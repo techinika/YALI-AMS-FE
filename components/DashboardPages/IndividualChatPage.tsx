@@ -309,7 +309,7 @@ const ChatInterface = () => {
         isNearBottomRef.current =
           el.scrollHeight - el.scrollTop - el.clientHeight < 100;
       }}
-      className="h-screen w-full m-2 bg-gray-50 overflow-hidden"
+      className="w-full m-2 bg-gray-50 min-h-1/2"
     >
       <PageHeader
         title="Conversations"
