@@ -2,9 +2,9 @@
 
 import { useGetRecentActivityLogsQuery } from "@/lib/features/activitySlice";
 import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
 import { Activity } from "lucide-react";
 import { useEffect } from "react";
-import relativeTime from "dayjs/plugin/relativeTime";
 
 export const RecentEventsCard = () => {
   dayjs.extend(relativeTime);
@@ -39,7 +39,7 @@ export const RecentEventsCard = () => {
             className="border-b border-gray-100 pb-3 last:border-b-0"
           >
             <p className="text-sm font-semibold text-gray-800">
-              {event.action.toUpperCase()}
+              {event.action}
             </p>
             <p className="text-xs text-gray-600 my-0.5">{`In model "${event?.model}", activity "${event?.action}" was performed on record ${event.recordId}`}</p>
             <p className="text-xs text-primary font-medium">

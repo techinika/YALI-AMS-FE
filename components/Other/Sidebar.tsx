@@ -2,7 +2,7 @@
 "use client";
 
 import { NavItemType } from "@/types/sidebar";
-import { Database, Settings } from "lucide-react";
+import { Database, Settings, Users2 } from "lucide-react";
 import {
   MdDashboard,
   MdAccountBox,
@@ -12,6 +12,7 @@ import {
   MdChat,
   MdPeople,
   MdPersonAdd,
+  MdInterests,
 } from "react-icons/md";
 
 const TailwindChip = ({ label }: { label: number }) => (
@@ -66,6 +67,12 @@ export const NAVIGATION: NavItemType[] = [
     onlyAdmin: false,
   },
   {
+    segment: "/dashboard/chat/groups",
+    title: "Group Chats",
+    icon: <Users2 className="w-5 h-5" />,
+    onlyAdmin: false,
+  },
+  {
     kind: "divider",
     onlyAdmin: false,
   },
@@ -85,6 +92,12 @@ export const NAVIGATION: NavItemType[] = [
     title: "Add New User",
     icon: <MdPersonAdd className="w-5 h-5" />,
     onlyAdmin: true,
+  },
+  {
+    segment: "/dashboard/members/match",
+    title: "Interest Match",
+    icon: <MdInterests className="w-5 h-5" />,
+    onlyAdmin: false,
   },
   {
     kind: "divider",
