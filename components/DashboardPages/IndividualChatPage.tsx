@@ -300,17 +300,7 @@ const ChatInterface = () => {
       : "Private conversation";
 
   return (
-    <div
-      ref={containerRef}
-      onScroll={() => {
-        const el = containerRef.current;
-        if (!el) return;
-
-        isNearBottomRef.current =
-          el.scrollHeight - el.scrollTop - el.clientHeight < 100;
-      }}
-      className="h-screen w-full m-2 bg-gray-50 overflow-hidden"
-    >
+    <div className="container mx-auto p-4 sm:p-8 ">
       <PageHeader
         title="Conversations"
         description="Chat with the community and build relationships privately."
@@ -327,7 +317,17 @@ const ChatInterface = () => {
         Icon2={Nut}
       />
 
-      <div className="container mx-auto h-full rounded shadow-2xl overflow-hidden bg-white flex flex-col lg:flex-row">
+      <div
+        ref={containerRef}
+        onScroll={() => {
+          const el = containerRef.current;
+          if (!el) return;
+
+          isNearBottomRef.current =
+            el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+        }}
+        className="min-h-2/3 rounded shadow-2xl bg-white flex flex-col lg:flex-row"
+      >
         <div
           className={`flex flex-col w-full lg:w-80 shrink-0 border-r border-gray-100 ${
             currentRecipientId && "hidden md:flex"

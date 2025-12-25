@@ -7,6 +7,8 @@ import { notificationSlices } from "./features/notificationSlice";
 import { statSlice } from "./features/statsSlice";
 import { orgsSlices } from "./features/orgSlice";
 import authReducer from "./features/auth";
+import { activitySlices } from "./features/activitySlice";
+import { matchmakingSlices } from "./features/matchMakingSlice";
 
 export const makeStore = () => {
   return configureStore({
@@ -19,6 +21,8 @@ export const makeStore = () => {
       [notificationSlices.reducerPath]: notificationSlices.reducer,
       [statSlice.reducerPath]: statSlice.reducer,
       [orgsSlices.reducerPath]: orgsSlices.reducer,
+      [activitySlices.reducerPath]: activitySlices.reducer,
+      [matchmakingSlices.reducerPath]: matchmakingSlices.reducer,
     },
     middleware: (getDefaultMiddleware) =>
       getDefaultMiddleware().concat([
@@ -29,6 +33,8 @@ export const makeStore = () => {
         notificationSlices.middleware,
         statSlice.middleware,
         orgsSlices.middleware,
+        activitySlices.middleware,
+        matchmakingSlices.middleware,
       ]),
   });
 };

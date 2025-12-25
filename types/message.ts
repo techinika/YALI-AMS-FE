@@ -10,3 +10,21 @@ export interface Message {
   createdAt: string;
   public: boolean;
 }
+
+export interface GroupMessage {
+  id: string;
+  content: string;
+  sender: Member;
+  senderId: string;
+  groupId: string;
+  createdAt: string;
+}
+
+export interface Group {
+  id: string;
+  name: string;
+  members: Member[];
+  createdBy: Member;
+  createdAt: string;
+  lastMessage: string;
+}

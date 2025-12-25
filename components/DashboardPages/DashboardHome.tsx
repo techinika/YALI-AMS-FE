@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useTopMembersQuery } from "@/lib/features/chatSlice";
 import { Member } from "@/types/user";
 import Loading from "@/app/loading";
+import { RecentEventsCard } from "../parts/RecentEvents";
 
 const MOCK_RECENT_EVENTS = [
   {
@@ -188,27 +189,6 @@ const DashboardHome = () => {
     </div>
   );
 
-  const RecentEventsCard = () => (
-    <div className="bg-white p-6 rounded-2xl shadow-lg lg:col-span-1 h-96 flex flex-col">
-      <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
-        <Activity className="w-5 h-5 mr-2 text-red-500" />
-        Recent System Activity
-      </h3>
-      <ul className="space-y-3 flex-1 overflow-y-auto custom-scrollbar">
-        {MOCK_RECENT_EVENTS.map((event) => (
-          <li
-            key={event.id}
-            className="border-b border-gray-100 pb-3 last:border-b-0"
-          >
-            <p className="text-sm font-semibold text-gray-800">{event.type}</p>
-            <p className="text-xs text-gray-600 my-0.5">{event.description}</p>
-            <p className="text-xs text-primary font-medium">{event.time}</p>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-
   return (
     <div className="p-4 sm:p-6 lg:p-8 bg-gray-100 min-h-full font-sans">
       <h1 className="text-3xl font-extrabold text-gray-900 mb-6">
@@ -219,7 +199,6 @@ const DashboardHome = () => {
         activity.
       </p>
 
-      {/* --- 1. Key Performance Indicators (KPIs) --- */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
         {stats.map((stat) => (
           <StatCard
@@ -233,21 +212,15 @@ const DashboardHome = () => {
         ))}
       </div>
 
-      {/* --- 2. Advanced Insights and Analytics --- */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Activity Trend (2/3 width) */}
         <div className="lg:col-span-2">
           <ActivityTrendCard />
         </div>
 
-        {/* Top Users (1/3 width) */}
         <TopUsersCard />
 
-        {/* Recent Events (1/3 width, standalone if needed, but grouped above) */}
-        {/* If you wanted this to span the full width of the main grid, it would be here */}
       </div>
 
-      {/* Adding Recent Events in a new section or swapping with TopUsers if preferred */}
       <div className="mt-6">
         <RecentEventsCard />
       </div>
