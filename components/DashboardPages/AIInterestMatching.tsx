@@ -21,6 +21,9 @@ import { PageHeader } from "../parts/PageHeader";
 import { AVAILABLE_INTERESTS } from "@/helpers/data";
 import { getUser } from "@/helpers/auth";
 import { useAiMatchMakerMutation } from "@/lib/features/matchMakingSlice";
+import { Member } from "@/types/user";
+import CreateGroupChat from "../parts/models/CreateGroupChat";
+import { Group } from "@/types/message";
 
 export const AIInterestMatching = () => {
   const user = getUser();
@@ -29,6 +32,7 @@ export const AIInterestMatching = () => {
   const [isMatching, setIsMatching] = useState(false);
   const [matches, setMatches] = useState<any>(null);
   const [error, setError] = useState(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const [aiMatchMaker, { isLoading }] = useAiMatchMakerMutation();
 
@@ -45,7 +49,7 @@ export const AIInterestMatching = () => {
       const response = await aiMatchMaker({
         userId: user.id,
         interests: selectedInterests.join(","),
-        aspirations: aspirations,
+        description: aspirations,
       }).unwrap();
 
       setMatches(response.matches);
@@ -66,6 +70,16 @@ export const AIInterestMatching = () => {
 
   return (
     <div className="min-h-screen p-4 sm:p-8 container mx-auto">
+      {showCreateModal && (
+        <CreateGroupChat
+          setShowCreateModal={setShowCreateModal}
+          user={user}
+          members={matches?.users || []}
+          source="ai"
+          groupRefetching={() => console.log("there goes nothing")}
+        />
+      )}
+
       <PageHeader
         title="Member AI Matchmaking"
         description="Enter the circle of like-minded individuals and start collaborating and sharing insights."
@@ -212,125 +226,38 @@ export const AIInterestMatching = () => {
                   </span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {matches.users.map(
-                    (u: {
-                      id: React.Key | null | undefined;
-                      name:
-                        | string
-                        | number
-                        | bigint
-                        | boolean
-                        | React.ReactElement<
-                            unknown,
-                            string | React.JSXElementConstructor<any>
-                          >
-                        | Iterable<React.ReactNode>
-                        | Promise<
-                            | string
-                            | number
-                            | bigint
-                            | boolean
-                            | React.ReactPortal
-                            | React.ReactElement<
-                                unknown,
-                                string | React.JSXElementConstructor<any>
-                              >
-                            | Iterable<React.ReactNode>
-                            | null
-                            | undefined
-                          >
-                        | null
-                        | undefined;
-                      title:
-                        | string
-                        | number
-                        | bigint
-                        | boolean
-                        | React.ReactElement<
-                            unknown,
-                            string | React.JSXElementConstructor<any>
-                          >
-                        | Iterable<React.ReactNode>
-                        | React.ReactPortal
-                        | Promise<
-                            | string
-                            | number
-                            | bigint
-                            | boolean
-                            | React.ReactPortal
-                            | React.ReactElement<
-                                unknown,
-                                string | React.JSXElementConstructor<any>
-                              >
-                            | Iterable<React.ReactNode>
-                            | null
-                            | undefined
-                          >
-                        | null
-                        | undefined;
-                      bio:
-                        | string
-                        | number
-                        | bigint
-                        | boolean
-                        | React.ReactElement<
-                            unknown,
-                            string | React.JSXElementConstructor<any>
-                          >
-                        | Iterable<React.ReactNode>
-                        | React.ReactPortal
-                        | Promise<
-                            | string
-                            | number
-                            | bigint
-                            | boolean
-                            | React.ReactPortal
-                            | React.ReactElement<
-                                unknown,
-                                string | React.JSXElementConstructor<any>
-                              >
-                            | Iterable<React.ReactNode>
-                            | null
-                            | undefined
-                          >
-                        | null
-                        | undefined;
-                    }) => (
-                      <div
-                        key={u.id}
-                        className="bg-white p-5 rounded-2xl border border-gray-200 hover:shadow-md transition-shadow group"
-                      >
-                        <div className="flex items-center space-x-3 mb-3">
-                          <div className="w-10 h-10 rounded-full bg-linear-to-br from-primary to-purple-500 flex items-center justify-center text-white font-bold text-xs">
-                            {u.name
-                              .split(" ")
-                              .map((n: any[]) => n[0])
-                              .join("")}
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-bold text-gray-900">
-                              {u.name}
-                            </h4>
-                            <p className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">
-                              {u.title}
-                            </p>
-                          </div>
+                  {matches.users.map((u: Member) => (
+                    <div
+                      key={u.id}
+                      className="bg-white p-5 rounded-2xl border border-gray-200 hover:shadow-md transition-shadow group"
+                    >
+                      <div className="flex items-center space-x-3 mb-3">
+                        <div className="w-10 h-10 rounded-full bg-linear-to-br from-primary to-primary/80 flex items-center justify-center text-white font-bold text-xs">
+                          {u.firstName ?? "U"}
                         </div>
-                        <p className="text-xs text-gray-600 mb-4 line-clamp-2">
-                          {u.bio}
-                        </p>
-                        <div className="flex items-center space-x-2">
-                          <button className="flex-1 py-2 bg-blue-50 hover:bg-blue-100 text-primary rounded-lg text-xs font-bold transition-colors flex items-center justify-center">
-                            <MessageSquare className="w-3 h-3 mr-1.5" />
-                            Chat
-                          </button>
-                          <button className="p-2 border border-gray-100 hover:bg-gray-50 rounded-lg transition-colors">
-                            <Plus className="w-4 h-4 text-gray-400" />
-                          </button>
+                        <div>
+                          <h4 className="text-sm font-bold text-gray-900">
+                            {u.firstName} {u.lastName}
+                          </h4>
+                          <p className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">
+                            {"Member"}
+                          </p>
                         </div>
                       </div>
-                    )
-                  )}
+                      <p className="text-xs text-gray-600 mb-4 line-clamp-2">
+                        {u.bio}
+                      </p>
+                      <div className="flex items-center space-x-2">
+                        <button className="flex-1 py-2 bg-blue-50 hover:bg-blue-100 text-primary rounded-lg text-xs font-bold transition-colors flex items-center justify-center">
+                          <MessageSquare className="w-3 h-3 mr-1.5" />
+                          Chat
+                        </button>
+                        <button className="p-2 border border-gray-100 hover:bg-gray-50 rounded-lg transition-colors">
+                          <Plus className="w-4 h-4 text-gray-400" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </section>
 
@@ -343,87 +270,37 @@ export const AIInterestMatching = () => {
                 </div>
                 {matches.groups.length > 0 ? (
                   <div className="space-y-4">
-                    {matches.groups.map(
-                      (g: {
-                        id: React.Key | null | undefined;
-                        name:
-                          | string
-                          | number
-                          | bigint
-                          | boolean
-                          | React.ReactElement<
-                              unknown,
-                              string | React.JSXElementConstructor<any>
-                            >
-                          | Iterable<React.ReactNode>
-                          | React.ReactPortal
-                          | Promise<
-                              | string
-                              | number
-                              | bigint
-                              | boolean
-                              | React.ReactPortal
-                              | React.ReactElement<
-                                  unknown,
-                                  string | React.JSXElementConstructor<any>
-                                >
-                              | Iterable<React.ReactNode>
-                              | null
-                              | undefined
-                            >
-                          | null
-                          | undefined;
-                        members:
-                          | string
-                          | number
-                          | bigint
-                          | boolean
-                          | React.ReactElement<
-                              unknown,
-                              string | React.JSXElementConstructor<any>
-                            >
-                          | Iterable<React.ReactNode>
-                          | React.ReactPortal
-                          | Promise<
-                              | string
-                              | number
-                              | bigint
-                              | boolean
-                              | React.ReactPortal
-                              | React.ReactElement<
-                                  unknown,
-                                  string | React.JSXElementConstructor<any>
-                                >
-                              | Iterable<React.ReactNode>
-                              | null
-                              | undefined
-                            >
-                          | null
-                          | undefined;
-                      }) => (
-                        <div
-                          key={g.id}
-                          className="bg-white p-5 rounded-2xl border border-gray-200 flex items-center justify-between hover:border-blue-200 transition-all"
-                        >
-                          <div className="flex items-center space-x-4">
-                            <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
-                              <Users className="w-6 h-6 text-gray-400" />
-                            </div>
-                            <div>
-                              <h4 className="text-sm font-bold text-gray-900">
-                                {g.name}
-                              </h4>
-                              <p className="text-xs text-gray-500">
-                                {g.members} active members
-                              </p>
-                            </div>
+                    <button
+                      onClick={() => {
+                        setShowCreateModal(true);
+                      }}
+                      className="px-6 py-2.5 bg-amber-600 text-white rounded-xl text-xs font-bold hover:bg-amber-700 transition-colors shadow-sm"
+                    >
+                      Create New Collaborative Group
+                    </button>
+                    {matches.groups.map((g: Group) => (
+                      <div
+                        key={g.id}
+                        className="bg-white p-5 rounded-2xl border border-gray-200 flex items-center justify-between hover:border-blue-200 transition-all"
+                      >
+                        <div className="flex items-center space-x-4">
+                          <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
+                            <Users className="w-6 h-6 text-gray-400" />
                           </div>
-                          <button className="px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold shadow-sm hover:shadow-md transition-all">
-                            Join Group
-                          </button>
+                          <div>
+                            <h4 className="text-sm font-bold text-gray-900">
+                              {g.name}
+                            </h4>
+                            <p className="text-xs text-gray-500">
+                              {g?.members.length} active members
+                            </p>
+                          </div>
                         </div>
-                      )
-                    )}
+                        <button className="px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold shadow-sm hover:shadow-md transition-all">
+                          Join Group
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <div className="p-8 bg-amber-50 rounded-2xl border border-amber-100 text-center">
@@ -435,7 +312,12 @@ export const AIInterestMatching = () => {
                       Would you like to start a new group with your matched
                       users?
                     </p>
-                    <button className="px-6 py-2.5 bg-amber-600 text-white rounded-xl text-xs font-bold hover:bg-amber-700 transition-colors shadow-sm">
+                    <button
+                      onClick={() => {
+                        setShowCreateModal(true);
+                      }}
+                      className="px-6 py-2.5 bg-amber-600 text-white rounded-xl text-xs font-bold hover:bg-amber-700 transition-colors shadow-sm"
+                    >
                       Create Collaborative Group
                     </button>
                   </div>

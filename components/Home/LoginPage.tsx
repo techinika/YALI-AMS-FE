@@ -94,6 +94,7 @@ const LoginPage = () => {
         }
       }
     } catch (err) {
+      console.log(err);
       const e = err as unknown as ErrorType;
       const errorData = e?.data || {};
       if (errorData) {
