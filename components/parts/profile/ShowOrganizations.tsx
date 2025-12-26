@@ -4,6 +4,7 @@ import { Building2, PlusCircle } from "lucide-react";
 import DisplayField from "../../ui/DisplayField";
 import { useState } from "react";
 import OrganizationLinkModal from "../models/OrganizationLinkModal";
+import { getUser } from "@/helpers/auth";
 
 export const NoOrg = ({
   organizations,
@@ -18,6 +19,7 @@ export const NoOrg = ({
   countries: any[];
   workingSectors: any[];
 }) => {
+  const user = getUser();
   const [orgLinkModalOpen, setOrgLinkModalOpen] = useState(false);
   return (
     <div className="flex flex-col items-center justify-center text-center p-8 border border-dashed border-gray-300 rounded-xl bg-gray-50">
@@ -39,13 +41,15 @@ export const NoOrg = ({
         You haven’t added or been linked to any organization. Click button below
         to create or add an organization so it appears here.
       </p>
-      <button
-        onClick={() => setOrgLinkModalOpen(true)}
-        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition cursor-pointer"
-      >
-        <PlusCircle className="w-4 h-4" />
-        Add or Link an Organization
-      </button>
+      {targetId === user?.id && (
+        <button
+          onClick={() => setOrgLinkModalOpen(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition cursor-pointer"
+        >
+          <PlusCircle className="w-4 h-4" />
+          Add or Link an Organization
+        </button>
+      )}
     </div>
   );
 };

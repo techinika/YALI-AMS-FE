@@ -26,12 +26,47 @@ function CreateOrganization({
   setSelectedCountry: any;
   setSelectedDistrict: any;
 }) {
-  const handleWorkingSectorsChange = React.useCallback((values: string[]) => {
-    setFormData2((prev: any) => ({
-      ...prev,
-      workingSectors: values,
-    }));
-  }, []);
+  const handleWorkingSectorsChange = React.useCallback(
+    (values: string[]) => {
+      setFormData2((prev: any) => ({
+        ...prev,
+        workingSectors: values,
+      }));
+    },
+    [setFormData2]
+  );
+
+  const handleInputChange = React.useCallback(
+    (field: string, value: any) => {
+      setFormData2((prev: any) => ({
+        ...prev,
+        [field]: value,
+      }));
+    },
+    [setFormData2]
+  );
+
+  const handleCountryChange = React.useCallback(
+    (value: string) => {
+      setSelectedCountry(value);
+      setFormData2((prev: any) => ({
+        ...prev,
+        countryId: value,
+      }));
+    },
+    [setFormData2, setSelectedCountry]
+  );
+
+  const handleDistrictChange = React.useCallback(
+    (value: string) => {
+      setSelectedDistrict(value);
+      setFormData2((prev: any) => ({
+        ...prev,
+        districtId: value,
+      }));
+    },
+    [setFormData2, setSelectedDistrict]
+  );
   return (
     <div className="px-6 py-4 space-y-4">
       <div className="grid grid-cols-2 gap-3">
@@ -39,11 +74,8 @@ function CreateOrganization({
           label="Organization Name"
           id="org_name"
           value={formData2.name}
-          onChange={(e: any) =>
-            setFormData2((prev: any) => ({
-              ...prev,
-              name: e.target.value,
-            }))
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            handleInputChange("name", e.target.value)
           }
           placeholder="Name of this organization"
         />
@@ -52,11 +84,8 @@ function CreateOrganization({
           label="Organization Website"
           id="org_web"
           value={formData2.website}
-          onChange={(e: any) =>
-            setFormData2((prev: any) => ({
-              ...prev,
-              website: e.target.value,
-            }))
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            handleInputChange("website", e.target.value)
           }
           placeholder="https://..."
         />
@@ -72,13 +101,9 @@ function CreateOrganization({
           label="Country"
           id="org_country"
           value={formData2.countryId}
-          onChange={(e: any) => {
-            setSelectedCountry(e.target.value);
-            setFormData2((prev: any) => ({
-              ...prev,
-              countryId: e.target.value,
-            }));
-          }}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            handleCountryChange(e.target.value)
+          }
           options={countries}
         />
 
@@ -88,24 +113,17 @@ function CreateOrganization({
               label="District"
               id="org_district"
               value={formData2.districtId}
-              onChange={(e: any) => {
-                setSelectedDistrict(e.target.value);
-                setFormData2((prev: any) => ({
-                  ...prev,
-                  districtId: e.target.value,
-                }));
-              }}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                handleDistrictChange(e.target.value)
+              }
               options={districts}
             />
             <TailwindSelect
               label="Sector"
               id="org_sector"
               value={formData2.sectorId}
-              onChange={(e: any) =>
-                setFormData2((prev: any) => ({
-                  ...prev,
-                  sectorId: e.target.value,
-                }))
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                handleInputChange("sectorId", e.target.value)
               }
               options={sectors}
             />
@@ -113,31 +131,23 @@ function CreateOrganization({
         )}
 
         {formData2.countryId !== "RW" && (
-          <>
-            <TailwindSelect
-              label="State/Province"
-              id="org_state"
-              value={formData2.stateId}
-              onChange={(e: any) =>
-                setFormData2((prev: any) => ({
-                  ...prev,
-                  stateId: e.target.value,
-                }))
-              }
-              options={states}
-            />
-          </>
+          <TailwindSelect
+            label="State/Province"
+            id="org_state"
+            value={formData2.stateId}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              handleInputChange("stateId", e.target.value)
+            }
+            options={states}
+          />
         )}
 
         <TailwindInput
           label="Your position in this organization?"
           id="position"
           value={formData2.position}
-          onChange={(e: any) =>
-            setFormData2((prev: any) => ({
-              ...prev,
-              position: e.target.value,
-            }))
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            handleInputChange("position", e.target.value)
           }
           placeholder="Your position in this organization?"
         />
@@ -145,11 +155,8 @@ function CreateOrganization({
           label="Relationship with this Organization"
           id="relation"
           value={formData2.relation}
-          onChange={(e: any) =>
-            setFormData2((prev: any) => ({
-              ...prev,
-              relation: e.target.value,
-            }))
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            handleInputChange("relation", e.target.value)
           }
           options={[
             { id: "founded", name: "Organization You Founded" },
