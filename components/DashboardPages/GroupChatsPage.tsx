@@ -20,13 +20,14 @@ import { useUsersQuery } from "@/lib/features/userSlice";
 import {
   useGetAllGroupMessagesQuery,
   useGetMyGroupsQuery,
-  useSendGroupMessageMutation,
 } from "@/lib/features/chatSlice";
 import Loading from "@/app/loading";
 import { Group, GroupMessage } from "@/types/message";
+import { getSocket } from "@/lib/sockets";
 
 export const GroupChatsPage = () => {
   const user = getUser();
+  const socketRef = useRef<any>(null);
   const [groups, setGroups] = useState<Group[]>([]);
   const [activeGroup, setActiveGroup] = useState<Group | null>(null);
   const [messages, setMessages] = useState<GroupMessage[]>([]);
@@ -35,8 +36,6 @@ export const GroupChatsPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [members, setMembers] = useState([]);
 
-  const [sendGroupMessage] = useSendGroupMessageMutation();
-
   const { data: membersData = [], isLoading: usersLoading } = useUsersQuery("");
 
   const {
@@ -44,6 +43,44 @@ export const GroupChatsPage = () => {
     isLoading: groupsLoading,
     refetch: groupRefetching,
   } = useGetMyGroupsQuery(user?.id);
+
+  useEffect(() => {
+    if (!activeGroup) return;
+
+    const socket = getSocket();
+    socketRef.current = socket;
+
+    socket.emit("join-group", { groupId: activeGroup?.id });
+
+    socket.on("connection", () => {
+      console.log("Connected to socket:", socket.id);
+    });
+
+    socket.on("disconnect", () => {
+      console.log("Socket disconnected");
+    });
+
+    return () => {
+      socket.off("connection");
+      socket.off("disconnect");
+    };
+  }, [activeGroup, user?.id]);
+
+  useEffect(() => {
+    if (!socketRef.current) return;
+
+    const socket = socketRef.current;
+
+    const handleNewMessage = (message: any) => {
+      setMessages((prev) => [...prev, message]);
+    };
+
+    socket.on("new-group-message", handleNewMessage);
+
+    return () => {
+      socket.off("new-group-message", handleNewMessage);
+    };
+  }, [activeGroup]);
 
   const { data: groupsMessagesData = [], isLoading: groupsMessagesLoading } =
     useGetAllGroupMessagesQuery(activeGroup?.id || "", {
@@ -75,11 +112,12 @@ export const GroupChatsPage = () => {
     if (!newMessage.trim() || !activeGroup || !user) return;
 
     try {
-      await sendGroupMessage({
-        content: newMessage,
+      socketRef.current?.emit("send-group-message", {
+        groupId: activeGroup?.id,
         senderId: user.id,
-        groupId: activeGroup.id,
-      }).unwrap();
+        message: newMessage,
+      });
+
       setNewMessage("");
     } catch (err) {
       console.error("Send Error:", err);
