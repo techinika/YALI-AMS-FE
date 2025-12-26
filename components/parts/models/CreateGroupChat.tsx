@@ -117,6 +117,7 @@ function CreateGroupChat({
                 const isSelected = selectedMembers.find(
                   (m: any) => m.id === member.id
                 );
+                if (member.id === user.id) return null;
                 return (
                   <button
                     key={member.id}
