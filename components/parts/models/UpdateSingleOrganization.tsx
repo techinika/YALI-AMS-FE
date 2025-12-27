@@ -87,7 +87,9 @@ export const UpdateOrgForm: React.FC<UpdateOrgProps> = ({
   useEffect(() => {
     if (!CurrentOrg?.data) return;
 
-    const org = CurrentOrg.data;
+    const org = CurrentOrg.data[0];
+
+    console.log(org);
 
     setSelectedCountry(org.countryId);
     setSelectedDistrict(org.districtId);
@@ -160,7 +162,6 @@ export const UpdateOrgForm: React.FC<UpdateOrgProps> = ({
     <div
       className="fixed inset-0 z-[110] flex items-center justify-center p-4"
       aria-modal="true"
-      role="dialog"
     >
       <div
         className="fixed inset-0 bg-gray-900 bg-opacity-70 backdrop-blur-sm"
