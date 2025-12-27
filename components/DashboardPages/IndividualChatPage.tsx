@@ -31,7 +31,6 @@ import {
 import { getUser } from "@/helpers/auth";
 import { Message } from "@/types/message";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getSocket } from "@/lib/sockets";
 
 dayjs.extend(relativeTime);
 
@@ -84,10 +83,11 @@ const ChatInterface = () => {
 
   const { data: communityMessagesData } = useChatsQuery("", {
     skip: currentRecipientId !== "all",
+    pollingInterval: 1500,
   });
   const { data: privateMessagesData } = usePrivateMessagesQuery(
     { id: currentRecipientId, oid: user?.id || "" },
-    { skip: currentRecipientId === "all" }
+    { skip: currentRecipientId === "all", pollingInterval: 1500 }
   );
 
   const { data: privateChatsData } = usePrivateChatsQuery(user?.id);
@@ -98,51 +98,51 @@ const ChatInterface = () => {
 
   const members = allUsers?.data ?? [];
 
-  useEffect(() => {
-    if (!user?.id) return;
+  // useEffect(() => {
+  //   if (!user?.id) return;
 
-    const socket = getSocket();
-    socketRef.current = socket;
+  //   const socket = getSocket();
+  //   socketRef.current = socket;
 
-    socket.emit("join-room", { room: user?.id });
+  //   socket.emit("join-room", { room: user?.id });
 
-    socket.on("connection", () => {
-      console.log("Connected to socket:", socket.id);
-    });
+  //   socket.on("connection", () => {
+  //     console.log("Connected to socket:", socket.id);
+  //   });
 
-    socket.on("disconnect", () => {
-      console.log("Socket disconnected");
-    });
+  //   socket.on("disconnect", () => {
+  //     console.log("Socket disconnected");
+  //   });
 
-    return () => {
-      socket.off("connection");
-      socket.off("disconnect");
-    };
-  }, []);
+  //   return () => {
+  //     socket.off("connection");
+  //     socket.off("disconnect");
+  //   };
+  // }, []);
 
-  useEffect(() => {
-    if (!socketRef.current) return;
+  // useEffect(() => {
+  //   if (!socketRef.current) return;
 
-    const socket = socketRef.current;
+  //   const socket = socketRef.current;
 
-    const handleNewMessage = (message: Message) => {
-      if (
-        (currentRecipientId === "all" && message?.public) ||
-        (currentRecipientId !== "all" &&
-          !message?.public &&
-          (message.senderId === currentRecipientId ||
-            message.receiverId === currentRecipientId))
-      ) {
-        setMessages((prev) => [...prev, message]);
-      }
-    };
+  //   const handleNewMessage = (message: Message) => {
+  //     if (
+  //       (currentRecipientId === "all" && message?.public) ||
+  //       (currentRecipientId !== "all" &&
+  //         !message?.public &&
+  //         (message.senderId === currentRecipientId ||
+  //           message.receiverId === currentRecipientId))
+  //     ) {
+  //       setMessages((prev) => [...prev, message]);
+  //     }
+  //   };
 
-    socket.on("new-message", handleNewMessage);
+  //   socket.on("new-message", handleNewMessage);
 
-    return () => {
-      socket.off("new-message", handleNewMessage);
-    };
-  }, [currentRecipientId]);
+  //   return () => {
+  //     socket.off("new-message", handleNewMessage);
+  //   };
+  // }, [currentRecipientId]);
 
   const rawMessages: Message[] = useMemo(() => {
     if (currentRecipientId === "all") {
@@ -274,6 +274,7 @@ const ChatInterface = () => {
       };
 
       try {
+        await addMessage({ data: values }).unwrap();
         socketRef.current?.emit("send-message", values);
         setMessageInput("");
       } catch (error) {
@@ -300,7 +301,7 @@ const ChatInterface = () => {
       : "Private conversation";
 
   return (
-    <div className="container mx-auto p-4 sm:p-8 ">
+    <div className="container mx-auto min-h-screen p-4 sm:p-8 ">
       <PageHeader
         title="Conversations"
         description="Chat with the community and build relationships privately."
@@ -326,7 +327,7 @@ const ChatInterface = () => {
           isNearBottomRef.current =
             el.scrollHeight - el.scrollTop - el.clientHeight < 100;
         }}
-        className="min-h-2/3 rounded shadow-2xl bg-white flex flex-col lg:flex-row"
+        className="rounded shadow bg-white flex flex-col lg:flex-row h-screen overflow-hidden"
       >
         <div
           className={`flex flex-col w-full lg:w-80 shrink-0 border-r border-gray-100 ${
