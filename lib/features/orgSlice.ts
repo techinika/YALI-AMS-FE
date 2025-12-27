@@ -1,4 +1,4 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { createApi } from "@reduxjs/toolkit/query/react";
 import { baseQueryWithAuth } from "../fetchBaseQuery";
 
 export const orgsSlices = createApi({
@@ -13,6 +13,9 @@ export const orgsSlices = createApi({
     }),
     getOrganizationsForUser: builder.query({
       query: (id) => `organizations/user/${id}`,
+    }),
+    getOrganizationsForUserById: builder.query({
+      query: (data) => `organizations/user/${data?.id}/${data?.orgId}`,
     }),
     addNewOrganization: builder.mutation({
       query: (data) => ({
@@ -53,4 +56,5 @@ export const {
   useAddWStoOrgMutation,
   useRemoveWStoOrgMutation,
   useUpdateOrganizationMutation,
+  useGetOrganizationsForUserByIdQuery
 } = orgsSlices;
