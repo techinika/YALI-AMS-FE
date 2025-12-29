@@ -24,6 +24,7 @@ import { useAiMatchMakerMutation } from "@/lib/features/matchMakingSlice";
 import { Member } from "@/types/user";
 import CreateGroupChat from "../parts/models/CreateGroupChat";
 import { Group } from "@/types/message";
+import Link from "next/link";
 
 export const AIInterestMatching = () => {
   const user = getUser();
@@ -248,13 +249,13 @@ export const AIInterestMatching = () => {
                         {u.bio}
                       </p>
                       <div className="flex items-center space-x-2">
-                        <button className="flex-1 py-2 bg-blue-50 hover:bg-blue-100 text-primary rounded-lg text-xs font-bold transition-colors flex items-center justify-center">
+                        <Link
+                          href={`/dashboard/chat?rid=${u?.id}`}
+                          className="flex-1 py-2 bg-blue-50 hover:bg-blue-100 text-primary rounded-lg text-xs font-bold transition-colors flex items-center justify-center"
+                        >
                           <MessageSquare className="w-3 h-3 mr-1.5" />
                           Chat
-                        </button>
-                        <button className="p-2 border border-gray-100 hover:bg-gray-50 rounded-lg transition-colors">
-                          <Plus className="w-4 h-4 text-gray-400" />
-                        </button>
+                        </Link>
                       </div>
                     </div>
                   ))}

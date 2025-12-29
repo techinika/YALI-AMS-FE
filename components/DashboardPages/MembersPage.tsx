@@ -254,7 +254,7 @@ const MembersPage = () => {
         actionTitle2="Export Members"
         onAction2={exportToExcel}
         loading2={exporting}
-        disabled2={false}
+        disabled2={isAdmin ? false : true}
         Icon2={BiExport}
       />
 
