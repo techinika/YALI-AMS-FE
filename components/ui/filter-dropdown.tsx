@@ -18,8 +18,8 @@ export const FilterDropdown = ({
     >
       <option value="">All {title}</option>
       {options.map((option) => (
-        <option key={option?.id} value={option?.name}>
-          {option?.name}
+        <option key={option?.id ?? option} value={option?.name ?? option}>
+          {option?.name ?? option.charAt(0).toUpperCase() + option.slice(1)}
         </option>
       ))}
     </select>

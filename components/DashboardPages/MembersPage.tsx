@@ -8,17 +8,21 @@ import {
   MdAdd,
 } from "react-icons/md";
 import { PageHeader } from "../parts/PageHeader";
-import { Delete, Eye } from "lucide-react";
+import { Delete, Edit, Eye, MessageCircle, Redo, Redo2 } from "lucide-react";
 import { EmptyState } from "../parts/EmptyState";
 import Loading from "@/app/loading";
-import { useDeleteUserMutation, useUsersQuery } from "@/lib/features/userSlice";
+import {
+  useDeleteUserMutation,
+  useReInviteUserMutation,
+  useUsersQuery,
+} from "@/lib/features/userSlice";
 import {
   useCohortsQuery,
   useCountriesQuery,
   useTracksQuery,
 } from "@/lib/features/otherSlice";
 import { FilterDropdown } from "../ui/filter-dropdown";
-import { Member } from "@/types/user";
+import { Member, userStatusTypes } from "@/types/user";
 import InviteUserModal from "../parts/models/InviteUser";
 import ConfirmModal from "../parts/models/confirmModal";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -26,6 +30,7 @@ import { getUser } from "@/helpers/auth";
 import { BiExport } from "react-icons/bi";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
+import { USER_STATUSES } from "@/helpers/data";
 
 const MembersPage = () => {
   const authUser: Member = getUser();
@@ -34,18 +39,23 @@ const MembersPage = () => {
     country: "",
     cohort: "",
     track: "",
+    status: "",
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [reInviteOpen, setReInviteOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState("");
+  const [itemToReInvite, setItemToReInvite] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [reInviteLoading, setReInviteLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [members, setMembers] = useState<Member[]>([]);
   const MEMBERS_PER_PAGE = 10;
   const isAdmin = authUser?.role?.name === "ADMIN";
 
   const [deleteUser, { isLoading }] = useDeleteUserMutation();
+  const [reInviteUser] = useReInviteUserMutation();
 
   const {
     data: membersData = [],
@@ -94,7 +104,8 @@ const MembersPage = () => {
         (!filters.country ||
           member?.residentCountry?.name === filters.country) &&
         (!filters.cohort || member?.cohort?.name === filters.cohort) &&
-        (!filters.track || member?.track?.name === filters.track);
+        (!filters.track || member?.track?.name === filters.track) &&
+        (!filters.status || member?.status === filters.status);
 
       return matchesSearch && matchesFilters;
     });
@@ -134,6 +145,23 @@ const MembersPage = () => {
     } finally {
       setDeleteLoading(false);
       setDeleteOpen(false);
+    }
+  };
+
+  const handleReInvite = async () => {
+    setReInviteLoading(true);
+    try {
+      const data = await reInviteUser({ id: itemToReInvite }).unwrap();
+      toastSuccess(data.message);
+      refetch();
+    } catch (error) {
+      console.log(error);
+      toastError(
+        `There was an error while re-inviting user, please try again or contact support!`
+      );
+    } finally {
+      setReInviteLoading(false);
+      setReInviteOpen(false);
     }
   };
 
@@ -228,6 +256,7 @@ const MembersPage = () => {
       <InviteUserModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
+        refetchUsers={refetch}
       />
 
       {deleteOpen && (
@@ -239,6 +268,18 @@ const MembersPage = () => {
           isLoading={deleteLoading || isLoading}
           action={handleDelete}
           closeModal={() => setDeleteOpen(false)}
+        />
+      )}
+
+      {reInviteOpen && (
+        <ConfirmModal
+          title="RE-INVITE MEMBER"
+          description="This members account has been created, but they have not accessed it yet. Re-sending the invitation email will allow them to set their password and access their account. Do you want to proceed?"
+          confirmText="Proceed"
+          cancelText="Cancel"
+          isLoading={reInviteLoading}
+          action={handleReInvite}
+          closeModal={() => setReInviteOpen(false)}
         />
       )}
 
@@ -295,11 +336,19 @@ const MembersPage = () => {
             onChange={(e) => handleFilterChange("track", e.target.value)}
             value={filters.track}
           />
+          {isAdmin && (
+            <FilterDropdown
+              title="Status"
+              options={USER_STATUSES || []}
+              onChange={(e) => handleFilterChange("status", e.target.value)}
+              value={filters.status}
+            />
+          )}
 
           <button
             onClick={() => {
               setSearchTerm("");
-              setFilters({ country: "", cohort: "", track: "" });
+              setFilters({ country: "", cohort: "", track: "", status: "" });
               setCurrentPage(1);
             }}
             className="p-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg transition-colors"
@@ -328,6 +377,11 @@ const MembersPage = () => {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Cohort/Track
               </th>
+              {isAdmin && (
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+              )}
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Action
               </th>
@@ -351,19 +405,30 @@ const MembersPage = () => {
                   {member?.cohort?.name ?? "N/A"} /{" "}
                   {member?.track?.name ?? "N/A"}
                 </td>
-                {/* <td className="px-6 py-4 whitespace-nowrap">
-                  <span
-                    className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      member === "Active"
-                        ? "bg-green-100 text-green-800"
-                        : member.status === "Pending"
-                        ? "bg-yellow-100 text-yellow-800"
-                        : "bg-red-100 text-red-800"
-                    }`}
-                  >
-                    {member.status}
-                  </span>
-                </td> */}
+                {isAdmin && (
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span
+                      title={
+                        member.status === userStatusTypes.ACTIVE
+                          ? "This user has started using this account."
+                          : member.status === userStatusTypes?.INACTIVE
+                          ? "User's account is created, but the user has not set the password or logged in once."
+                          : member.status === userStatusTypes?.INVITED
+                          ? "User has been invited to confirm their account, but they have not set the password or logged in once."
+                          : "User is deleted."
+                      }
+                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        member.status === "active"
+                          ? "bg-green-100 text-green-800"
+                          : member.status === "inactive"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      {member.status}
+                    </span>
+                  </td>
+                )}
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex items-center space-x-4">
                   <Link
                     href={`/dashboard/profile?userId=${member.id}`}
@@ -373,6 +438,27 @@ const MembersPage = () => {
                       View
                     </Eye>
                   </Link>
+                  {isAdmin && member.status === userStatusTypes?.ACTIVE && (
+                    <Link
+                      href={`/dashboard/profile/update?userId=${member.id}`}
+                      passHref
+                    >
+                      <Edit className="text-primary hover:text-primary/80">
+                        Edit
+                      </Edit>
+                    </Link>
+                  )}
+                  {isAdmin && member.status === userStatusTypes?.INVITED && (
+                    <Redo2
+                      onClick={() => {
+                        setReInviteOpen(true);
+                        setItemToReInvite(`${member?.id}`);
+                      }}
+                      className="text-primary hover:text-primary/80"
+                    >
+                      Resend Invitation
+                    </Redo2>
+                  )}
                   {isAdmin && (
                     <Delete
                       onClick={() => {
@@ -384,6 +470,11 @@ const MembersPage = () => {
                       Delete
                     </Delete>
                   )}
+                  <Link href={`/dashboard/chat?rid=${member.id}`} passHref>
+                    <MessageCircle className="text-primary hover:text-primary/80">
+                      Send Message
+                    </MessageCircle>
+                  </Link>
                 </td>
               </tr>
             ))}

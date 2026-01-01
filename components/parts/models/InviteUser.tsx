@@ -9,11 +9,13 @@ import { MdClose, MdEmail, MdPerson, MdSend } from "react-icons/md";
 interface InviteUserModalProps {
   isOpen: boolean;
   onClose: () => void;
+  refetchUsers: () => void;
 }
 
 const InviteUserModal: React.FC<InviteUserModalProps> = ({
   isOpen,
   onClose,
+  refetchUsers,
 }) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -38,6 +40,8 @@ const InviteUserModal: React.FC<InviteUserModalProps> = ({
       }).unwrap();
 
       toastSuccess(`Invitation sent to ${name}!`);
+
+      refetchUsers();
     } catch (err: any) {
       console.error("Invite error:", err);
 

@@ -18,7 +18,7 @@ import {
 } from "@/lib/features/userSlice";
 import { useEffect, useState } from "react";
 import Loading from "@/app/loading";
-import { useParams, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { getUser } from "@/helpers/auth";
 import { MdCloudUpload, MdClose, MdEdit } from "react-icons/md";
 import { Member } from "@/types/user";
@@ -59,7 +59,11 @@ function UpdateProfilePage() {
   const searchParams = useSearchParams();
   const userId = searchParams.get("userId");
   const user = getUser();
-  const targetId = userId ?? user?.id;
+  const isAdmin = user?.role?.name === "ADMIN";
+  const targetId =
+    isAdmin && typeof userId === "string" && userId.trim() !== ""
+      ? userId
+      : user?.id;
 
   const [activeTab, setActiveTab] = useState(0);
   const [genders, setGenders] = useState<any>([]);
@@ -87,6 +91,10 @@ function UpdateProfilePage() {
   const { data: UserData, refetch } = useGetOneUserQuery<{ data: Member }>(
     targetId
   );
+
+  useEffect(() => {
+    if (targetId !== user?.id) setChangeEmail(false);
+  }, [targetId, user]);
 
   const usr: Member | undefined = UserData;
 

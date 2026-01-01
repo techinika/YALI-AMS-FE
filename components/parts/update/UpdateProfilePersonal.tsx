@@ -9,6 +9,7 @@ import { Track } from "@/types/track";
 import { TailwindSelect } from "@/components/ui/tail-select";
 import { PhoneInputTailwind } from "@/components/ui/tail-phone";
 import { TailwindInput } from "@/components/ui/tail-input";
+import { getUser } from "@/helpers/auth";
 
 export const Personal = ({
   values,
@@ -47,6 +48,7 @@ export const Personal = ({
   changeEmail: boolean;
   setChangeEmail: (value: boolean) => void;
 }) => {
+  const member = getUser();
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       <TailwindInput
@@ -84,18 +86,11 @@ export const Personal = ({
         placeholder="Email"
         disabled={!changeEmail}
         error={errors.email}
-        note={
+        helperText={
           <p className="text-primary text-xs italic mt-1">
-            <b>Note:</b> Updating the email will change your login credentials!
-            Proceed with caution.{" "}
-            <span
-              className="underline cursor-pointer font-bold hover:text-blue-800"
-              onClick={() => {
-                setChangeEmail(!changeEmail);
-              }}
-            >
-              {changeEmail ? "Disable" : "Enable"}
-            </span>
+            <b>Note:</b> Updating the email will change the login credentials,
+            so it can only be changed by the account owner! Proceed with
+            caution.
           </p>
         }
       />
