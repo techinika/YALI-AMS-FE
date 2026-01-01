@@ -74,12 +74,17 @@ const ChatInterface = () => {
   const isNearBottomRef = useRef(true);
   const socketRef = useRef<any>(null);
 
-  const [currentRecipientId, setCurrentRecipientId] = useState<string>(oid);
+  const [currentRecipientId, setCurrentRecipientId] = useState<string>(
+    oid ?? "all"
+  );
   const [messageInput, setMessageInput] = useState("");
   const [chatSearch, setChatSearch] = useState("");
   const [messageSearch, setMessageSearch] = useState("");
   const [usersSearch, setUsersSearch] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [recipientUser, setRecipientUser] = useState<Member | null>(null);
+  const [headerTitle, setHeaderTitle] = useState("Community Chat");
 
   const { data: communityMessagesData } = useChatsQuery("", {
     skip: currentRecipientId !== "all",
@@ -87,7 +92,7 @@ const ChatInterface = () => {
   });
   const { data: privateMessagesData } = usePrivateMessagesQuery(
     { id: currentRecipientId, oid: user?.id || "" },
-    { skip: currentRecipientId === "all", pollingInterval: 1500 }
+    { pollingInterval: 1500 }
   );
 
   const { data: privateChatsData } = usePrivateChatsQuery(user?.id);
@@ -96,7 +101,27 @@ const ChatInterface = () => {
   const { data: allUsers } = useUsersQuery("");
   const { data: searchableUsers } = useUsersQuery(usersSearch);
 
-  const members = allUsers?.data ?? [];
+  useEffect(() => {
+    if (allUsers) {
+      const otherMembers = allUsers?.data.filter(
+        (u: Member) => u.id !== user?.id
+      );
+      setMembers(otherMembers);
+    }
+  }, [allUsers, user?.id]);
+
+  useEffect(() => {
+    if (currentRecipientId === "all") {
+      setRecipientUser(null);
+      setHeaderTitle("Community Chat");
+      return;
+    }
+
+    const found = members.find((m) => m.id === currentRecipientId) || null;
+    setRecipientUser(found);
+
+    setHeaderTitle(found ? `${found.firstName} ${found.lastName}` : "Unknown");
+  }, [currentRecipientId, members]);
 
   // useEffect(() => {
   //   if (!user?.id) return;
@@ -283,17 +308,6 @@ const ChatInterface = () => {
     },
     [messageInput, user?.id, currentRecipientId, addMessage]
   );
-
-  const recipientUser = useMemo(() => {
-    return members.find((u: Member) => u.id === currentRecipientId);
-  }, [currentRecipientId]);
-
-  const headerTitle =
-    currentRecipientId === "all"
-      ? "Community Chat"
-      : `${recipientUser?.firstName || "Unknown"} ${
-          recipientUser?.lastName || ""
-        }`;
 
   const headerSubtitle =
     currentRecipientId === "all"

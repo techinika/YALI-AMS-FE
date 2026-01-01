@@ -207,3 +207,5 @@ export const AVAILABLE_INTERESTS = [
     icon: <Rocket className="w-4 h-4" />,
   },
 ];
+
+export const USER_STATUSES = ["inactive", "active", "invited"];

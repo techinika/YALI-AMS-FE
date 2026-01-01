@@ -26,6 +26,7 @@ export interface Member {
   cohort: Cohort;
   bio: string;
   gender: Gender;
+  status: string;
   track: Track | null;
   organizationFoundedId: number | null;
   organizationFounded: Organization;
@@ -94,3 +95,10 @@ export interface WorkingSector {
   id: string;
   name: string;
 }
+
+export const userStatusTypes = {
+  DELETED: "deleted",
+  INACTIVE: "inactive",
+  ACTIVE: "active",
+  INVITED: "invited",
+};

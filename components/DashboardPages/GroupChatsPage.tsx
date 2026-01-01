@@ -24,9 +24,11 @@ import {
 } from "@/lib/features/chatSlice";
 import Loading from "@/app/loading";
 import { Group, GroupMessage } from "@/types/message";
+import { useRouter } from "next/navigation";
 
 export const GroupChatsPage = () => {
   const user = getUser();
+  const router = useRouter();
   // const socketRef = useRef<any>(null);
   const [groups, setGroups] = useState<Group[]>([]);
   const [activeGroup, setActiveGroup] = useState<Group | null>(null);
@@ -142,12 +144,12 @@ export const GroupChatsPage = () => {
         description="Join Communities and Start Chatting with like-minded members."
         actionTitle={"Single Chats"}
         Icon={MessageCircle}
-        onAction={() => console.log(true)}
+        onAction={() => router.push("/dashboard/chat")}
         loading={false}
         disabled={false}
         second={false}
         actionTitle2=""
-        onAction2={() => console.log("ff")}
+        onAction2={() => console.log("Second Action")}
         loading2={false}
         disabled2={false}
         Icon2={MessageCircle}

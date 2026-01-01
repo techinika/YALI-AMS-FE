@@ -13,6 +13,7 @@ export const TailwindInput = React.memo(
     helperText,
     multiline = false,
     rows = 1,
+    disabled = false,
   }: any) => (
     <div className="flex flex-col w-full">
       <label htmlFor={id} className="text-sm font-medium text-gray-700 mb-1">
@@ -26,6 +27,7 @@ export const TailwindInput = React.memo(
           onChange={onChange}
           placeholder={placeholder}
           required={required}
+          disabled={disabled}
           className={`w-full p-2 border ${
             error ? "border-red-500" : "border-gray-300"
           } rounded-md focus:ring-primary focus:border-primary`}
@@ -37,6 +39,7 @@ export const TailwindInput = React.memo(
           value={value}
           onChange={onChange}
           placeholder={placeholder}
+          disabled={disabled}
           required={required}
           className={`w-full p-2 border ${
             error ? "border-red-500" : "border-gray-300"

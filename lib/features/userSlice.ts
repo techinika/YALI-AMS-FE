@@ -41,6 +41,12 @@ export const usersSlices = createApi({
       }),
       invalidatesTags: ["Users"],
     }),
+    reInviteUser: builder.mutation({
+      query: (body) => ({
+        url: `users/invite/renew/${body.id}`,
+        method: "PUT",
+      }),
+    }),
     createUserProfile: builder.mutation({
       query: (credentials) => ({
         url: "users/profile",
@@ -91,4 +97,5 @@ export const {
   useInviteUserMutation,
   useAssociateOrganizationMutation,
   useRemoveUserOrganizationMutation,
+  useReInviteUserMutation,
 } = usersSlices;
