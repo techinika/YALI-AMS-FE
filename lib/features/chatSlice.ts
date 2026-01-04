@@ -46,13 +46,52 @@ export const chatSlices = createApi({
         body: data,
       }),
     }),
-    sendGroupMessage: builder.mutation({
+
+    requestToJoinGroup: builder.mutation({
       query: (data) => ({
-        url: `chat/group/messages/${data?.groupId}`,
+        url: `chat/group/join-request`,
         method: "POST",
         body: data,
       }),
     }),
+    approveGroupJoinRequest: builder.mutation({
+      query: (data) => ({
+        url: `chat/group/approve-request/admin`,
+        method: "POST",
+        body: data,
+      }),
+    }),
+    acceptGroupInvitation: builder.mutation({
+      query: (data) => ({
+        url: `chat/group/approve-request/member`,
+        method: "POST",
+        body: data,
+      }),
+    }),
+
+    rejectJoinRequest: builder.mutation({
+      query: (data) => ({
+        url: `chat/group/reject-request/${data?.groupId}`,
+        method: "POST",
+        body: data,
+      }),
+    }),
+    declineGroupInvitation: builder.mutation({
+      query: (data) => ({
+        url: `chat/group/decline-request/${data?.groupId}`,
+        method: "POST",
+        body: data,
+      }),
+    }),
+
+    sendGroupMessage: builder.mutation({
+      query: (data) => ({
+        url: `chat/group/messages/${data?.groupId}/${data?.userId}`,
+        method: "POST",
+        body: data,
+      }),
+    }),
+
     getAllGroups: builder.query({
       query: () => `chat/group/all`,
     }),
@@ -60,7 +99,7 @@ export const chatSlices = createApi({
       query: (userId) => `chat/group/my/${userId}`,
     }),
     getAllGroupMessages: builder.query({
-      query: (groupId) => `chat/group/messages/${groupId}`,
+      query: (data) => `chat/group/messages/${data?.groupId}/${data?.userId}`,
     }),
     getAllGroupMembers: builder.query({
       query: (groupId) => `chat/group/get-members/${groupId}`,
@@ -82,4 +121,9 @@ export const {
   useSendGroupMessageMutation,
   useGetAllGroupMembersQuery,
   useGetMyGroupsQuery,
+  useRequestToJoinGroupMutation,
+  useAcceptGroupInvitationMutation,
+  useApproveGroupJoinRequestMutation,
+  useDeclineGroupInvitationMutation,
+  useRejectJoinRequestMutation,
 } = chatSlices;

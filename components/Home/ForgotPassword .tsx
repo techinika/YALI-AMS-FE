@@ -123,7 +123,11 @@ const ForgotPasswordPage = () => {
 
         {/* Form or Error View */}
         {!success && (
-          <form className="w-full space-y-4" onSubmit={handleSubmit}>
+          <form
+            className="w-full space-y-4"
+            onSubmit={handleSubmit}
+            method="POST"
+          >
             {/* API Error Message */}
             {apiError && (
               <div className="w-full mb-4">

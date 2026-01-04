@@ -462,7 +462,7 @@ const ChatInterface = () => {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setCurrentRecipientId("all")}
-                className="md:hidden p-1 text-primary hover:text-indigo-800 transition"
+                className="md:hidden p-1 text-primary hover:text-primary/80 transition"
                 aria-label="Back to chat list"
               >
                 <ChevronLeft className="w-6 h-6" />

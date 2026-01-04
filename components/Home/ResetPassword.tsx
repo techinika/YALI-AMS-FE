@@ -136,7 +136,7 @@ const ResetPassword = () => {
             </Link>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6" method="POST">
             {generalError && (
               <div
                 className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl relative transition-all duration-300 shadow-md"

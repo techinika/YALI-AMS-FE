@@ -18,18 +18,25 @@ import CreateGroupChat from "../parts/models/CreateGroupChat";
 import { getUser } from "@/helpers/auth";
 import { useUsersQuery } from "@/lib/features/userSlice";
 import {
+  useAcceptGroupInvitationMutation,
+  useDeclineGroupInvitationMutation,
   useGetAllGroupMessagesQuery,
   useGetMyGroupsQuery,
   useSendGroupMessageMutation,
 } from "@/lib/features/chatSlice";
 import Loading from "@/app/loading";
-import { Group, GroupMessage } from "@/types/message";
+import {
+  Group,
+  GROUP_STATUS_UI,
+  groupJoinStatusTypes,
+  GroupMessage,
+} from "@/types/message";
 import { useRouter } from "next/navigation";
+import Modal from "../parts/models/Modal";
 
 export const GroupChatsPage = () => {
   const user = getUser();
   const router = useRouter();
-  // const socketRef = useRef<any>(null);
   const [groups, setGroups] = useState<Group[]>([]);
   const [activeGroup, setActiveGroup] = useState<Group | null>(null);
   const [messages, setMessages] = useState<GroupMessage[]>([]);
@@ -37,8 +44,13 @@ export const GroupChatsPage = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [members, setMembers] = useState([]);
+  const [pendingGroup, setPendingGroup] = useState<Group | null>(null);
+  const [showGroupStatusModal, setShowGroupStatusModal] = useState(false);
+  const [showManageMembersModal, setShowManageMembersModal] = useState(false);
 
   const [sendGroupMessage] = useSendGroupMessageMutation();
+  const [declineGroupInvitation] = useDeclineGroupInvitationMutation();
+  const [acceptGroupInvitation] = useAcceptGroupInvitationMutation();
 
   const { data: membersData = [], isLoading: usersLoading } = useUsersQuery("");
 
@@ -48,49 +60,14 @@ export const GroupChatsPage = () => {
     refetch: groupRefetching,
   } = useGetMyGroupsQuery(user?.id);
 
-  // useEffect(() => {
-  //   if (!activeGroup) return;
-
-  //   const socket = getSocket();
-  //   socketRef.current = socket;
-
-  //   socket.emit("join-group", { groupId: activeGroup?.id });
-
-  //   socket.on("connection", () => {
-  //     console.log("Connected to socket:", socket.id);
-  //   });
-
-  //   socket.on("disconnect", () => {
-  //     console.log("Socket disconnected");
-  //   });
-
-  //   return () => {
-  //     socket.off("connection");
-  //     socket.off("disconnect");
-  //   };
-  // }, [activeGroup, user?.id]);
-
-  // useEffect(() => {
-  //   if (!socketRef.current) return;
-
-  //   const socket = socketRef.current;
-
-  //   const handleNewMessage = (message: any) => {
-  //     setMessages((prev) => [...prev, message]);
-  //   };
-
-  //   socket.on("new-group-message", handleNewMessage);
-
-  //   return () => {
-  //     socket.off("new-group-message", handleNewMessage);
-  //   };
-  // }, [activeGroup]);
-
   const { data: groupsMessagesData = [], isLoading: groupsMessagesLoading } =
-    useGetAllGroupMessagesQuery(activeGroup?.id || "", {
-      skip: !activeGroup?.id,
-      pollingInterval: 1500,
-    });
+    useGetAllGroupMessagesQuery(
+      { groupId: activeGroup?.id || "", userId: user?.id },
+      {
+        skip: !activeGroup?.id,
+        pollingInterval: 1500,
+      }
+    );
 
   useEffect(() => {
     if (membersData?.data) {
@@ -117,14 +94,9 @@ export const GroupChatsPage = () => {
     if (!newMessage.trim() || !activeGroup || !user) return;
 
     try {
-      // socketRef.current?.emit("send-group-message", {
-      //   groupId: activeGroup?.id,
-      //   senderId: user.id,
-      //   message: newMessage,
-      // });
-
       await sendGroupMessage({
         groupId: activeGroup?.id,
+        userId: user?.id,
         senderId: user.id,
         content: newMessage,
       }).unwrap();
@@ -186,10 +158,23 @@ export const GroupChatsPage = () => {
               )
               .map((group) => {
                 const membersCount = group.members.length || 0;
+                const myStatus: any = group?.myMembership?.status ?? "approved";
+                const statusUI =
+                  GROUP_STATUS_UI[
+                    String(myStatus) as keyof typeof GROUP_STATUS_UI
+                  ];
+
                 return (
                   <button
                     key={group.id}
-                    onClick={() => setActiveGroup(group)}
+                    onClick={() => {
+                      if (statusUI?.clickable) {
+                        setActiveGroup(group);
+                      } else {
+                        setPendingGroup(group);
+                        setShowGroupStatusModal(true);
+                      }
+                    }}
                     className={`w-full flex items-center p-3 rounded-xl transition-all ${
                       activeGroup?.id === group.id
                         ? "bg-blue-50 text-primary/80 shadow-sm border border-blue-100"
@@ -215,6 +200,19 @@ export const GroupChatsPage = () => {
                     {activeGroup?.id === group.id && (
                       <ChevronRight className="w-4 h-4" />
                     )}
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[11px] opacity-70">
+                        {membersCount} Members
+                      </span>
+
+                      {statusUI && (
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${statusUI.color}`}
+                        >
+                          {statusUI.label}
+                        </span>
+                      )}
+                    </div>
                   </button>
                 );
               })}
@@ -247,9 +245,14 @@ export const GroupChatsPage = () => {
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <button className="p-2 hover:bg-gray-50 rounded-lg text-gray-400 transition-colors">
-                    <UserPlus className="w-5 h-5" />
-                  </button>
+                  {activeGroup?.createdBy?.id === user?.id && (
+                    <button
+                      onClick={() => setShowManageMembersModal(true)}
+                      className="p-2 hover:bg-gray-50 rounded-lg text-gray-400 transition-colors"
+                    >
+                      <UserPlus className="w-5 h-5" />
+                    </button>
+                  )}
                   <button className="p-2 hover:bg-gray-50 rounded-lg text-gray-400 transition-colors">
                     <Info className="w-5 h-5" />
                   </button>
@@ -351,6 +354,109 @@ export const GroupChatsPage = () => {
             source="chat"
             groupRefetching={groupRefetching}
           />
+        )}
+
+        {showGroupStatusModal && pendingGroup && (
+          <Modal onClose={() => setShowGroupStatusModal(false)}>
+            {pendingGroup.members[0].status === "admin_approval_pending" && (
+              <>
+                <h3 className="text-lg font-bold">Approval pending</h3>
+                <p className="text-sm text-gray-600 mt-2">
+                  Your request to join <b>{pendingGroup.name}</b> is waiting for
+                  admin approval.
+                </p>
+              </>
+            )}
+
+            {pendingGroup.members[0].status === "member_joining_pending" && (
+              <>
+                <h3 className="text-lg font-bold">Group invitation</h3>
+                <p className="text-sm text-gray-600 mt-2">
+                  You’ve been invited to join <b>{pendingGroup.name}</b>.
+                </p>
+
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={async () => {
+                      await acceptGroupInvitation({
+                        groupId: pendingGroup.id,
+                        userId: user?.id,
+                      }).unwrap();
+                      groupRefetching();
+                      setShowGroupStatusModal(false);
+                    }}
+                    className="bg-primary py-2 px-6 rounded-full text-white hover:bg-primary/80"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await declineGroupInvitation({
+                        groupId: pendingGroup.id,
+                        userId: user?.id,
+                      }).unwrap();
+                      groupRefetching();
+                      setShowGroupStatusModal(false);
+                    }}
+                    className="bg-white py-2 px-6 rounded-full text-primary hover:bg-primary hover:text-white border-2 border-primary"
+                  >
+                    Decline
+                  </button>
+                </div>
+              </>
+            )}
+          </Modal>
+        )}
+
+        {showManageMembersModal && (
+          <Modal onClose={() => setShowManageMembersModal(false)}>
+            <h3 className="text-lg font-bold mb-4">Manage Members</h3>
+
+            <h4 className="text-sm font-semibold text-gray-500 mb-2">
+              Join requests
+            </h4>
+
+            {activeGroup?.members
+              .filter(
+                (m) => m.status === groupJoinStatusTypes?.MEMBER_JOINING_PENDING
+              )
+              .map((m) => (
+                <div
+                  key={m.id}
+                  className="flex justify-between items-center py-2"
+                >
+                  <span>
+                    {m.firstName} {m.lastName}
+                  </span>
+
+                  <div className="flex gap-2">
+                    <button
+                      // onClick={() => approveMember(activeGroup.id, m.userId)}
+                      className="btn-xs btn-success"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      // onClick={() => rejectMember(activeGroup.id, m.userId)}
+                      className="btn-xs btn-danger"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+            {/* Invite section */}
+            <div className="mt-6">
+              <h4 className="text-sm font-semibold text-gray-500 mb-2">
+                Invite members
+              </h4>
+
+              <input placeholder="Search users..." className="input w-full" />
+
+              {/* List users with invite button */}
+            </div>
+          </Modal>
         )}
       </div>
     </div>
