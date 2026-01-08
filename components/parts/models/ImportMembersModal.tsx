@@ -43,6 +43,7 @@ const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
       const data = e.target?.result;
       if (!data) {
         setUploadError("Failed to read file data.");
+        setPreviewData([]);
         return;
       }
 
@@ -51,31 +52,70 @@ const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
         await workbook.xlsx.load(data as ArrayBuffer);
 
         const worksheet = workbook.worksheets[0];
-
         if (!worksheet) {
           setUploadError("No worksheet found in file.");
           setPreviewData([]);
           return;
         }
 
-        const rows = worksheet.getSheetValues();
-        if (rows.length <= 1) {
-          setUploadError("File is empty or only contains headers.");
+        const headerRow = worksheet.getRow(1);
+        const headers: string[] = [];
+
+        for (let col = 0; col <= headerRow.cellCount; col++) {
+          const cell = headerRow.getCell(col);
+          headers.push(String(cell.value ?? "").trim());
+        }
+
+        if (headers.filter(Boolean).length === 0) {
+          setUploadError("No valid headers found in file.");
           setPreviewData([]);
           return;
         }
 
-        const headers: string[] = rows[1] as string[];
+        const parsedRows: Record<string, any>[] = [];
 
-        const users = rows.slice(2).map((row: any) => {
-          const user: any = {};
-          headers.forEach((header, index) => {
-            user[header] = row[index + 1] ?? "";
-          });
-          return user;
+        worksheet.eachRow((row, rowNumber) => {
+          if (rowNumber === 1) return;
+
+          const rowData: Record<string, any> = {};
+          let hasValue = false;
+
+          for (let col = 1; col <= headers.length; col++) {
+            const header = headers[col - 1];
+            if (!header) continue;
+
+            const cell = row.getCell(col);
+
+            let value: any = "";
+
+            if (cell.value instanceof Date) {
+              value = cell.value.toISOString();
+            } else if (typeof cell.value === "object" && cell.value !== null) {
+              value =
+                (cell.value as any).text ?? (cell.value as any).result ?? "";
+            } else {
+              value = cell.value ?? "";
+            }
+
+            value = String(value).trim();
+            if (value !== "") hasValue = true;
+
+            rowData[header] = value;
+          }
+
+          if (hasValue) {
+            parsedRows.push(rowData);
+          }
         });
 
-        setPreviewData(users);
+        if (parsedRows.length === 0) {
+          setUploadError("No valid data rows found.");
+          setPreviewData([]);
+          return;
+        }
+
+        /** 3️⃣ Save preview data */
+        setPreviewData(parsedRows);
         setUploadError("");
       } catch (err) {
         console.error(err);
@@ -86,9 +126,9 @@ const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
 
     reader.onerror = () => {
       setUploadError("Failed to read the file.");
+      setPreviewData([]);
     };
 
-    // ExcelJS works with ArrayBuffer
     reader.readAsArrayBuffer(file);
   };
 

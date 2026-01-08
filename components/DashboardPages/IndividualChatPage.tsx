@@ -414,7 +414,7 @@ const ChatInterface = () => {
                 className={`p-3 border-b border-gray-100 cursor-pointer transition-colors flex items-start space-x-3 
                             ${
                               chat.id === currentRecipientId
-                                ? "bg-indigo-100/70 border-indigo-300 shadow-inner"
+                                ? "bg-blue-100/70 border-blue-300 shadow-inner"
                                 : "hover:bg-gray-50"
                             }`}
                 onClick={() => {

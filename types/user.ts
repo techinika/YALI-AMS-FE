@@ -44,7 +44,7 @@ export interface Member {
 export interface Organization {
   id: string;
   name: string;
-  workingSector: WorkingSector;
+  workingSectors: any[];
   districtId: string;
   district: ResidentDistrict;
   country: Country;
@@ -52,6 +52,7 @@ export interface Organization {
   state: State;
   sector: ResidentSector;
   website: string;
+  
 }
 
 export interface Role {

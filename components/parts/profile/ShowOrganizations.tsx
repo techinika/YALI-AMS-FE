@@ -9,15 +9,9 @@ import { getUser } from "@/helpers/auth";
 export const NoOrg = ({
   organizations,
   targetId,
-  districts,
-  countries,
-  workingSectors,
 }: {
   organizations: any[];
   targetId: string;
-  districts: any[];
-  countries: any[];
-  workingSectors: any[];
 }) => {
   const user = getUser();
   const [orgLinkModalOpen, setOrgLinkModalOpen] = useState(false);
@@ -28,9 +22,6 @@ export const NoOrg = ({
           closeModal={() => setOrgLinkModalOpen(false)}
           organizations={organizations ?? []}
           userId={targetId}
-          districts={districts}
-          countries={countries}
-          workingSectors={workingSectors}
         />
       )}
       <Building2 className="w-12 h-12 text-gray-400 mb-4" />
@@ -58,27 +49,13 @@ export const ShowOrganizationOnProfile = ({
   orgs,
   targetId,
   allOrganizations,
-  districts,
-  countries,
-  workingSectors,
 }: {
   orgs: any[];
   targetId: string;
   allOrganizations: any[];
-  districts: any[];
-  countries: any[];
-  workingSectors: any[];
 }) => {
   if (orgs.length === 0) {
-    return (
-      <NoOrg
-        districts={districts}
-        countries={countries}
-        workingSectors={workingSectors}
-        organizations={allOrganizations}
-        targetId={targetId}
-      />
-    );
+    return <NoOrg organizations={allOrganizations} targetId={targetId} />;
   }
 
   return (

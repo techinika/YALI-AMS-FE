@@ -19,9 +19,13 @@ import { getUser } from "@/helpers/auth";
 import { useUsersQuery } from "@/lib/features/userSlice";
 import {
   useAcceptGroupInvitationMutation,
+  useAddNewGroupMemberMutation,
+  useApproveGroupJoinRequestMutation,
   useDeclineGroupInvitationMutation,
   useGetAllGroupMessagesQuery,
   useGetMyGroupsQuery,
+  useGetUsersToInviteQuery,
+  useRejectJoinRequestMutation,
   useSendGroupMessageMutation,
 } from "@/lib/features/chatSlice";
 import Loading from "@/app/loading";
@@ -33,6 +37,8 @@ import {
 } from "@/types/message";
 import { useRouter } from "next/navigation";
 import Modal from "../parts/models/Modal";
+import { Member } from "@/types/user";
+import { toastError, toastSuccess } from "@/lib/toast";
 
 export const GroupChatsPage = () => {
   const user = getUser();
@@ -47,12 +53,44 @@ export const GroupChatsPage = () => {
   const [pendingGroup, setPendingGroup] = useState<Group | null>(null);
   const [showGroupStatusModal, setShowGroupStatusModal] = useState(false);
   const [showManageMembersModal, setShowManageMembersModal] = useState(false);
+  const [inviteSearch, setInviteSearch] = useState("");
+  const [membersInvite, setMembersInvite] = useState([]);
 
   const [sendGroupMessage] = useSendGroupMessageMutation();
   const [declineGroupInvitation] = useDeclineGroupInvitationMutation();
   const [acceptGroupInvitation] = useAcceptGroupInvitationMutation();
+  const [approveGroupJoinRequest] = useApproveGroupJoinRequestMutation();
+  const [rejectJoinRequest] = useRejectJoinRequestMutation();
+  const [addNewGroupMember] = useAddNewGroupMemberMutation();
 
   const { data: membersData = [], isLoading: usersLoading } = useUsersQuery("");
+  const { data: membersToInviteData = [] } = useGetUsersToInviteQuery(
+    { currentUserId: user?.id, activeGroupId: activeGroup?.id },
+    {
+      skip: !activeGroup,
+    }
+  );
+
+  useEffect(() => {
+    if (membersToInviteData?.data) {
+      setMembersInvite(membersToInviteData?.data);
+    }
+  }, [activeGroup, membersToInviteData]);
+
+  const groupUserIds = new Set(activeGroup?.members?.map((m) => m.id));
+
+  const inviteCandidates = membersInvite
+    .filter((u) => !groupUserIds.has(u))
+    .filter((u: Member) =>
+      `${u.firstName} ${u.lastName}`
+        .toLowerCase()
+        .includes(inviteSearch.toLowerCase())
+    );
+
+  const joinRequests =
+    activeGroup?.members?.filter(
+      (m) => m.status === groupJoinStatusTypes.ADMIN_APPROVAL_PENDING
+    ) ?? [];
 
   const {
     data: groupsData = [],
@@ -106,6 +144,13 @@ export const GroupChatsPage = () => {
       console.error("Send Error:", err);
     }
   };
+
+  const myMembership = pendingGroup?.members?.find(
+    (m: any) => m?.user?.id === user?.id
+  );
+
+  const canAcceptInvite =
+    myMembership?.status === groupJoinStatusTypes.MEMBER_JOINING_PENDING;
 
   if (usersLoading || groupsLoading) return <Loading />;
 
@@ -201,10 +246,6 @@ export const GroupChatsPage = () => {
                       <ChevronRight className="w-4 h-4" />
                     )}
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[11px] opacity-70">
-                        {membersCount} Members
-                      </span>
-
                       {statusUI && (
                         <span
                           className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${statusUI.color}`}
@@ -358,7 +399,8 @@ export const GroupChatsPage = () => {
 
         {showGroupStatusModal && pendingGroup && (
           <Modal onClose={() => setShowGroupStatusModal(false)}>
-            {pendingGroup.members[0].status === "admin_approval_pending" && (
+            {pendingGroup.members[0].status ===
+              groupJoinStatusTypes.ADMIN_APPROVAL_PENDING && (
               <>
                 <h3 className="text-lg font-bold">Approval pending</h3>
                 <p className="text-sm text-gray-600 mt-2">
@@ -368,7 +410,7 @@ export const GroupChatsPage = () => {
               </>
             )}
 
-            {pendingGroup.members[0].status === "member_joining_pending" && (
+            {canAcceptInvite && (
               <>
                 <h3 className="text-lg font-bold">Group invitation</h3>
                 <p className="text-sm text-gray-600 mt-2">
@@ -408,53 +450,134 @@ export const GroupChatsPage = () => {
           </Modal>
         )}
 
-        {showManageMembersModal && (
+        {showManageMembersModal && activeGroup && (
           <Modal onClose={() => setShowManageMembersModal(false)}>
             <h3 className="text-lg font-bold mb-4">Manage Members</h3>
 
-            <h4 className="text-sm font-semibold text-gray-500 mb-2">
-              Join requests
-            </h4>
+            <div>
+              <h4 className="text-sm font-semibold text-gray-500 mb-2">
+                Join requests ({joinRequests.length})
+              </h4>
 
-            {activeGroup?.members
-              .filter(
-                (m) => m.status === groupJoinStatusTypes?.MEMBER_JOINING_PENDING
-              )
-              .map((m) => (
-                <div
-                  key={m.id}
-                  className="flex justify-between items-center py-2"
-                >
-                  <span>
-                    {m.firstName} {m.lastName}
-                  </span>
+              {joinRequests.length === 0 && (
+                <p className="text-sm text-gray-400 italic">
+                  No pending requests
+                </p>
+              )}
 
-                  <div className="flex gap-2">
-                    <button
-                      // onClick={() => approveMember(activeGroup.id, m.userId)}
-                      className="btn-xs btn-success"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      // onClick={() => rejectMember(activeGroup.id, m.userId)}
-                      className="btn-xs btn-danger"
-                    >
-                      Reject
-                    </button>
+              <div className="space-y-2">
+                {joinRequests.map((m: any) => (
+                  <div
+                    key={m?.user?.id}
+                    className="flex items-center justify-between p-2 rounded-lg border"
+                  >
+                    <div className="text-sm font-medium">
+                      {m?.user?.firstName} {m?.user?.lastName}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => {
+                          try {
+                            await approveGroupJoinRequest({
+                              groupId: activeGroup.id,
+                              userId: m?.user?.id,
+                            }).unwrap();
+                            toastSuccess(
+                              `You have approved ${m?.user?.firstName}'s request to join group ${activeGroup?.name}!`
+                            );
+                            groupRefetching();
+                          } catch (error) {
+                            console.log(error);
+                            toastError(
+                              "Approving join request did not work. Try again!"
+                            );
+                          }
+                        }}
+                        className="px-3 py-1 text-xs rounded-full bg-green-600 text-white hover:bg-green-700"
+                      >
+                        Approve
+                      </button>
+
+                      <button
+                        onClick={async () => {
+                          try {
+                            await rejectJoinRequest({
+                              groupId: activeGroup.id,
+                              userId: m?.user?.id,
+                            }).unwrap();
+                            toastSuccess(
+                              `You have rejected ${m?.user?.firstName}'s request to join group ${activeGroup?.name}!`
+                            );
+                            groupRefetching();
+                          } catch (error) {
+                            console.log(error);
+                            toastError(
+                              "Rejecting join request did not work. Try again!"
+                            );
+                          }
+                        }}
+                        className="px-3 py-1 text-xs rounded-full bg-red-600 text-white hover:bg-red-700"
+                      >
+                        Reject
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+            </div>
 
-            {/* Invite section */}
-            <div className="mt-6">
+            <div className="mt-6 border-t pt-4">
               <h4 className="text-sm font-semibold text-gray-500 mb-2">
                 Invite members
               </h4>
 
-              <input placeholder="Search users..." className="input w-full" />
+              <input
+                value={inviteSearch}
+                onChange={(e) => setInviteSearch(e.target.value)}
+                placeholder="Search users by name..."
+                className="w-full px-3 py-2 mb-3 border rounded-lg text-sm focus:ring-2 focus:ring-primary"
+              />
 
-              {/* List users with invite button */}
+              <div className="max-h-56 overflow-y-auto space-y-2">
+                {inviteCandidates.length === 0 && (
+                  <p className="text-sm text-gray-400 italic">No users found</p>
+                )}
+
+                {inviteCandidates.map((u: any) => (
+                  <div
+                    key={u.id}
+                    className="flex items-center justify-between p-2 rounded-lg border"
+                  >
+                    <span className="text-sm">
+                      {u.firstName} {u.lastName}
+                    </span>
+
+                    <button
+                      onClick={async () => {
+                        try {
+                          await addNewGroupMember({
+                            groupId: activeGroup.id,
+                            userId: u.id,
+                          });
+                          toastSuccess(
+                            `You have invited ${u?.firstName} to join group ${activeGroup?.name}!`
+                          );
+                          groupRefetching();
+                        } catch (error) {
+                          console.log(error);
+                          toastError(
+                            "Inviting to join group did not work. Try again!"
+                          );
+                        }
+                      }}
+                      className="px-3 py-1 text-xs rounded-full border border-primary text-primary hover:bg-primary hover:text-white"
+                    >
+                      Invite
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           </Modal>
         )}

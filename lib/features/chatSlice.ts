@@ -95,6 +95,10 @@ export const chatSlices = createApi({
     getAllGroups: builder.query({
       query: () => `chat/group/all`,
     }),
+    getUsersToInvite: builder.query({
+      query: (data) =>
+        `chat/group/to-invite/${data?.currentUserId}/${data?.activeGroupId}`,
+    }),
     getMyGroups: builder.query({
       query: (userId) => `chat/group/my/${userId}`,
     }),
@@ -126,4 +130,5 @@ export const {
   useApproveGroupJoinRequestMutation,
   useDeclineGroupInvitationMutation,
   useRejectJoinRequestMutation,
+  useGetUsersToInviteQuery,
 } = chatSlices;

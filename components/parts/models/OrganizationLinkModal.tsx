@@ -1,26 +1,13 @@
 "use client";
 
 import { ModalButton } from "@/components/ui/modal-button";
-import { MultiSelectSearch } from "@/components/ui/multi-select-search";
-import { TailwindInput } from "@/components/ui/tail-input";
-import { TailwindSelect } from "@/components/ui/tail-select";
-import { getUser } from "@/helpers/auth";
-import {
-  useAddNewOrganizationMutation,
-  useAddWStoOrgMutation,
-} from "@/lib/features/orgSlice";
-import {
-  useSectorsByDistrictQuery,
-  useStatesByCountryQuery,
-} from "@/lib/features/otherSlice";
 import { useAssociateOrganizationMutation } from "@/lib/features/userSlice";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { createPortal } from "react-dom";
-import { MdClose, MdSearch } from "react-icons/md";
+import { MdClose } from "react-icons/md";
 import LinkOrganization from "../update/LinkOrganization";
-import CreateOrganization from "../update/CreateOrganization";
 
 type Organization = {
   id: string;
@@ -31,32 +18,14 @@ interface OrganizationLinkModalProps {
   closeModal: () => void;
   organizations?: Organization[];
   userId: string;
-  workingSectors: any[];
-  countries: any[];
-  districts: any[];
 }
 
 export default function OrganizationLinkModal({
   closeModal,
   organizations = [],
   userId,
-  workingSectors,
-  countries,
-  districts,
 }: OrganizationLinkModalProps) {
-  const user = getUser();
   const router = useRouter();
-  const initData2 = {
-    name: "",
-    website: "",
-    countryId: "",
-    districtId: "",
-    sectorId: "",
-    stateId: "",
-    relation: "",
-    position: "",
-    workingSectors: [],
-  };
   const initData = {
     orgId: 0,
     relation: "",
@@ -64,36 +33,8 @@ export default function OrganizationLinkModal({
   };
   const [formData, setFormData] = useState(initData);
   const [associateOrganization] = useAssociateOrganizationMutation();
-  const [addNewOrganization] = useAddNewOrganizationMutation();
-  const [addWStoOrg] = useAddWStoOrgMutation();
-  const [formData2, setFormData2] = useState(initData2);
-  const [activeTab, setActiveTab] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [sectors, setSectors] = useState([]);
-  const [states, setStates] = useState<any>([]);
-  const [selectedCountry, setSelectedCountry] = useState("");
-  const [selectedDistrict, setSelectedDistrict] = useState("");
   const [query, setQuery] = useState("");
-
-  const { data: SectorsData } = useSectorsByDistrictQuery(selectedDistrict, {
-    skip: !selectedDistrict,
-  });
-
-  const { data: StatesData } = useStatesByCountryQuery(selectedCountry, {
-    skip: selectedCountry === "RW",
-  });
-
-  useEffect(() => {
-    if (SectorsData) {
-      setSectors(SectorsData?.data || []);
-    }
-  }, [SectorsData]);
-
-  useEffect(() => {
-    if (StatesData) {
-      setStates(StatesData?.data || []);
-    }
-  }, [StatesData]);
 
   const filtered = React.useMemo(() => {
     return organizations.filter((org) =>
@@ -104,7 +45,7 @@ export default function OrganizationLinkModal({
   const handleOrgLink = async () => {
     setSaving(true);
     try {
-      const res = await associateOrganization({
+      await associateOrganization({
         organizationId: formData?.orgId,
         userId,
         relation: formData?.relation,
@@ -120,60 +61,6 @@ export default function OrganizationLinkModal({
       closeModal();
       setSaving(false);
     }
-  };
-
-  const handleCreateOrganization = async () => {
-    setSaving(true);
-    try {
-      const res = await addNewOrganization({
-        name: formData2?.name,
-        website: formData2?.website,
-        addedById: user?.id,
-        countryId: formData2?.countryId ?? undefined,
-        districtId: formData2?.districtId ?? undefined,
-        sectorId: formData2?.sectorId ?? undefined,
-        stateId: formData2?.stateId ?? undefined,
-      }).unwrap();
-      const res2 = await associateOrganization({
-        organizationId: res?.data?.id,
-        userId,
-        relation: formData2?.relation,
-        position: formData2?.position,
-      }).unwrap();
-      const addWS = await Promise.all(
-        formData2.workingSectors.map((v) =>
-          addWStoOrg({
-            userId,
-            organizationId: res.data.id,
-            wsId: v,
-          }).unwrap()
-        )
-      );
-
-      console.log(addWS);
-      toastSuccess("Organization created and added Successfully!");
-    } catch (error) {
-      console.log(error);
-      toastError(
-        "Failed to create a new organization. Try again or contact support!"
-      );
-    } finally {
-      closeModal();
-      setSaving(false);
-    }
-  };
-
-  const wsOptions = React.useMemo(
-    () =>
-      (workingSectors ?? []).map((ws: any) => ({
-        id: ws.id,
-        name: ws.name,
-      })),
-    [workingSectors]
-  );
-
-  const handleTabClick = (index: number) => {
-    setActiveTab(index);
   };
 
   return createPortal(
@@ -192,65 +79,34 @@ export default function OrganizationLinkModal({
         </button>
 
         <div className="px-6 pt-6 pb-4 border-b">
-          <h3 className="text-xl font-bold text-gray-900">
-            Link or Create Organization
-          </h3>
+          <h3 className="text-xl font-bold text-gray-900">Link Organization</h3>
           <p className="text-sm text-gray-600 mt-1">
-            Search for an existing organization or create a new one.
+            Search for an existing organization.
           </p>
         </div>
 
         <div className="px-6">
           <div className="border-b border-gray-200">
             <ul className="flex flex-wrap -mb-px text-sm font-medium text-center text-gray-500">
-              {["Link Organization", "Create Organization"].map(
-                (tab, index) => (
-                  <li key={index + 1} className="mr-2">
-                    <button
-                      type="button"
-                      onClick={() => handleTabClick(index)}
-                      className={`inline-block p-4 border-b-2 rounded-t-lg transition-colors duration-200 ease-in-out 
-                                    ${
-                                      index === activeTab
-                                        ? "text-primary border-primary font-semibold"
-                                        : "hover:text-gray-600 hover:border-gray-300"
-                                    }`}
-                    >
-                      {tab}
-                    </button>
-                  </li>
-                )
-              )}
+              <li className="mr-2">
+                <button
+                  type="button"
+                  className={`inline-block p-4 border-b-2 rounded-t-lg transition-colors duration-200 ease-in-out text-primary border-primary font-semibold`}
+                >
+                  Link Organization
+                </button>
+              </li>
             </ul>
           </div>
 
           <div className="mt-1 border border-gray-200 rounded-xl bg-gray-50 shadow-inner">
-            {activeTab === 0 && (
-              <LinkOrganization
-                filtered={filtered}
-                formData={formData}
-                setFormData={setFormData}
-                query={query}
-                setQuery={setQuery}
-              />
-            )}
-            {activeTab === 1 && (
-              <React.Suspense
-                fallback={<div className="text-center p-4">Loading...</div>}
-              >
-                <CreateOrganization
-                  formData2={formData2}
-                  setFormData2={setFormData2}
-                  wsOptions={wsOptions}
-                  countries={countries}
-                  districts={districts}
-                  setSelectedCountry={setSelectedCountry}
-                  setSelectedDistrict={setSelectedDistrict}
-                  sectors={sectors}
-                  states={states}
-                />
-              </React.Suspense>
-            )}
+            <LinkOrganization
+              filtered={filtered}
+              formData={formData}
+              setFormData={setFormData}
+              query={query}
+              setQuery={setQuery}
+            />
           </div>
         </div>
 
@@ -259,10 +115,7 @@ export default function OrganizationLinkModal({
             Cancel
           </ModalButton>
 
-          <ModalButton
-            variant="confirm"
-            onClick={activeTab === 0 ? handleOrgLink : handleCreateOrganization}
-          >
+          <ModalButton variant="confirm" onClick={handleOrgLink}>
             {saving ? "Saving..." : "Save"}
           </ModalButton>
         </div>
