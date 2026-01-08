@@ -64,7 +64,7 @@ const DataPrivacy = () => {
     <div className="space-y-8 p-6">
       <section className="space-y-4">
         <h2 className="text-2xl font-semibold text-gray-800 flex items-center mb-2">
-          <Bell className="w-5 h-5 mr-2 text-indigo-500" />
+          <Bell className="w-5 h-5 mr-2 text-primary" />
           Communication
         </h2>
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
@@ -137,104 +137,6 @@ const DataPrivacy = () => {
   );
 };
 
-const AccessibilitySettings = () => {
-  const [fontSize, setFontSize] = useState("medium");
-  const [reducedAnimations, setReducedAnimations] = useState(false);
-  const [highContrast, setHighContrast] = useState(false);
-
-  return (
-    <div className="space-y-8 p-6">
-      <section className="space-y-4">
-        <h2 className="text-2xl font-semibold text-gray-800 flex items-center mb-2">
-          <Accessibility className="w-5 h-5 mr-2 text-primary" />
-          Visual & Interaction
-        </h2>
-        <div className="space-y-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-          <label
-            htmlFor="fontSize"
-            className="block text-lg font-medium text-gray-800"
-          >
-            Text Size
-          </label>
-          <p className="text-sm text-gray-500 mb-2">
-            Adjust the base font size for readability across the application.
-          </p>
-          <div className="flex space-x-4">
-            {["small", "medium", "large"].map((size) => (
-              <button
-                key={size}
-                onClick={() => setFontSize(size)}
-                className={`px-4 py-2 rounded-lg font-medium transition duration-150
-                                    ${
-                                      fontSize === size
-                                        ? "bg-primary text-white shadow-md"
-                                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                    }
-                                `}
-              >
-                {size.charAt(0).toUpperCase() + size.slice(1)}
-              </button>
-            ))}
-          </div>
-          <p
-            className={`mt-4 text-gray-700 transition-all ${
-              fontSize === "small"
-                ? "text-sm"
-                : fontSize === "large"
-                ? "text-lg"
-                : "text-base"
-            }`}
-          >
-            Example text size: The quick brown fox jumps over the lazy dog.
-          </p>
-        </div>
-      </section>
-
-      <section className="space-y-4 border-t border-gray-100 pt-6">
-        <h2 className="text-2xl font-semibold text-gray-800 flex items-center">
-          <Zap className="w-5 h-5 mr-2 text-primary" />
-          Motion & Contrast
-        </h2>
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-          <ToggleSwitch
-            labelText="High Contrast Mode"
-            checked={highContrast}
-            onChange={() => setHighContrast(!highContrast)}
-          />
-          <ToggleSwitch
-            labelText="Reduce Motion/Animations"
-            checked={reducedAnimations}
-            onChange={() => setReducedAnimations(!reducedAnimations)}
-          />
-        </div>
-      </section>
-
-      <section className="space-y-4 border-t border-gray-100 pt-6">
-        <h2 className="text-2xl font-semibold text-gray-800 flex items-center">
-          <Globe className="w-5 h-5 mr-2 text-primary" />
-          Regional Settings
-        </h2>
-        <TailwindInput
-          label="Preferred Language"
-          id="language"
-          type="text"
-          value="English (US)"
-          onChange={() => {}}
-          disabled
-        />
-        <TailwindInput
-          label="Time Zone"
-          id="timezone"
-          type="text"
-          value="America/New_York (GMT-5)"
-          onChange={() => {}}
-          disabled
-        />
-      </section>
-    </div>
-  );
-};
-
 const settingsTabs = [
   {
     id: "account",
@@ -243,12 +145,6 @@ const settingsTabs = [
     component: AccountSecurity,
   },
   { id: "data", name: "Data & Privacy", icon: Shield, component: DataPrivacy },
-  {
-    id: "accessibility",
-    name: "Accessibility",
-    icon: Accessibility,
-    component: AccessibilitySettings,
-  },
 ];
 
 const SettingsPage = () => {

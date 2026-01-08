@@ -8,11 +8,12 @@ import {
   MdAdd,
 } from "react-icons/md";
 import { PageHeader } from "../parts/PageHeader";
-import { Delete, Edit, Eye, MessageCircle, Redo, Redo2 } from "lucide-react";
+import { Delete, Edit, Eye, MessageCircle, Redo2 } from "lucide-react";
 import { EmptyState } from "../parts/EmptyState";
 import Loading from "@/app/loading";
 import {
   useDeleteUserMutation,
+  useExportUsersMutation,
   useReInviteUserMutation,
   useUsersQuery,
 } from "@/lib/features/userSlice";
@@ -56,6 +57,7 @@ const MembersPage = () => {
 
   const [deleteUser, { isLoading }] = useDeleteUserMutation();
   const [reInviteUser] = useReInviteUserMutation();
+  const [exportUsers] = useExportUsersMutation();
 
   const {
     data: membersData = [],
@@ -167,80 +169,11 @@ const MembersPage = () => {
 
   const exportToExcel = async () => {
     setExporting(true);
-    const exportData = filteredMembers.map((member: Member, index: number) => ({
-      ID: index + 1,
-      "First Name": member.firstName,
-      "Middle Name": member.middleName ?? "",
-      "Last Name": member.lastName ?? "",
-      "Email Address": member.email,
-      "Phone Number": member?.phoneNumber ?? "",
-      "WhatsApp Number": member?.whatsappNumber ?? "",
-      "LinkedIn Profile": member?.linkedin ?? "",
-      "Facebook Profile": member?.facebook ?? "",
-      "Instagram Profile": member?.instagram ?? "",
-      "X (Twitter) Account": member?.twitter ?? "",
-      Gender: member?.gender?.name ?? "",
-      Biography: member?.bio ?? "",
-      "Country of Residence": member?.residentCountry?.name ?? "",
-      "District of Residence": member?.residentDistrict?.name ?? "",
-      "Sector of Residence": member?.residentSector?.name ?? "",
-      "State/Province (If not in Rwanda)": member?.state?.name ?? "",
-      Cohort: member?.cohort?.name ?? "",
-      Track: member?.track?.name ?? "",
-      "Nearest Landmark": member?.nearestLandmark ?? "",
-      "Organization/Initiative you started (If available)":
-        member?.organizationFounded?.name ?? "",
-      "Your Position in Initiative you Started":
-        member?.positionInFounded ?? "",
-      "Website or any online presence of your initiative":
-        member?.organizationFounded?.website ?? "",
-      "Country of the initiative (District/Sector)":
-        member?.organizationFounded?.country?.name ?? "",
-      "Main Sector of intervention (Eg: Finance, Education, Agribusiness, Etc)":
-        member?.organizationFounded?.workingSector?.name ?? "",
-
-      "Organization that employ you (If you are currently employed)":
-        member?.organizationEmployed?.name ?? "",
-      "Your position in your employment": member?.positionInEmployed ?? "",
-      "Website of an Organization that Employs you (If available)":
-        member?.organizationEmployed?.website ?? "",
-      "Organization Address (Country)":
-        member?.organizationEmployed?.country?.name ?? "",
-      "Working Sector of your Employer":
-        member?.organizationEmployed?.workingSector?.name ?? "",
-      "Profile Picture Link": member?.profileImage?.link,
-      "Created At": new Date(member?.createdAt).toLocaleString(),
-      "Last Updated": new Date(member?.updatedAt).toLocaleString(),
-    }));
-
-    if (exportData.length === 0) {
-      toastError("No users to export with selected filters.");
-      setExporting(false);
-      return;
-    }
 
     try {
-      const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet("Members");
+      const res = await exportUsers("");
 
-      worksheet.columns = Object.keys(exportData[0]).map((key) => ({
-        header: key,
-        key: key,
-        width: 25,
-      }));
-
-      exportData.forEach((row: any) => {
-        worksheet.addRow(row);
-      });
-
-      worksheet.getRow(1).eachCell((cell) => {
-        cell.font = { bold: true };
-        cell.alignment = { horizontal: "center" };
-      });
-
-      const buffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([buffer], { type: "application/octet-stream" });
-      saveAs(blob, `members-export-${Date.now()}.xlsx`);
+      window.open(res?.data?.downloadUrl);
 
       toastSuccess("Excel file exported successfully!");
     } catch (error) {

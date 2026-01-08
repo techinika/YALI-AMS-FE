@@ -6,7 +6,6 @@ import {
   User,
   Users,
   MessageSquare,
-  Plus,
   Check,
   Loader2,
   Brain,
@@ -25,17 +24,25 @@ import { Member } from "@/types/user";
 import CreateGroupChat from "../parts/models/CreateGroupChat";
 import { Group } from "@/types/message";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import ConfirmModal from "../parts/models/confirmModal";
+import { useRequestToJoinGroupMutation } from "@/lib/features/chatSlice";
 
 export const AIInterestMatching = () => {
   const user = getUser();
+  const router = useRouter();
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [aspirations, setAspirations] = useState("");
   const [isMatching, setIsMatching] = useState(false);
   const [matches, setMatches] = useState<any>(null);
   const [error, setError] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [requestToJoinOpen, setRequestToJoinOpen] = useState(false);
+  const [requestToJoinLoading, setRequestToJoinLoading] = useState(false);
+  const [groupToJoin, setGroupToJoin] = useState<Group | null>(null);
 
   const [aiMatchMaker, { isLoading }] = useAiMatchMakerMutation();
+  const [requestToJoinGroup] = useRequestToJoinGroupMutation();
 
   const runMatchingAI = async () => {
     if (selectedInterests.length === 0 && !aspirations.trim()) {
@@ -63,6 +70,26 @@ export const AIInterestMatching = () => {
     }
   };
 
+  const handleRequestToJoin = async () => {
+    setRequestToJoinLoading(true);
+    try {
+      await requestToJoinGroup({
+        userId: user.id,
+        groupId: groupToJoin?.id,
+      }).unwrap();
+
+      toastSuccess("Joining Group Requested!");
+    } catch (err: any) {
+      console.error(err);
+      toastError(
+        err?.data?.message ??
+          "Request to join failed. Please try again or contact support."
+      );
+    } finally {
+      setRequestToJoinLoading(false);
+    }
+  };
+
   const toggleInterest = (id: string) => {
     setSelectedInterests((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
@@ -81,12 +108,26 @@ export const AIInterestMatching = () => {
         />
       )}
 
+      {requestToJoinOpen && (
+        <ConfirmModal
+          title={`REQUEST TO JOIN ${groupToJoin?.name ?? "GROUP"}`}
+          description={`Are you sure you want to request to join this group "${
+            groupToJoin?.name ?? ""
+          }"? The group admin will review your request and get back to you.`}
+          confirmText="Request to Join"
+          cancelText="Cancel"
+          isLoading={requestToJoinLoading}
+          action={handleRequestToJoin}
+          closeModal={() => setRequestToJoinOpen(false)}
+        />
+      )}
+
       <PageHeader
         title="Member AI Matchmaking"
         description="Enter the circle of like-minded individuals and start collaborating and sharing insights."
         actionTitle={"Group Chats"}
         Icon={Users2Icon}
-        onAction={() => console.log(true)}
+        onAction={() => router.push("/dashboard/chat/groups")}
         loading={false}
         disabled={false}
         second={false}
@@ -271,14 +312,16 @@ export const AIInterestMatching = () => {
                 </div>
                 {matches.groups.length > 0 ? (
                   <div className="space-y-4">
-                    <button
-                      onClick={() => {
-                        setShowCreateModal(true);
-                      }}
-                      className="px-6 py-2.5 bg-amber-600 text-white rounded-xl text-xs font-bold hover:bg-amber-700 transition-colors shadow-sm"
-                    >
-                      Create New Collaborative Group
-                    </button>
+                    <div className="flex items-center justify-center">
+                      <button
+                        onClick={() => {
+                          setShowCreateModal(true);
+                        }}
+                        className="px-6 py-2.5 bg-amber-600 text-white rounded-xl text-xs font-bold hover:bg-amber-700 transition-colors shadow-sm"
+                      >
+                        Create New Collaborative Group
+                      </button>
+                    </div>
                     {matches.groups.map((g: Group) => (
                       <div
                         key={g.id}
@@ -297,7 +340,13 @@ export const AIInterestMatching = () => {
                             </p>
                           </div>
                         </div>
-                        <button className="px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold shadow-sm hover:shadow-md transition-all">
+                        <button
+                          onClick={() => {
+                            setRequestToJoinOpen(true);
+                            setGroupToJoin(g);
+                          }}
+                          className="px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold shadow-sm hover:shadow-md transition-all"
+                        >
                           Join Group
                         </button>
                       </div>

@@ -18,18 +18,31 @@ import CreateGroupChat from "../parts/models/CreateGroupChat";
 import { getUser } from "@/helpers/auth";
 import { useUsersQuery } from "@/lib/features/userSlice";
 import {
+  useAcceptGroupInvitationMutation,
+  useAddNewGroupMemberMutation,
+  useApproveGroupJoinRequestMutation,
+  useDeclineGroupInvitationMutation,
   useGetAllGroupMessagesQuery,
   useGetMyGroupsQuery,
+  useGetUsersToInviteQuery,
+  useRejectJoinRequestMutation,
   useSendGroupMessageMutation,
 } from "@/lib/features/chatSlice";
 import Loading from "@/app/loading";
-import { Group, GroupMessage } from "@/types/message";
+import {
+  Group,
+  GROUP_STATUS_UI,
+  groupJoinStatusTypes,
+  GroupMessage,
+} from "@/types/message";
 import { useRouter } from "next/navigation";
+import Modal from "../parts/models/Modal";
+import { Member } from "@/types/user";
+import { toastError, toastSuccess } from "@/lib/toast";
 
 export const GroupChatsPage = () => {
   const user = getUser();
   const router = useRouter();
-  // const socketRef = useRef<any>(null);
   const [groups, setGroups] = useState<Group[]>([]);
   const [activeGroup, setActiveGroup] = useState<Group | null>(null);
   const [messages, setMessages] = useState<GroupMessage[]>([]);
@@ -37,10 +50,47 @@ export const GroupChatsPage = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [members, setMembers] = useState([]);
+  const [pendingGroup, setPendingGroup] = useState<Group | null>(null);
+  const [showGroupStatusModal, setShowGroupStatusModal] = useState(false);
+  const [showManageMembersModal, setShowManageMembersModal] = useState(false);
+  const [inviteSearch, setInviteSearch] = useState("");
+  const [membersInvite, setMembersInvite] = useState([]);
 
   const [sendGroupMessage] = useSendGroupMessageMutation();
+  const [declineGroupInvitation] = useDeclineGroupInvitationMutation();
+  const [acceptGroupInvitation] = useAcceptGroupInvitationMutation();
+  const [approveGroupJoinRequest] = useApproveGroupJoinRequestMutation();
+  const [rejectJoinRequest] = useRejectJoinRequestMutation();
+  const [addNewGroupMember] = useAddNewGroupMemberMutation();
 
   const { data: membersData = [], isLoading: usersLoading } = useUsersQuery("");
+  const { data: membersToInviteData = [] } = useGetUsersToInviteQuery(
+    { currentUserId: user?.id, activeGroupId: activeGroup?.id },
+    {
+      skip: !activeGroup,
+    }
+  );
+
+  useEffect(() => {
+    if (membersToInviteData?.data) {
+      setMembersInvite(membersToInviteData?.data);
+    }
+  }, [activeGroup, membersToInviteData]);
+
+  const groupUserIds = new Set(activeGroup?.members?.map((m) => m.id));
+
+  const inviteCandidates = membersInvite
+    .filter((u) => !groupUserIds.has(u))
+    .filter((u: Member) =>
+      `${u.firstName} ${u.lastName}`
+        .toLowerCase()
+        .includes(inviteSearch.toLowerCase())
+    );
+
+  const joinRequests =
+    activeGroup?.members?.filter(
+      (m) => m.status === groupJoinStatusTypes.ADMIN_APPROVAL_PENDING
+    ) ?? [];
 
   const {
     data: groupsData = [],
@@ -48,49 +98,14 @@ export const GroupChatsPage = () => {
     refetch: groupRefetching,
   } = useGetMyGroupsQuery(user?.id);
 
-  // useEffect(() => {
-  //   if (!activeGroup) return;
-
-  //   const socket = getSocket();
-  //   socketRef.current = socket;
-
-  //   socket.emit("join-group", { groupId: activeGroup?.id });
-
-  //   socket.on("connection", () => {
-  //     console.log("Connected to socket:", socket.id);
-  //   });
-
-  //   socket.on("disconnect", () => {
-  //     console.log("Socket disconnected");
-  //   });
-
-  //   return () => {
-  //     socket.off("connection");
-  //     socket.off("disconnect");
-  //   };
-  // }, [activeGroup, user?.id]);
-
-  // useEffect(() => {
-  //   if (!socketRef.current) return;
-
-  //   const socket = socketRef.current;
-
-  //   const handleNewMessage = (message: any) => {
-  //     setMessages((prev) => [...prev, message]);
-  //   };
-
-  //   socket.on("new-group-message", handleNewMessage);
-
-  //   return () => {
-  //     socket.off("new-group-message", handleNewMessage);
-  //   };
-  // }, [activeGroup]);
-
   const { data: groupsMessagesData = [], isLoading: groupsMessagesLoading } =
-    useGetAllGroupMessagesQuery(activeGroup?.id || "", {
-      skip: !activeGroup?.id,
-      pollingInterval: 1500,
-    });
+    useGetAllGroupMessagesQuery(
+      { groupId: activeGroup?.id || "", userId: user?.id },
+      {
+        skip: !activeGroup?.id,
+        pollingInterval: 1500,
+      }
+    );
 
   useEffect(() => {
     if (membersData?.data) {
@@ -117,14 +132,9 @@ export const GroupChatsPage = () => {
     if (!newMessage.trim() || !activeGroup || !user) return;
 
     try {
-      // socketRef.current?.emit("send-group-message", {
-      //   groupId: activeGroup?.id,
-      //   senderId: user.id,
-      //   message: newMessage,
-      // });
-
       await sendGroupMessage({
         groupId: activeGroup?.id,
+        userId: user?.id,
         senderId: user.id,
         content: newMessage,
       }).unwrap();
@@ -134,6 +144,13 @@ export const GroupChatsPage = () => {
       console.error("Send Error:", err);
     }
   };
+
+  const myMembership = pendingGroup?.members?.find(
+    (m: any) => m?.user?.id === user?.id
+  );
+
+  const canAcceptInvite =
+    myMembership?.status === groupJoinStatusTypes.MEMBER_JOINING_PENDING;
 
   if (usersLoading || groupsLoading) return <Loading />;
 
@@ -186,10 +203,23 @@ export const GroupChatsPage = () => {
               )
               .map((group) => {
                 const membersCount = group.members.length || 0;
+                const myStatus: any = group?.myMembership?.status ?? "approved";
+                const statusUI =
+                  GROUP_STATUS_UI[
+                    String(myStatus) as keyof typeof GROUP_STATUS_UI
+                  ];
+
                 return (
                   <button
                     key={group.id}
-                    onClick={() => setActiveGroup(group)}
+                    onClick={() => {
+                      if (statusUI?.clickable) {
+                        setActiveGroup(group);
+                      } else {
+                        setPendingGroup(group);
+                        setShowGroupStatusModal(true);
+                      }
+                    }}
                     className={`w-full flex items-center p-3 rounded-xl transition-all ${
                       activeGroup?.id === group.id
                         ? "bg-blue-50 text-primary/80 shadow-sm border border-blue-100"
@@ -215,6 +245,15 @@ export const GroupChatsPage = () => {
                     {activeGroup?.id === group.id && (
                       <ChevronRight className="w-4 h-4" />
                     )}
+                    <div className="flex items-center gap-2 mt-1">
+                      {statusUI && (
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${statusUI.color}`}
+                        >
+                          {statusUI.label}
+                        </span>
+                      )}
+                    </div>
                   </button>
                 );
               })}
@@ -247,9 +286,14 @@ export const GroupChatsPage = () => {
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <button className="p-2 hover:bg-gray-50 rounded-lg text-gray-400 transition-colors">
-                    <UserPlus className="w-5 h-5" />
-                  </button>
+                  {activeGroup?.createdBy?.id === user?.id && (
+                    <button
+                      onClick={() => setShowManageMembersModal(true)}
+                      className="p-2 hover:bg-gray-50 rounded-lg text-gray-400 transition-colors"
+                    >
+                      <UserPlus className="w-5 h-5" />
+                    </button>
+                  )}
                   <button className="p-2 hover:bg-gray-50 rounded-lg text-gray-400 transition-colors">
                     <Info className="w-5 h-5" />
                   </button>
@@ -351,6 +395,191 @@ export const GroupChatsPage = () => {
             source="chat"
             groupRefetching={groupRefetching}
           />
+        )}
+
+        {showGroupStatusModal && pendingGroup && (
+          <Modal onClose={() => setShowGroupStatusModal(false)}>
+            {pendingGroup.members[0].status ===
+              groupJoinStatusTypes.ADMIN_APPROVAL_PENDING && (
+              <>
+                <h3 className="text-lg font-bold">Approval pending</h3>
+                <p className="text-sm text-gray-600 mt-2">
+                  Your request to join <b>{pendingGroup.name}</b> is waiting for
+                  admin approval.
+                </p>
+              </>
+            )}
+
+            {canAcceptInvite && (
+              <>
+                <h3 className="text-lg font-bold">Group invitation</h3>
+                <p className="text-sm text-gray-600 mt-2">
+                  You’ve been invited to join <b>{pendingGroup.name}</b>.
+                </p>
+
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={async () => {
+                      await acceptGroupInvitation({
+                        groupId: pendingGroup.id,
+                        userId: user?.id,
+                      }).unwrap();
+                      groupRefetching();
+                      setShowGroupStatusModal(false);
+                    }}
+                    className="bg-primary py-2 px-6 rounded-full text-white hover:bg-primary/80"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await declineGroupInvitation({
+                        groupId: pendingGroup.id,
+                        userId: user?.id,
+                      }).unwrap();
+                      groupRefetching();
+                      setShowGroupStatusModal(false);
+                    }}
+                    className="bg-white py-2 px-6 rounded-full text-primary hover:bg-primary hover:text-white border-2 border-primary"
+                  >
+                    Decline
+                  </button>
+                </div>
+              </>
+            )}
+          </Modal>
+        )}
+
+        {showManageMembersModal && activeGroup && (
+          <Modal onClose={() => setShowManageMembersModal(false)}>
+            <h3 className="text-lg font-bold mb-4">Manage Members</h3>
+
+            <div>
+              <h4 className="text-sm font-semibold text-gray-500 mb-2">
+                Join requests ({joinRequests.length})
+              </h4>
+
+              {joinRequests.length === 0 && (
+                <p className="text-sm text-gray-400 italic">
+                  No pending requests
+                </p>
+              )}
+
+              <div className="space-y-2">
+                {joinRequests.map((m: any) => (
+                  <div
+                    key={m?.user?.id}
+                    className="flex items-center justify-between p-2 rounded-lg border"
+                  >
+                    <div className="text-sm font-medium">
+                      {m?.user?.firstName} {m?.user?.lastName}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => {
+                          try {
+                            await approveGroupJoinRequest({
+                              groupId: activeGroup.id,
+                              userId: m?.user?.id,
+                            }).unwrap();
+                            toastSuccess(
+                              `You have approved ${m?.user?.firstName}'s request to join group ${activeGroup?.name}!`
+                            );
+                            groupRefetching();
+                          } catch (error) {
+                            console.log(error);
+                            toastError(
+                              "Approving join request did not work. Try again!"
+                            );
+                          }
+                        }}
+                        className="px-3 py-1 text-xs rounded-full bg-green-600 text-white hover:bg-green-700"
+                      >
+                        Approve
+                      </button>
+
+                      <button
+                        onClick={async () => {
+                          try {
+                            await rejectJoinRequest({
+                              groupId: activeGroup.id,
+                              userId: m?.user?.id,
+                            }).unwrap();
+                            toastSuccess(
+                              `You have rejected ${m?.user?.firstName}'s request to join group ${activeGroup?.name}!`
+                            );
+                            groupRefetching();
+                          } catch (error) {
+                            console.log(error);
+                            toastError(
+                              "Rejecting join request did not work. Try again!"
+                            );
+                          }
+                        }}
+                        className="px-3 py-1 text-xs rounded-full bg-red-600 text-white hover:bg-red-700"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6 border-t pt-4">
+              <h4 className="text-sm font-semibold text-gray-500 mb-2">
+                Invite members
+              </h4>
+
+              <input
+                value={inviteSearch}
+                onChange={(e) => setInviteSearch(e.target.value)}
+                placeholder="Search users by name..."
+                className="w-full px-3 py-2 mb-3 border rounded-lg text-sm focus:ring-2 focus:ring-primary"
+              />
+
+              <div className="max-h-56 overflow-y-auto space-y-2">
+                {inviteCandidates.length === 0 && (
+                  <p className="text-sm text-gray-400 italic">No users found</p>
+                )}
+
+                {inviteCandidates.map((u: any) => (
+                  <div
+                    key={u.id}
+                    className="flex items-center justify-between p-2 rounded-lg border"
+                  >
+                    <span className="text-sm">
+                      {u.firstName} {u.lastName}
+                    </span>
+
+                    <button
+                      onClick={async () => {
+                        try {
+                          await addNewGroupMember({
+                            groupId: activeGroup.id,
+                            userId: u.id,
+                          });
+                          toastSuccess(
+                            `You have invited ${u?.firstName} to join group ${activeGroup?.name}!`
+                          );
+                          groupRefetching();
+                        } catch (error) {
+                          console.log(error);
+                          toastError(
+                            "Inviting to join group did not work. Try again!"
+                          );
+                        }
+                      }}
+                      className="px-3 py-1 text-xs rounded-full border border-primary text-primary hover:bg-primary hover:text-white"
+                    >
+                      Invite
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Modal>
         )}
       </div>
     </div>

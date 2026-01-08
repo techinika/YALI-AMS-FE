@@ -63,9 +63,15 @@ export const usersSlices = createApi({
     }),
     importUsers: builder.mutation({
       query: (data) => ({
-        url: "users/import",
+        url: "upload/users",
         method: "POST",
         body: data,
+      }),
+    }),
+    exportUsers: builder.mutation({
+      query: () => ({
+        url: "users/export/all",
+        method: "POST",
       }),
     }),
     associateOrganization: builder.mutation({
@@ -98,4 +104,5 @@ export const {
   useAssociateOrganizationMutation,
   useRemoveUserOrganizationMutation,
   useReInviteUserMutation,
+  useExportUsersMutation,
 } = usersSlices;

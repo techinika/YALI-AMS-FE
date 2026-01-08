@@ -118,9 +118,6 @@ function ProfilePage() {
           orgs={foundedOrganizations}
           targetId={targetId}
           allOrganizations={allOrganizations}
-          districts={districts}
-          countries={countries}
-          workingSectors={workingSectors}
         />
       ),
     },
@@ -131,9 +128,6 @@ function ProfilePage() {
           orgs={employedOrganizations}
           targetId={targetId}
           allOrganizations={allOrganizations}
-          districts={districts}
-          countries={countries}
-          workingSectors={workingSectors}
         />
       ),
     },

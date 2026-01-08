@@ -13,6 +13,7 @@ import {
   MdPeople,
   MdPersonAdd,
   MdInterests,
+  MdCorporateFare,
 } from "react-icons/md";
 
 const TailwindChip = ({ label }: { label: number }) => (
@@ -43,6 +44,12 @@ export const NAVIGATION: NavItemType[] = [
     segment: "/dashboard/profile/update",
     title: "Update Profile",
     icon: <MdEdit className="w-5 h-5" />,
+    onlyAdmin: false,
+  },
+  {
+    segment: "/dashboard/organizations",
+    title: "Organizations",
+    icon: <MdCorporateFare className="w-5 h-5" />,
     onlyAdmin: false,
   },
   {

@@ -9,7 +9,6 @@ import { useState } from "react";
 import ConfirmModal from "../models/confirmModal";
 import { useRouter } from "next/navigation";
 import OrganizationLinkModal from "../models/OrganizationLinkModal";
-import { UpdateOrgForm } from "../models/UpdateSingleOrganization";
 
 export const ShowOrganizationToUpdate = ({
   orgs,
@@ -38,9 +37,6 @@ export const ShowOrganizationToUpdate = ({
   const [deleteData, setDeleteData] = useState(initDeleteData);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [idToEdit, setIdToEdit] = useState(0);
-  const [connectId, setConnectId] = useState("");
   const [orgLinkModalOpen, setOrgLinkModalOpen] = useState(false);
 
   const [removeUserOrganization] = useRemoveUserOrganizationMutation();
@@ -70,15 +66,7 @@ export const ShowOrganizationToUpdate = ({
   };
 
   if (orgs.length === 0) {
-    return (
-      <NoOrg
-        districts={districts}
-        countries={countries}
-        workingSectors={workingSectors}
-        organizations={organizations}
-        targetId={userId}
-      />
-    );
+    return <NoOrg organizations={organizations} targetId={userId} />;
   }
 
   return (
@@ -99,23 +87,9 @@ export const ShowOrganizationToUpdate = ({
           closeModal={() => setOrgLinkModalOpen(false)}
           organizations={organizations ?? []}
           userId={userId}
-          districts={districts}
-          countries={countries}
-          workingSectors={workingSectors}
         />
       )}
 
-      {editOpen && (
-        <UpdateOrgForm
-          districts={districts}
-          countries={countries}
-          workingSectors={workingSectors}
-          closeModal={() => setEditOpen(false)}
-          idToEdit={idToEdit}
-          connectionId={connectId}
-          userId={userId}
-        />
-      )}
       <div className="flex items-center justify-center">
         <button
           onClick={() => setOrgLinkModalOpen(true)}
@@ -141,16 +115,6 @@ export const ShowOrganizationToUpdate = ({
             )}
 
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  setIdToEdit(org?.id);
-                  setEditOpen(true);
-                  setConnectId(org?.connectId);
-                }}
-                className="text-xs px-2 py-1 rounded-full bg-green-600 text-white capitalize"
-              >
-                Edit
-              </button>
               <button
                 onClick={() => {
                   setDeleteData({
