@@ -89,7 +89,7 @@ function UpdateProfilePage() {
 
   const [updatedUser] = useUpdatedUserMutation();
   const { data: UserData, refetch } = useGetOneUserQuery<{ data: Member }>(
-    targetId
+    targetId,
   );
 
   useEffect(() => {
@@ -131,6 +131,9 @@ function UpdateProfilePage() {
       setValues(getInitialValues(usr));
       if (usr?.residentCountry?.id) setCountry(usr.residentCountry.id);
 
+      if (usr?.residentDistrict?.id)
+        setSelectedDistrict(usr?.residentDistrict?.id);
+
       if (usr.profileImage?.id && !imagePreview) {
         setImagePreview(usr.profileImage.link);
         setValues((prev: any) => ({
@@ -144,11 +147,11 @@ function UpdateProfilePage() {
   useEffect(() => {
     if (userOrganizations?.data?.length) {
       const foundedOrgs = userOrganizations.data.filter(
-        (org: any) => org.relation === "founded"
+        (org: any) => org.relation === "founded",
       );
 
       const employedOrgs = userOrganizations.data.filter(
-        (org: any) => org.relation === "employed"
+        (org: any) => org.relation === "employed",
       );
 
       setFoundedOrganizations(foundedOrgs);
@@ -215,7 +218,7 @@ function UpdateProfilePage() {
   };
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const { id, value } = e.target;
     setValues((prev: any) => ({ ...prev, [id]: value }));

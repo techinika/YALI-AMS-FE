@@ -29,11 +29,12 @@ import ConfirmModal from "../parts/models/confirmModal";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { getUser } from "@/helpers/auth";
 import { BiExport } from "react-icons/bi";
-import ExcelJS from "exceljs";
-import { saveAs } from "file-saver";
 import { USER_STATUSES } from "@/helpers/data";
+import { useRouter } from "next/navigation";
+import { logout } from "@/helpers/logout";
 
 const MembersPage = () => {
+  const router = useRouter();
   const authUser: Member = getUser();
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({
@@ -51,9 +52,9 @@ const MembersPage = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [reInviteLoading, setReInviteLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [members, setMembers] = useState<Member[]>([]);
   const MEMBERS_PER_PAGE = 10;
   const isAdmin = authUser?.role?.name === "ADMIN";
+  const isDeletingSelf = itemToDelete && itemToDelete === authUser?.id;
 
   const [deleteUser, { isLoading }] = useDeleteUserMutation();
   const [reInviteUser] = useReInviteUserMutation();
@@ -61,7 +62,7 @@ const MembersPage = () => {
 
   const {
     data: membersData = [],
-    refetch,
+    refetch: memberDataRefetch,
     isLoading: usersLoading,
     isSuccess: usersSuccess,
   } = useUsersQuery("");
@@ -84,34 +85,30 @@ const MembersPage = () => {
     isSuccess: tracksSuccess,
   } = useTracksQuery("");
 
-  useEffect(() => {
-    if (membersData?.data) {
-      setMembers(membersData?.data);
-    }
-  }, [membersData]);
-
   const isAnyLoading =
     usersLoading || countriesLoading || cohortsLoading || tracksLoading;
   const isReady =
     usersSuccess && countriesSuccess && cohortsSuccess && tracksSuccess;
 
   const filteredMembers = useMemo(() => {
-    return (membersData?.data ?? members ?? []).filter((member: Member) => {
-      const matchesSearch =
-        member?.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        member?.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        member.email.toLowerCase().includes(searchTerm.toLowerCase());
+    return (membersData?.data ?? membersData?.data ?? []).filter(
+      (member: Member) => {
+        const matchesSearch =
+          member?.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          member?.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          member.email.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchesFilters =
-        (!filters.country ||
-          member?.residentCountry?.name === filters.country) &&
-        (!filters.cohort || member?.cohort?.name === filters.cohort) &&
-        (!filters.track || member?.track?.name === filters.track) &&
-        (!filters.status || member?.status === filters.status);
+        const matchesFilters =
+          (!filters.country ||
+            member?.residentCountry?.name === filters.country) &&
+          (!filters.cohort || member?.cohort?.name === filters.cohort) &&
+          (!filters.track || member?.track?.name === filters.track) &&
+          (!filters.status || member?.status === filters.status);
 
-      return matchesSearch && matchesFilters;
-    });
-  }, [searchTerm, filters, usersSuccess]);
+        return matchesSearch && matchesFilters;
+      },
+    );
+  }, [searchTerm, filters, usersSuccess, membersData]);
 
   const totalPages = Math.ceil(filteredMembers.length / MEMBERS_PER_PAGE);
   const currentMembers = useMemo(() => {
@@ -138,11 +135,16 @@ const MembersPage = () => {
     try {
       const data = await deleteUser(itemToDelete).unwrap();
       toastSuccess(data.message);
-      refetch();
+      if (isDeletingSelf) {
+        logout();
+        router.push("/");
+        return;
+      }
+      memberDataRefetch();
     } catch (error) {
       console.log(error);
       toastError(
-        `There was an error while deleting user, please try again or contact support!`
+        `There was an error while deleting user, please try again or contact support!`,
       );
     } finally {
       setDeleteLoading(false);
@@ -155,11 +157,11 @@ const MembersPage = () => {
     try {
       const data = await reInviteUser({ id: itemToReInvite }).unwrap();
       toastSuccess(data.message);
-      refetch();
+      memberDataRefetch();
     } catch (error) {
       console.log(error);
       toastError(
-        `There was an error while re-inviting user, please try again or contact support!`
+        `There was an error while re-inviting user, please try again or contact support!`,
       );
     } finally {
       setReInviteLoading(false);
@@ -172,9 +174,7 @@ const MembersPage = () => {
 
     try {
       const res = await exportUsers("");
-
       window.open(res?.data?.downloadUrl);
-
       toastSuccess("Excel file exported successfully!");
     } catch (error) {
       console.error(error);
@@ -189,14 +189,18 @@ const MembersPage = () => {
       <InviteUserModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        refetchUsers={refetch}
+        refetchUsers={memberDataRefetch}
       />
 
       {deleteOpen && (
         <ConfirmModal
-          title="DELETE MEMBER"
-          description="Are you sure you want to delete this member, please not that this action is irreversible."
-          confirmText="Delete"
+          title={isDeletingSelf ? "DELETE YOUR OWN PROFILE" : "DELETE MEMBER"}
+          description={
+            isDeletingSelf
+              ? "WARNING: You are about to delete your own profile. This will permanently remove your account and log you out. This action is irreversible. Do you want to proceed?"
+              : "Are you sure you want to delete this member? Please note that this action is irreversible."
+          }
+          confirmText={isDeletingSelf ? "Yes, Delete My Account" : "Delete"}
           cancelText="Cancel"
           isLoading={deleteLoading || isLoading}
           action={handleDelete}
@@ -224,7 +228,7 @@ const MembersPage = () => {
         onAction={() => setIsModalOpen(true)}
         loading={false}
         disabled={!isAdmin}
-        second={true}
+        second={isAdmin}
         actionTitle2="Export Members"
         onAction2={exportToExcel}
         loading2={exporting}
@@ -345,17 +349,17 @@ const MembersPage = () => {
                         member.status === userStatusTypes.ACTIVE
                           ? "This user has started using this account."
                           : member.status === userStatusTypes?.INACTIVE
-                          ? "User's account is created, but the user has not set the password or logged in once."
-                          : member.status === userStatusTypes?.INVITED
-                          ? "User has been invited to confirm their account, but they have not set the password or logged in once."
-                          : "User is deleted."
+                            ? "User's account is created, but the user has not set the password or logged in once."
+                            : member.status === userStatusTypes?.INVITED
+                              ? "User has been invited to confirm their account, but they have not set the password or logged in once."
+                              : "User is deleted."
                       }
                       className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         member.status === "active"
                           ? "bg-green-100 text-green-800"
                           : member.status === "inactive"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : "bg-red-100 text-red-800"
+                            ? "bg-yellow-100 text-yellow-800"
+                            : "bg-red-100 text-red-800"
                       }`}
                     >
                       {member.status}

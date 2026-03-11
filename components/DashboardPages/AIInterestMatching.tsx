@@ -45,7 +45,7 @@ export const AIInterestMatching = () => {
   const [requestToJoinGroup] = useRequestToJoinGroupMutation();
 
   const runMatchingAI = async () => {
-    if (selectedInterests.length === 0 && !aspirations.trim()) {
+    if (selectedInterests.length === 0) {
       toastError("Please select interests or add a description first.");
       return;
     }
@@ -83,7 +83,7 @@ export const AIInterestMatching = () => {
       console.error(err);
       toastError(
         err?.data?.message ??
-          "Request to join failed. Please try again or contact support."
+          "Request to join failed. Please try again or contact support.",
       );
     } finally {
       setRequestToJoinLoading(false);
@@ -92,7 +92,7 @@ export const AIInterestMatching = () => {
 
   const toggleInterest = (id: string) => {
     setSelectedInterests((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
   };
 

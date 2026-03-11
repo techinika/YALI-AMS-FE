@@ -17,27 +17,6 @@ import { Member } from "@/types/user";
 import Loading from "@/app/loading";
 import { RecentEventsCard } from "../parts/RecentEvents";
 
-const MOCK_RECENT_EVENTS = [
-  {
-    id: 1,
-    type: "User Joined",
-    description: "New member Jane Doe registered.",
-    time: "2 mins ago",
-  },
-  {
-    id: 2,
-    type: "Maintenance",
-    description: "Database backup completed successfully.",
-    time: "1 hour ago",
-  },
-  {
-    id: 3,
-    type: "High Activity",
-    description: "Message volume spiked by 15% today.",
-    time: "4 hours ago",
-  },
-];
-
 interface StatCardProps {
   title: string;
   numbers: number;
@@ -117,7 +96,7 @@ const DashboardHome = () => {
         color: "green",
       },
     ],
-    [StatsData]
+    [StatsData],
   );
 
   if (isLoading) {
@@ -150,7 +129,7 @@ const DashboardHome = () => {
           {TopMembersData?.data.map(
             (item: { user: Member; messageCount: number }, index: number) => (
               <li
-                key={item?.user?.id}
+                key={index + 1}
                 className="flex justify-between items-center p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition"
               >
                 <div className="flex items-center space-x-3">
@@ -169,7 +148,7 @@ const DashboardHome = () => {
                   {item?.messageCount.toLocaleString()} Messages
                 </span>
               </li>
-            )
+            ),
           )}
         </ul>
       ) : (
@@ -218,7 +197,6 @@ const DashboardHome = () => {
         </div>
 
         <TopUsersCard />
-
       </div>
 
       <div className="mt-6">

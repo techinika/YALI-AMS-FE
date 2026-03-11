@@ -84,15 +84,15 @@ export const Personal = ({
         value={values.email}
         onChange={handleChange}
         placeholder="Email"
-        disabled={!changeEmail}
+        // disabled={!changeEmail}
         error={errors.email}
-        helperText={
-          <p className="text-primary text-xs italic mt-1">
-            <b>Note:</b> Updating the email will change the login credentials,
-            so it can only be changed by the account owner! Proceed with
-            caution.
-          </p>
-        }
+        // helperText={
+        //   <span className="text-primary text-xs italic mt-1">
+        //     <b>Note:</b> Updating the email will change the login credentials,
+        //     so it can only be changed by the account owner! Proceed with
+        //     caution.
+        //   </span>
+        // }
       />
       <PhoneInputTailwind
         label="Phone Number"
