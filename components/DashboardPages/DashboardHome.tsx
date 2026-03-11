@@ -17,27 +17,6 @@ import { Member } from "@/types/user";
 import Loading from "@/app/loading";
 import { RecentEventsCard } from "../parts/RecentEvents";
 
-const MOCK_RECENT_EVENTS = [
-  {
-    id: 1,
-    type: "User Joined",
-    description: "New member Jane Doe registered.",
-    time: "2 mins ago",
-  },
-  {
-    id: 2,
-    type: "Maintenance",
-    description: "Database backup completed successfully.",
-    time: "1 hour ago",
-  },
-  {
-    id: 3,
-    type: "High Activity",
-    description: "Message volume spiked by 15% today.",
-    time: "4 hours ago",
-  },
-];
-
 interface StatCardProps {
   title: string;
   numbers: number;
