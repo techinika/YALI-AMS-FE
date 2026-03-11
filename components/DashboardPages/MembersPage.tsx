@@ -29,8 +29,6 @@ import ConfirmModal from "../parts/models/confirmModal";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { getUser } from "@/helpers/auth";
 import { BiExport } from "react-icons/bi";
-import ExcelJS from "exceljs";
-import { saveAs } from "file-saver";
 import { USER_STATUSES } from "@/helpers/data";
 
 const MembersPage = () => {
@@ -224,7 +222,7 @@ const MembersPage = () => {
         onAction={() => setIsModalOpen(true)}
         loading={false}
         disabled={!isAdmin}
-        second={true}
+        second={isAdmin}
         actionTitle2="Export Members"
         onAction2={exportToExcel}
         loading2={exporting}
