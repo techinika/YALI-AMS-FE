@@ -96,7 +96,7 @@ const DashboardHome = () => {
         color: "green",
       },
     ],
-    [StatsData]
+    [StatsData],
   );
 
   if (isLoading) {
@@ -129,7 +129,7 @@ const DashboardHome = () => {
           {TopMembersData?.data.map(
             (item: { user: Member; messageCount: number }, index: number) => (
               <li
-                key={item?.user?.id}
+                key={index + 1}
                 className="flex justify-between items-center p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition"
               >
                 <div className="flex items-center space-x-3">
@@ -148,7 +148,7 @@ const DashboardHome = () => {
                   {item?.messageCount.toLocaleString()} Messages
                 </span>
               </li>
-            )
+            ),
           )}
         </ul>
       ) : (
@@ -197,7 +197,6 @@ const DashboardHome = () => {
         </div>
 
         <TopUsersCard />
-
       </div>
 
       <div className="mt-6">
