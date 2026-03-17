@@ -90,7 +90,7 @@ export const ShowOrganizationOnProfile = ({
               </label>
               <DisplayField
                 text={(org?.workingSectors ?? [])
-                  .map((v: any) => v.name)
+                  .map((v: any) => v?.name)
                   .join(", ")}
               />
             </div>

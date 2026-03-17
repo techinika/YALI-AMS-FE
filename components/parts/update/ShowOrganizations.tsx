@@ -15,17 +15,11 @@ export const ShowOrganizationToUpdate = ({
   userId,
   refetch,
   organizations,
-  districts,
-  countries,
-  workingSectors,
 }: {
   orgs: any[];
   userId: string;
   refetch: any;
   organizations: any[];
-  districts: any[];
-  countries: any[];
-  workingSectors: any[];
 }) => {
   const router = useRouter();
   const initDeleteData = {
@@ -146,7 +140,7 @@ export const ShowOrganizationToUpdate = ({
               </label>
               <DisplayField
                 text={(org?.workingSectors ?? [])
-                  .map((v: any) => v.name)
+                  .map((v: any) => v?.name)
                   .join(", ")}
               />
             </div>
