@@ -159,7 +159,7 @@ function OrganizationsPage() {
         formData.workingSectors.map((v) =>
           addWStoOrg({
             userId: user?.id,
-            organizationId: res.data.id,
+            organizationId: res?.data?.id,
             wsId: v,
           }).unwrap(),
         ),
@@ -215,19 +215,19 @@ function OrganizationsPage() {
 
   const populateFormFromOrg = (org: any) => {
     setFormData({
-      name: org.name ?? "",
-      website: org.website ?? "",
-      countryId: org.country?.id ?? "",
-      districtId: org.districtId ?? "",
-      sectorId: org.sectorId ?? "",
-      stateId: org.state?.id ?? "",
+      name: org?.name ?? "",
+      website: org?.website ?? "",
+      countryId: org?.country?.id ?? "",
+      districtId: org?.districtId ?? "",
+      sectorId: org?.sectorId ?? "",
+      stateId: org?.state?.id ?? "",
       relation: org?.relation ?? "",
       position: org?.position ?? "",
-      workingSectors: org.workingSectors?.map((ws: any) => ws.id) ?? [],
+      workingSectors: org?.workingSectors?.map((ws: any) => ws.id) ?? [],
     });
 
-    setSelectedCountry(org.country?.id ?? "");
-    setSelectedDistrict(org.district?.id ?? "");
+    setSelectedCountry(org?.country?.id ?? "");
+    setSelectedDistrict(org?.district?.id ?? "");
   };
 
   if (loading) return <Loading />;
@@ -303,13 +303,13 @@ function OrganizationsPage() {
                 <TailwindSelect
                   label="Country"
                   options={countries}
-                  value={formData.countryId}
+                  value={formData?.countryId}
                   onChange={(e: any) => {
                     setFormData({ ...formData, countryId: e.target.value });
                     setSelectedCountry(e.target.value);
                   }}
                 />
-                {formData.countryId === "RW" ? (
+                {formData?.countryId === "RW" ? (
                   <>
                     <TailwindSelect
                       label="District"
@@ -349,14 +349,14 @@ function OrganizationsPage() {
               <div className="pt-4 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <TailwindInput
                   label="Your Position"
-                  value={formData.position}
+                  value={formData?.position}
                   onChange={(e: any) =>
                     setFormData({ ...formData, position: e.target.value })
                   }
                 />
                 <TailwindSelect
                   label="Relationship"
-                  value={formData.relation}
+                  value={formData?.relation}
                   onChange={(e: any) =>
                     setFormData({ ...formData, relation: e.target.value })
                   }
@@ -400,21 +400,21 @@ function OrganizationsPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[700px] overflow-y-auto pr-2">
-            {filteredOrgs.map((org: any) => (
+            {filteredOrgs.map((org: any, index: number) => (
               <button
-                key={org?.id}
+                key={index + 1}
                 onClick={() => {
                   if (!editMode) return;
                   setLoading(true);
 
-                  setSelectedOrgId(org.id);
+                  setSelectedOrgId(org?.id);
                   setSelectedConnectId(org?.connectId);
                   populateFormFromOrg(org);
                   setLoading(false);
                 }}
                 className={`bg-white p-5 rounded-2xl border transition-all cursor-pointer text-left
     ${editMode ? "hover:border-primary" : "border-slate-200"}
-    ${selectedOrgId === org.id ? "border-primary ring-2 ring-primary/20" : ""}
+    ${selectedOrgId === org?.id ? "border-primary ring-2 ring-primary/20" : ""}
   `}
                 disabled={!editMode}
               >
@@ -432,16 +432,16 @@ function OrganizationsPage() {
                     </Link>
                   )}
                 </div>
-                <h3 className="font-bold text-lg mb-1">{org.name}</h3>
+                <h3 className="font-bold text-lg mb-1">{org?.name}</h3>
                 <div className="flex items-center gap-1.5 text-sm text-slate-500 mb-4">
                   <MapPin size={14} />
-                  {org.country?.id}
-                  {org.districtId ? `, ${org.districtId}` : ""}
+                  {org?.country?.id}
+                  {org?.districtId ? `, ${org?.districtId}` : ""}
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  {org.workingSectors?.map((s: any) => (
+                  {org.workingSectors?.map((s: any, index: number) => (
                     <span
-                      key={s.id}
+                      key={index + 1}
                       className="px-2 py-0.5 bg-slate-100 text-[10px] font-bold text-slate-600 rounded uppercase tracking-tighter"
                     >
                       {s?.name}

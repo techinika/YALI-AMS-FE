@@ -424,9 +424,6 @@ function UpdateProfilePage() {
           userId={targetId}
           refetch={organizationRefetch}
           organizations={allOrganizations}
-          districts={districts}
-          countries={countries}
-          workingSectors={workingSectors}
         />
       ),
     },
@@ -438,9 +435,6 @@ function UpdateProfilePage() {
           userId={targetId}
           refetch={organizationRefetch}
           organizations={allOrganizations}
-          districts={districts}
-          countries={countries}
-          workingSectors={workingSectors}
         />
       ),
     },
