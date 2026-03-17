@@ -87,7 +87,7 @@ function OrganizationsPage() {
   const filteredOrgs = useMemo(() => {
     if (!searchTerm) return organizations;
     return organizations.filter((o: any) =>
-      o?.name.toLowerCase().includes(searchTerm.toLowerCase())
+      o?.name?.toLowerCase().includes(searchTerm.toLowerCase()),
     );
   }, [organizations, searchTerm]);
 
@@ -121,14 +121,15 @@ function OrganizationsPage() {
     }
   }, [CountryData]);
 
-  const wsOptions = React.useMemo(
-    () =>
-      (workingSectors ?? []).map((ws: any) => ({
-        id: ws.id,
-        name: ws.name,
-      })),
-    [workingSectors]
-  );
+  const wsOptions = React.useMemo(() => {
+    if (!workingSectors) return [];
+    return workingSectors
+      .filter((ws: any) => ws && ws.name)
+      .map((ws: any) => ({
+        id: ws?.id,
+        name: ws?.name,
+      }));
+  }, [workingSectors]);
 
   useEffect(() => {
     if (WorkingSectorsData) {
@@ -160,8 +161,8 @@ function OrganizationsPage() {
             userId: user?.id,
             organizationId: res.data.id,
             wsId: v,
-          }).unwrap()
-        )
+          }).unwrap(),
+        ),
       );
 
       toastSuccess("Organization created and added Successfully!");
@@ -170,7 +171,7 @@ function OrganizationsPage() {
     } catch (error) {
       console.log(error);
       toastError(
-        "Failed to create a new organization. Try again or contact support!"
+        "Failed to create a new organization. Try again or contact support!",
       );
     } finally {
       setSaving(false);
@@ -443,7 +444,7 @@ function OrganizationsPage() {
                       key={s.id}
                       className="px-2 py-0.5 bg-slate-100 text-[10px] font-bold text-slate-600 rounded uppercase tracking-tighter"
                     >
-                      {s.name}
+                      {s?.name}
                     </span>
                   ))}
                 </div>
