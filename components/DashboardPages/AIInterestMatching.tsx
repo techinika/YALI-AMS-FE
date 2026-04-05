@@ -195,7 +195,7 @@ export const AIInterestMatching = () => {
               >
                 {isMatching || isLoading ? (
                   <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     <span>Analyzing Profiles...</span>
                   </>
                 ) : (

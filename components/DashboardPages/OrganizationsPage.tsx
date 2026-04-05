@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { TailwindInput } from "../ui/tail-input";
 import { MultiSelectSearch } from "../ui/multi-select-search";
 import { TailwindSelect } from "../ui/tail-select";
@@ -22,7 +22,6 @@ import {
   Building2,
   Edit,
   Globe,
-  Loader2,
   MapPin,
   PlusCircle,
   Save,
@@ -34,7 +33,61 @@ import { useAssociateOrganizationMutation } from "@/lib/features/userSlice";
 import { Organization } from "@/types/user";
 import Link from "next/link";
 import { MdCancel } from "react-icons/md";
-import Loading from "@/app/loading";
+import { Skeleton, CardSkeleton } from "../ui/skeleton";
+
+const OrganizationCard = React.memo(
+  ({
+    org,
+    editMode,
+    selectedOrgId,
+    onSelect,
+  }: {
+    org: any;
+    editMode: boolean;
+    selectedOrgId: string | null;
+    onSelect: () => void;
+  }) => (
+    <button
+      onClick={onSelect}
+      className={`bg-white p-5 rounded-2xl border transition-all cursor-pointer text-left
+        ${editMode ? "hover:border-primary" : "border-slate-200"}
+        ${selectedOrgId === org?.id ? "border-primary ring-2 ring-primary/20" : ""}
+      `}
+      disabled={!editMode}
+    >
+      <div className="flex justify-between items-start mb-4">
+        <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center text-primary">
+          <Building2 size={20} />
+        </div>
+        {org.website && (
+          <Link
+            href={org.website}
+            target="_blank"
+            className="text-slate-400 hover:text-primary"
+          >
+            <Globe size={16} />
+          </Link>
+        )}
+      </div>
+      <h3 className="font-bold text-lg mb-1">{org?.name}</h3>
+      <div className="flex items-center gap-1.5 text-sm text-slate-500 mb-4">
+        <MapPin size={14} />
+        {org?.country?.id}
+        {org?.districtId ? `, ${org?.districtId}` : ""}
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {org.workingSectors?.map((s: any, index: number) => (
+          <span
+            key={index}
+            className="px-2 py-0.5 bg-slate-100 text-[10px] font-bold text-slate-600 rounded uppercase tracking-tighter"
+          >
+            {s?.name}
+          </span>
+        ))}
+      </div>
+    </button>
+  )
+);
 
 function OrganizationsPage() {
   const user = getUser();
@@ -55,19 +108,10 @@ function OrganizationsPage() {
 
   const [addWStoOrg] = useAddWStoOrgMutation();
   const [formData, setFormData] = useState(initData);
-  const [sectors, setSectors] = useState([]);
-  const [states, setStates] = useState<any>([]);
-  const [selectedCountry, setSelectedCountry] = useState("");
-  const [selectedDistrict, setSelectedDistrict] = useState("");
   const [saving, setSaving] = useState(false);
-  const [workingSectors, setWorkingSectors] = useState<any>([]);
-  const [countries, setCountries] = useState<any>([]);
-  const [districts, setDistricts] = useState<any>([]);
-  const [organizations, setOrganizations] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [editMode, setEditMode] = useState(false);
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const [selectedConnectId, setSelectedConnectId] = useState("");
 
   const { data: WorkingSectorsData } = useWorkingSectorQuery("");
@@ -75,6 +119,13 @@ function OrganizationsPage() {
   const { data: DistrictData } = useDistrictsQuery("");
   const { data: orgData, refetch: orgRefetch } =
     useGetOrganizationsForUserQuery(user?.id);
+
+  const [selectedCountry, setSelectedCountry] = useState(
+    formData.countryId || "",
+  );
+  const [selectedDistrict, setSelectedDistrict] = useState(
+    formData.districtId || "",
+  );
 
   const { data: SectorsData } = useSectorsByDistrictQuery(selectedDistrict, {
     skip: !selectedDistrict,
@@ -84,6 +135,11 @@ function OrganizationsPage() {
     skip: selectedCountry === "RW",
   });
 
+  const organizations = useMemo(
+    () => orgData?.data || [],
+    [orgData],
+  );
+
   const filteredOrgs = useMemo(() => {
     if (!searchTerm) return organizations;
     return organizations.filter((o: any) =>
@@ -91,38 +147,16 @@ function OrganizationsPage() {
     );
   }, [organizations, searchTerm]);
 
-  useEffect(() => {
-    if (SectorsData) {
-      setSectors(SectorsData?.data || []);
-    }
-  }, [SectorsData]);
+  const sectors = useMemo(() => SectorsData?.data || [], [SectorsData]);
+  const states = useMemo(() => StatesData?.data || [], [StatesData]);
+  const districts = useMemo(() => DistrictData?.data || [], [DistrictData]);
+  const countries = useMemo(() => CountryData?.data || [], [CountryData]);
+  const workingSectors = useMemo(
+    () => WorkingSectorsData?.data || [],
+    [WorkingSectorsData],
+  );
 
-  useEffect(() => {
-    if (orgData) {
-      setOrganizations(orgData?.data || []);
-    }
-  }, [orgData]);
-
-  useEffect(() => {
-    if (StatesData) {
-      setStates(StatesData?.data || []);
-    }
-  }, [StatesData]);
-
-  useEffect(() => {
-    if (DistrictData) {
-      setDistricts(DistrictData?.data || []);
-    }
-  }, [DistrictData]);
-
-  useEffect(() => {
-    if (CountryData) {
-      setCountries(CountryData?.data || []);
-    }
-  }, [CountryData]);
-
-  const wsOptions = React.useMemo(() => {
-    if (!workingSectors) return [];
+  const wsOptions = useMemo(() => {
     return workingSectors
       .filter((ws: any) => ws && ws.name)
       .map((ws: any) => ({
@@ -130,12 +164,6 @@ function OrganizationsPage() {
         name: ws?.name,
       }));
   }, [workingSectors]);
-
-  useEffect(() => {
-    if (WorkingSectorsData) {
-      setWorkingSectors(WorkingSectorsData?.data || []);
-    }
-  }, [WorkingSectorsData]);
 
   const handleCreateOrganization = async () => {
     setSaving(true);
@@ -229,8 +257,6 @@ function OrganizationsPage() {
     setSelectedCountry(org?.country?.id ?? "");
     setSelectedDistrict(org?.district?.id ?? "");
   };
-
-  if (loading) return <Loading />;
 
   return (
     <div className="container mx-auto p-4 md:p-8">
@@ -375,7 +401,7 @@ function OrganizationsPage() {
                 className="w-full mt-4 bg-primary text-white py-2.5 rounded-xl font-bold hover:bg-primary/80 disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
               >
                 {saving ? (
-                  <Loader2 className="animate-spin" size={18} />
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <Save size={18} />
                 )}
@@ -401,54 +427,17 @@ function OrganizationsPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[700px] overflow-y-auto pr-2">
             {filteredOrgs.map((org: any, index: number) => (
-              <button
-                key={index + 1}
-                onClick={() => {
-                  if (!editMode) return;
-                  setLoading(true);
-
+              <OrganizationCard
+                key={org?.id || index}
+                org={org}
+                editMode={editMode}
+                selectedOrgId={selectedOrgId}
+                onSelect={() => {
                   setSelectedOrgId(org?.id);
                   setSelectedConnectId(org?.connectId);
                   populateFormFromOrg(org);
-                  setLoading(false);
                 }}
-                className={`bg-white p-5 rounded-2xl border transition-all cursor-pointer text-left
-    ${editMode ? "hover:border-primary" : "border-slate-200"}
-    ${selectedOrgId === org?.id ? "border-primary ring-2 ring-primary/20" : ""}
-  `}
-                disabled={!editMode}
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
-                    <Building2 size={20} />
-                  </div>
-                  {org.website && (
-                    <Link
-                      href={org.website}
-                      target="_blank"
-                      className="text-slate-400 hover:text-primary"
-                    >
-                      <Globe size={16} />
-                    </Link>
-                  )}
-                </div>
-                <h3 className="font-bold text-lg mb-1">{org?.name}</h3>
-                <div className="flex items-center gap-1.5 text-sm text-slate-500 mb-4">
-                  <MapPin size={14} />
-                  {org?.country?.id}
-                  {org?.districtId ? `, ${org?.districtId}` : ""}
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {org.workingSectors?.map((s: any, index: number) => (
-                    <span
-                      key={index + 1}
-                      className="px-2 py-0.5 bg-slate-100 text-[10px] font-bold text-slate-600 rounded uppercase tracking-tighter"
-                    >
-                      {s?.name}
-                    </span>
-                  ))}
-                </div>
-              </button>
+              />
             ))}
             {filteredOrgs.length === 0 && (
               <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-dashed border-slate-300">

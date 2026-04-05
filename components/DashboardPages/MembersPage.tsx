@@ -1,6 +1,5 @@
 "use client";
-import React, { useState, useMemo, useEffect } from "react";
-import Link from "next/link";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   MdSearch,
   MdNavigateBefore,
@@ -10,7 +9,7 @@ import {
 import { PageHeader } from "../parts/PageHeader";
 import { Delete, Edit, Eye, MessageCircle, Redo2 } from "lucide-react";
 import { EmptyState } from "../parts/EmptyState";
-import Loading from "@/app/loading";
+import { Skeleton, TableRowSkeleton } from "../ui/skeleton";
 import {
   useDeleteUserMutation,
   useExportUsersMutation,
@@ -32,6 +31,111 @@ import { BiExport } from "react-icons/bi";
 import { USER_STATUSES } from "@/helpers/data";
 import { useRouter } from "next/navigation";
 import { logout } from "@/helpers/logout";
+
+const MemberRow = React.memo(
+  ({
+    member,
+    isAdmin,
+    onDelete,
+    onReInvite,
+    onView,
+    onEdit,
+    onMessage,
+  }: {
+    member: Member;
+    isAdmin: boolean;
+    onDelete: (id: string) => void;
+    onReInvite: (id: string) => void;
+    onView: (id: string) => void;
+    onEdit: (id: string) => void;
+    onMessage: (id: string) => void;
+  }) => (
+    <tr className="hover:bg-gray-50">
+      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+        {member?.firstName + " " + member?.middleName || "" + " " + member?.lastName}
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+        {member.email}
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+        {member?.residentCountry?.name ?? "N/A"}
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+        {member?.cohort?.name ?? "N/A"} / {member?.track?.name ?? "N/A"}
+      </td>
+      {isAdmin && (
+        <td className="px-6 py-4 whitespace-nowrap">
+          <span
+            title={
+              member.status === userStatusTypes.ACTIVE
+                ? "This user has started using this account."
+                : member.status === userStatusTypes?.INACTIVE
+                  ? "User's account is created, but the user has not set the password or logged in once."
+                  : member.status === userStatusTypes?.INVITED
+                    ? "User has been invited to confirm their account, but they have not set the password or logged in once."
+                    : "User is deleted."
+            }
+            className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+              member.status === "active"
+                ? "bg-green-100 text-green-800"
+                : member.status === "inactive"
+                  ? "bg-yellow-100 text-yellow-800"
+                  : "bg-red-100 text-red-800"
+            }`}
+          >
+            {member.status}
+          </span>
+        </td>
+      )}
+      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex items-center space-x-4">
+        <button onClick={() => onView(member.id)} className="text-primary hover:text-primary/80">
+          <Eye className="w-5 h-5" />
+        </button>
+        {isAdmin && member.status === userStatusTypes?.ACTIVE && (
+          <button onClick={() => onEdit(member.id)} className="text-primary hover:text-primary/80">
+            <Edit className="w-5 h-5" />
+          </button>
+        )}
+        {isAdmin && member.status === userStatusTypes?.INVITED && (
+          <button onClick={() => onReInvite(member.id)} className="text-primary hover:text-primary/80">
+            <Redo2 className="w-5 h-5" />
+          </button>
+        )}
+        {isAdmin && (
+          <button onClick={() => onDelete(member.id)} className="text-primary hover:text-primary/80">
+            <Delete className="w-5 h-5" />
+          </button>
+        )}
+        <button onClick={() => onMessage(member.id)} className="text-primary hover:text-primary/80">
+          <MessageCircle className="w-5 h-5" />
+        </button>
+      </td>
+    </tr>
+  )
+);
+
+const MembersTableSkeleton: React.FC<{ rows?: number }> = ({ rows = 5 }) => (
+  <div className="bg-white rounded-xl shadow-lg overflow-x-auto">
+    <table className="min-w-full divide-y divide-gray-200">
+      <thead className="bg-gray-50">
+        <tr>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Country/Province</th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cohort/Track</th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+          <th className="px-6 py-3"></th>
+        </tr>
+      </thead>
+      <tbody className="bg-white divide-y divide-gray-200">
+        {Array.from({ length: rows }).map((_, i) => (
+          <TableRowSkeleton key={i} />
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
 
 const MembersPage = () => {
   const router = useRouter();
@@ -128,7 +232,37 @@ const MembersPage = () => {
     }
   };
 
-  if (isAnyLoading || !isReady) return <Loading />;
+  const handleView = useCallback((id: string) => {
+    router.push(`/dashboard/profile?userId=${id}`);
+  }, [router]);
+
+  const handleEdit = useCallback((id: string) => {
+    router.push(`/dashboard/profile/update?userId=${id}`);
+  }, [router]);
+
+  const handleMessage = useCallback((id: string) => {
+    router.push(`/dashboard/chat?rid=${id}`);
+  }, [router]);
+
+  if (isAnyLoading || !isReady) {
+    return (
+      <div className="container mx-auto p-4 md:p-8">
+        <div className="mb-6">
+          <Skeleton className="h-10 w-64 mb-4" />
+          <Skeleton className="h-6 w-96" />
+        </div>
+        <div className="bg-white p-5 rounded-xl shadow-lg mb-6">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <Skeleton className="h-10 w-64" />
+            <Skeleton className="h-10 w-32" />
+            <Skeleton className="h-10 w-32" />
+            <Skeleton className="h-10 w-32" />
+          </div>
+        </div>
+        <MembersTableSkeleton rows={10} />
+      </div>
+    );
+  }
 
   const handleDelete = async () => {
     setDeleteLoading(true);
@@ -327,93 +461,22 @@ const MembersPage = () => {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {currentMembers.map((member: Member) => (
-              <tr key={member.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {member?.firstName + " " + member?.middleName ||
-                    "" + " " + member?.lastName}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {member.email}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {member?.residentCountry?.name ?? "N/A"}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {member?.cohort?.name ?? "N/A"} /{" "}
-                  {member?.track?.name ?? "N/A"}
-                </td>
-                {isAdmin && (
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                      title={
-                        member.status === userStatusTypes.ACTIVE
-                          ? "This user has started using this account."
-                          : member.status === userStatusTypes?.INACTIVE
-                            ? "User's account is created, but the user has not set the password or logged in once."
-                            : member.status === userStatusTypes?.INVITED
-                              ? "User has been invited to confirm their account, but they have not set the password or logged in once."
-                              : "User is deleted."
-                      }
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        member.status === "active"
-                          ? "bg-green-100 text-green-800"
-                          : member.status === "inactive"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-red-100 text-red-800"
-                      }`}
-                    >
-                      {member.status}
-                    </span>
-                  </td>
-                )}
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex items-center space-x-4">
-                  <Link
-                    href={`/dashboard/profile?userId=${member.id}`}
-                    passHref
-                  >
-                    <Eye className="text-primary hover:text-primary/80">
-                      View
-                    </Eye>
-                  </Link>
-                  {isAdmin && member.status === userStatusTypes?.ACTIVE && (
-                    <Link
-                      href={`/dashboard/profile/update?userId=${member.id}`}
-                      passHref
-                    >
-                      <Edit className="text-primary hover:text-primary/80">
-                        Edit
-                      </Edit>
-                    </Link>
-                  )}
-                  {isAdmin && member.status === userStatusTypes?.INVITED && (
-                    <Redo2
-                      onClick={() => {
-                        setReInviteOpen(true);
-                        setItemToReInvite(`${member?.id}`);
-                      }}
-                      className="text-primary hover:text-primary/80"
-                    >
-                      Resend Invitation
-                    </Redo2>
-                  )}
-                  {isAdmin && (
-                    <Delete
-                      onClick={() => {
-                        setDeleteOpen(true);
-                        setItemToDelete(`${member?.id}`);
-                      }}
-                      className="text-primary hover:text-primary/80"
-                    >
-                      Delete
-                    </Delete>
-                  )}
-                  <Link href={`/dashboard/chat?rid=${member.id}`} passHref>
-                    <MessageCircle className="text-primary hover:text-primary/80">
-                      Send Message
-                    </MessageCircle>
-                  </Link>
-                </td>
-              </tr>
+              <MemberRow
+                key={member.id}
+                member={member}
+                isAdmin={isAdmin}
+                onDelete={(id) => {
+                  setDeleteOpen(true);
+                  setItemToDelete(id);
+                }}
+                onReInvite={(id) => {
+                  setReInviteOpen(true);
+                  setItemToReInvite(id);
+                }}
+                onView={handleView}
+                onEdit={handleEdit}
+                onMessage={handleMessage}
+              />
             ))}
           </tbody>
         </table>

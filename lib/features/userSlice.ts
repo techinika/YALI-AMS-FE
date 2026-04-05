@@ -17,12 +17,14 @@ export const usersSlices = createApi({
         url: `users/role/${userId}`,
         method: "POST",
       }),
+      invalidatesTags: ["Users"],
     }),
     deleteUser: builder.mutation({
       query: (userId) => ({
         url: `users/${userId}`,
         method: "DELETE",
       }),
+      invalidatesTags: ["Users"],
     }),
     updatedUser: builder.mutation({
       query: (data) => ({
@@ -32,6 +34,7 @@ export const usersSlices = createApi({
           user: data?.user,
         },
       }),
+      invalidatesTags: ["Users"],
     }),
     inviteUser: builder.mutation({
       query: (body) => ({

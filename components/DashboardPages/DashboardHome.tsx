@@ -14,7 +14,7 @@ import { useStatsQuery } from "@/lib/features/statsSlice";
 import Link from "next/link";
 import { useTopMembersQuery } from "@/lib/features/chatSlice";
 import { Member } from "@/types/user";
-import Loading from "@/app/loading";
+import { StatsCardSkeleton } from "../ui/skeleton";
 import { RecentEventsCard } from "../parts/RecentEvents";
 
 interface StatCardProps {
@@ -25,17 +25,15 @@ interface StatCardProps {
   color: string;
 }
 
-const StatCard: React.FC<StatCardProps> = ({
+const StatCard: React.FC<StatCardProps> = React.memo(({
   title,
   numbers,
   icon,
   link,
   color,
 }) => {
-  const shadowColor = `shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-0.5`;
-
   return (
-    <Link href={link} className={`block ${shadowColor} rounded-2xl`}>
+    <Link href={link} className="block shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-0.5 rounded-2xl">
       <div
         className={`bg-white border-l-4 border-${color}-500 p-6 flex items-center space-x-4 h-full rounded-2xl overflow-hidden`}
       >
@@ -55,7 +53,59 @@ const StatCard: React.FC<StatCardProps> = ({
       </div>
     </Link>
   );
-};
+});
+
+const TopUsersCard: React.FC<{ TopMembersData?: { data: { user: Member; messageCount: number }[] } }> = React.memo(
+  ({ TopMembersData }) => (
+    <div className="bg-white p-6 rounded-2xl shadow-lg h-96 flex flex-col">
+      <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+        <Trophy className="w-5 h-5 mr-2 text-yellow-500" fill="currentColor" />
+        Top 3 Active Members
+      </h3>
+      {TopMembersData?.data && TopMembersData.data.length > 0 ? (
+        <ul className="space-y-3">
+          {TopMembersData.data.map(
+            (item, index) => (
+              <li
+                key={index}
+                className="flex justify-between items-center p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition"
+              >
+                <div className="flex items-center space-x-3">
+                  <span
+                    className={`font-bold text-lg w-6 text-center ${
+                      index === 0 ? "text-yellow-500" : "text-gray-400"
+                    }`}
+                  >
+                    #{index + 1}
+                  </span>
+                  <span className="font-medium text-gray-700">
+                    {item?.user?.firstName + " " + item?.user?.lastName}
+                  </span>
+                </div>
+                <span className="text-sm font-semibold text-primary">
+                  {item?.messageCount.toLocaleString()} Messages
+                </span>
+              </li>
+            ),
+          )}
+        </ul>
+      ) : (
+        <div className="text-center m-2">
+          No active members data available yet.
+        </div>
+      )}
+
+      <div className="mt-auto pt-4 border-t border-gray-100">
+        <Link
+          href="/dashboard/members"
+          className="text-sm font-medium text-primary hover:text-primary/80 flex items-center"
+        >
+          View full leaderboard
+        </Link>
+      </div>
+    </div>
+  )
+);
 
 const DashboardHome = () => {
   const { data: StatsData, isLoading } = useStatsQuery("");
@@ -100,7 +150,25 @@ const DashboardHome = () => {
   );
 
   if (isLoading) {
-    return <Loading />;
+    return (
+      <div className="p-4 sm:p-6 lg:p-8 bg-gray-100 min-h-full font-sans">
+        <div className="mb-6">
+          <div className="h-10 w-64 bg-gray-200 animate-pulse rounded mb-4" />
+          <div className="h-6 w-96 bg-gray-200 animate-pulse rounded" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <StatsCardSkeleton key={i} />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <div className="bg-white p-6 rounded-2xl shadow-lg h-96" />
+          </div>
+          <div className="bg-white p-6 rounded-2xl shadow-lg h-96" />
+        </div>
+      </div>
+    );
   }
 
   const ActivityTrendCard = () => (
@@ -114,56 +182,6 @@ const DashboardHome = () => {
           <br />
           Chart Placeholder: Messaging Volume
         </p>
-      </div>
-    </div>
-  );
-
-  const TopUsersCard = () => (
-    <div className="bg-white p-6 rounded-2xl shadow-lg h-96 flex flex-col">
-      <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
-        <Trophy className="w-5 h-5 mr-2 text-yellow-500" fill="currentColor" />
-        Top 3 Active Members
-      </h3>
-      {TopMembersData?.data.length > 0 ? (
-        <ul className="space-y-3">
-          {TopMembersData?.data.map(
-            (item: { user: Member; messageCount: number }, index: number) => (
-              <li
-                key={index + 1}
-                className="flex justify-between items-center p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition"
-              >
-                <div className="flex items-center space-x-3">
-                  <span
-                    className={`font-bold text-lg w-6 text-center ${
-                      index === 0 ? "text-yellow-500" : "text-gray-400"
-                    }`}
-                  >
-                    #{index + 1}
-                  </span>
-                  <span className="font-medium text-gray-700">
-                    {item?.user?.firstName + " " + item?.user?.lastName}
-                  </span>
-                </div>
-                <span className="text-sm font-semibold text-primary">
-                  {item?.messageCount.toLocaleString()} Messages
-                </span>
-              </li>
-            ),
-          )}
-        </ul>
-      ) : (
-        <div className="text-center m-2">
-          No to active members data available yet.
-        </div>
-      )}
-
-      <div className="mt-auto pt-4 border-t border-gray-100">
-        <a
-          href="/dashboard/members"
-          className="text-sm font-medium text-primary hover:text-primary/80 flex items-center"
-        >
-          View full leaderboard
-        </a>
       </div>
     </div>
   );
@@ -196,7 +214,7 @@ const DashboardHome = () => {
           <ActivityTrendCard />
         </div>
 
-        <TopUsersCard />
+        <TopUsersCard TopMembersData={TopMembersData} />
       </div>
 
       <div className="mt-6">

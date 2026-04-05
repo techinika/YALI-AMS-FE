@@ -4,6 +4,7 @@ import { baseQueryWithAuth } from "../fetchBaseQuery";
 export const otherSlices = createApi({
   reducerPath: "otherSlices",
   baseQuery: baseQueryWithAuth,
+  tagTypes: ["Data"],
   endpoints: (builder) => ({
     gender: builder.query({
       query: (code) => `data/genders`,
@@ -35,12 +36,14 @@ export const otherSlices = createApi({
         method: "POST",
         body: data,
       }),
+      invalidatesTags: ["Data"],
     }),
     deleteWorkingSector: builder.mutation({
       query: (id) => ({
         url: `data/working-sector/${id}`,
         method: "DELETE",
       }),
+      invalidatesTags: ["Data"],
     }),
     tracks: builder.query({
       query: () => `data/tracks`,
@@ -51,12 +54,14 @@ export const otherSlices = createApi({
         method: "POST",
         body: data,
       }),
+      invalidatesTags: ["Data"],
     }),
     deleteCohort: builder.mutation({
       query: (id) => ({
         url: `data/cohort/${id}`,
         method: "DELETE",
       }),
+      invalidatesTags: ["Data"],
     }),
     addTrack: builder.mutation({
       query: (data) => ({
@@ -64,12 +69,14 @@ export const otherSlices = createApi({
         method: "POST",
         body: data,
       }),
+      invalidatesTags: ["Data"],
     }),
     deleteTrack: builder.mutation({
       query: (id) => ({
         url: `data/track/${id}`,
         method: "DELETE",
       }),
+      invalidatesTags: ["Data"],
     }),
   }),
 });
