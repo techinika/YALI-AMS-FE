@@ -34,7 +34,6 @@ import { useAssociateOrganizationMutation } from "@/lib/features/userSlice";
 import { Organization } from "@/types/user";
 import Link from "next/link";
 import { MdCancel } from "react-icons/md";
-import Loading from "@/app/loading";
 
 function OrganizationsPage() {
   const user = getUser();
@@ -55,19 +54,10 @@ function OrganizationsPage() {
 
   const [addWStoOrg] = useAddWStoOrgMutation();
   const [formData, setFormData] = useState(initData);
-  const [sectors, setSectors] = useState([]);
-  const [states, setStates] = useState<any>([]);
-  const [selectedCountry, setSelectedCountry] = useState("");
-  const [selectedDistrict, setSelectedDistrict] = useState("");
   const [saving, setSaving] = useState(false);
-  const [workingSectors, setWorkingSectors] = useState<any>([]);
-  const [countries, setCountries] = useState<any>([]);
-  const [districts, setDistricts] = useState<any>([]);
-  const [organizations, setOrganizations] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [editMode, setEditMode] = useState(false);
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const [selectedConnectId, setSelectedConnectId] = useState("");
 
   const { data: WorkingSectorsData } = useWorkingSectorQuery("");
@@ -75,6 +65,13 @@ function OrganizationsPage() {
   const { data: DistrictData } = useDistrictsQuery("");
   const { data: orgData, refetch: orgRefetch } =
     useGetOrganizationsForUserQuery(user?.id);
+
+  const [selectedCountry, setSelectedCountry] = useState(
+    formData.countryId || "",
+  );
+  const [selectedDistrict, setSelectedDistrict] = useState(
+    formData.districtId || "",
+  );
 
   const { data: SectorsData } = useSectorsByDistrictQuery(selectedDistrict, {
     skip: !selectedDistrict,
@@ -84,6 +81,11 @@ function OrganizationsPage() {
     skip: selectedCountry === "RW",
   });
 
+  const organizations = useMemo(
+    () => orgData?.data || [],
+    [orgData],
+  );
+
   const filteredOrgs = useMemo(() => {
     if (!searchTerm) return organizations;
     return organizations.filter((o: any) =>
@@ -91,38 +93,16 @@ function OrganizationsPage() {
     );
   }, [organizations, searchTerm]);
 
-  useEffect(() => {
-    if (SectorsData) {
-      setSectors(SectorsData?.data || []);
-    }
-  }, [SectorsData]);
+  const sectors = useMemo(() => SectorsData?.data || [], [SectorsData]);
+  const states = useMemo(() => StatesData?.data || [], [StatesData]);
+  const districts = useMemo(() => DistrictData?.data || [], [DistrictData]);
+  const countries = useMemo(() => CountryData?.data || [], [CountryData]);
+  const workingSectors = useMemo(
+    () => WorkingSectorsData?.data || [],
+    [WorkingSectorsData],
+  );
 
-  useEffect(() => {
-    if (orgData) {
-      setOrganizations(orgData?.data || []);
-    }
-  }, [orgData]);
-
-  useEffect(() => {
-    if (StatesData) {
-      setStates(StatesData?.data || []);
-    }
-  }, [StatesData]);
-
-  useEffect(() => {
-    if (DistrictData) {
-      setDistricts(DistrictData?.data || []);
-    }
-  }, [DistrictData]);
-
-  useEffect(() => {
-    if (CountryData) {
-      setCountries(CountryData?.data || []);
-    }
-  }, [CountryData]);
-
-  const wsOptions = React.useMemo(() => {
-    if (!workingSectors) return [];
+  const wsOptions = useMemo(() => {
     return workingSectors
       .filter((ws: any) => ws && ws.name)
       .map((ws: any) => ({
@@ -130,12 +110,6 @@ function OrganizationsPage() {
         name: ws?.name,
       }));
   }, [workingSectors]);
-
-  useEffect(() => {
-    if (WorkingSectorsData) {
-      setWorkingSectors(WorkingSectorsData?.data || []);
-    }
-  }, [WorkingSectorsData]);
 
   const handleCreateOrganization = async () => {
     setSaving(true);
@@ -229,8 +203,6 @@ function OrganizationsPage() {
     setSelectedCountry(org?.country?.id ?? "");
     setSelectedDistrict(org?.district?.id ?? "");
   };
-
-  if (loading) return <Loading />;
 
   return (
     <div className="container mx-auto p-4 md:p-8">
@@ -405,12 +377,10 @@ function OrganizationsPage() {
                 key={index + 1}
                 onClick={() => {
                   if (!editMode) return;
-                  setLoading(true);
 
                   setSelectedOrgId(org?.id);
                   setSelectedConnectId(org?.connectId);
                   populateFormFromOrg(org);
-                  setLoading(false);
                 }}
                 className={`bg-white p-5 rounded-2xl border transition-all cursor-pointer text-left
     ${editMode ? "hover:border-primary" : "border-slate-200"}

@@ -1,7 +1,7 @@
 "use client";
 
 import { X, ChevronDown } from "lucide-react";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
 
 type Option = {
   id: string;
@@ -32,34 +32,53 @@ export const MultiSelectSearch: React.FC<Props> = React.memo(
     const [search, setSearch] = useState("");
     const containerRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-      const handler = (e: MouseEvent) => {
-        if (!containerRef.current?.contains(e.target as Node)) {
-          setOpen(false);
-        }
-      };
-      document.addEventListener("mousedown", handler);
-      return () => document.removeEventListener("mousedown", handler);
+    const selectedOptions = useMemo(
+      () => options.filter((o) => value.includes(o.id)),
+      [options, value],
+    );
+
+    const filteredOptions = useMemo(() => {
+      if (!options) return [];
+      const searchLower = search.toLowerCase();
+      return options.filter(
+        (o) => o?.name.toLowerCase().includes(searchLower) && !value.includes(o.id),
+      );
+    }, [options, search, value]);
+
+    const handleClickOutside = useCallback((e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
     }, []);
 
-    const selectedOptions = options.filter((o) => value.includes(o.id));
+    useEffect(() => {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [handleClickOutside]);
 
-    const filteredOptions = options
-      ? options.filter(
-          (o) =>
-            o?.name.toLowerCase().includes(search.toLowerCase()) &&
-            !value.includes(o.id)
-        )
-      : [];
+    const addValue = useCallback(
+      (val: string) => {
+        onChange([...value, val]);
+        setSearch("");
+      },
+      [onChange, value],
+    );
 
-    const addValue = (val: string) => {
-      onChange([...value, val]);
-      setSearch("");
-    };
+    const removeValue = useCallback(
+      (val: string) => {
+        onChange(value.filter((v) => v !== val));
+      },
+      [onChange, value],
+    );
 
-    const removeValue = (val: string) => {
-      onChange(value.filter((v) => v !== val));
-    };
+    const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+      setSearch(e.target.value);
+      setOpen(true);
+    }, []);
+
+    const handleContainerClick = useCallback(() => {
+      if (!disabled) setOpen(true);
+    }, [disabled]);
 
     return (
       <div className="w-full" ref={containerRef}>
@@ -72,9 +91,8 @@ export const MultiSelectSearch: React.FC<Props> = React.memo(
           ${error ? "border-red-500" : "border-gray-300"}
           ${disabled ? "bg-gray-100 cursor-not-allowed" : ""}
         `}
-          onClick={() => !disabled && setOpen(true)}
+          onClick={handleContainerClick}
         >
-          {/* Chips */}
           {selectedOptions.map((opt) => (
             <span
               key={opt.id}
@@ -97,10 +115,7 @@ export const MultiSelectSearch: React.FC<Props> = React.memo(
 
           <input
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setOpen(true);
-            }}
+            onChange={handleInputChange}
             placeholder={value.length === 0 ? placeholder : ""}
             disabled={disabled}
             className="flex-1 outline-none bg-transparent text-sm min-w-30"
@@ -109,7 +124,6 @@ export const MultiSelectSearch: React.FC<Props> = React.memo(
           <ChevronDown size={16} className="text-gray-400" />
         </div>
 
-        {/* Dropdown */}
         {open && !disabled && filteredOptions.length > 0 && (
           <div className="mt-1 max-h-32 overflow-auto rounded-lg border bg-white shadow-sm z-20">
             {filteredOptions.map((opt) => (
