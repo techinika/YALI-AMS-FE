@@ -7,7 +7,6 @@ import {
   Bell,
   Mail,
   Clock,
-  Loader2,
   ArrowLeft,
   X,
   AlertTriangle,
@@ -15,8 +14,9 @@ import {
   Nut,
 } from "lucide-react";
 import { getUser } from "@/helpers/auth";
-import { useNotificationsQuery } from "@/lib/features/notificationSlice";
+import { useNotificationsQuery, useOpenNotificationMutation } from "@/lib/features/notificationSlice";
 import { PageHeader } from "../parts/PageHeader";
+import { Skeleton, NotificationSkeleton } from "../ui/skeleton";
 
 dayjs.extend(relativeTime);
 
@@ -29,14 +29,6 @@ interface NotificationItem {
   type: "system" | "alert" | "update";
 }
 
-const useOpenNotificationMutation = () => {
-  const openNotification = useCallback(async ({ id }: { id: string }) => {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    localStorage.setItem(`opened_${id}`, "true");
-  }, []);
-  return [openNotification];
-};
-
 const NotificationIcon = ({ type }: { type: NotificationItem["type"] }) => {
   switch (type) {
     case "alert":
@@ -48,6 +40,53 @@ const NotificationIcon = ({ type }: { type: NotificationItem["type"] }) => {
       return <Bell className="w-5 h-5 text-gray-500" />;
   }
 };
+
+const NotificationItemRow = React.memo(
+  ({
+    noti,
+    isSelected,
+    onClick,
+  }: {
+    noti: NotificationItem;
+    isSelected: boolean;
+    onClick: () => void;
+  }) => (
+    <div
+      className={`flex items-start p-4 cursor-pointer border-b transition-colors ${
+        isSelected
+          ? "bg-blue-50 border-blue-200 shadow-inner"
+          : noti.opened
+            ? "hover:bg-gray-100 border-gray-50"
+            : "hover:bg-blue-100/50 bg-white border-gray-50"
+      }`}
+      onClick={onClick}
+    >
+      <div className="flex-shrink-0 pt-1">
+        <NotificationIcon type={noti.type} />
+      </div>
+      <div className="ml-4 min-w-0 grow">
+        <div className="flex justify-between items-center mb-1">
+          <p
+            className={`font-semibold truncate ${
+              !noti.opened ? "text-gray-800" : "text-gray-500"
+            }`}
+          >
+            {noti.title}
+          </p>
+          {!noti.opened && (
+            <span
+              className="w-2 h-2 bg-primary rounded-full shrink-0 ml-2"
+              title="Unread"
+            ></span>
+          )}
+        </div>
+        <p className="text-xs text-gray-400">
+          {dayjs(noti.createdAt).fromNow()}
+        </p>
+      </div>
+    </div>
+  )
+);
 
 function Notifications() {
   const [currentNotificationId, setCurrentNotificationId] = useState<
@@ -148,12 +187,10 @@ function Notifications() {
             </div>
 
             <div className="overflow-y-auto max-h-[calc(70vh-56px)]">
-              {isLoading && (
-                <div className="p-8 text-center text-gray-500">
-                  <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-                  Loading notifications...
-                </div>
-              )}
+              {isLoading &&
+                Array.from({ length: 5 }).map((_, i) => (
+                  <NotificationSkeleton key={i} />
+                ))}
 
               {!isLoading && sortedNotifications.length === 0 && (
                 <div className="p-8 text-center text-gray-500">
@@ -166,41 +203,12 @@ function Notifications() {
 
               {!isLoading &&
                 sortedNotifications.map((noti) => (
-                  <div
+                  <NotificationItemRow
                     key={noti.id}
-                    className={`flex items-start p-4 cursor-pointer border-b transition-colors ${
-                      noti.id === currentNotificationId
-                        ? "bg-blue-50 border-blue-200 shadow-inner"
-                        : noti.opened
-                        ? "hover:bg-gray-100 border-gray-50"
-                        : "hover:bg-blue-100/50 bg-white border-gray-50"
-                    }`}
+                    noti={noti}
+                    isSelected={noti.id === currentNotificationId}
                     onClick={() => handleOpenNotification(noti.id)}
-                  >
-                    <div className="flex-shrink-0 pt-1">
-                      <NotificationIcon type={noti.type} />
-                    </div>
-                    <div className="ml-4 min-w-0 grow">
-                      <div className="flex justify-between items-center mb-1">
-                        <p
-                          className={`font-semibold truncate ${
-                            !noti.opened ? "text-gray-800" : "text-gray-500"
-                          }`}
-                        >
-                          {noti.title}
-                        </p>
-                        {!noti.opened && (
-                          <span
-                            className="w-2 h-2 bg-primary rounded-full shrink-0 ml-2"
-                            title="Unread"
-                          ></span>
-                        )}
-                      </div>
-                      <p className="text-xs text-gray-400">
-                        {dayjs(noti.createdAt).fromNow()}
-                      </p>
-                    </div>
-                  </div>
+                  />
                 ))}
             </div>
           </div>

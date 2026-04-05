@@ -173,17 +173,53 @@ The app uses RTK Query for all API calls. Base configuration in `lib/fetchBaseQu
 - Replaced redundant `useState` + `useEffect` chains with direct `useMemo` for derived data (sectors, states, districts, countries, workingSectors, organizations)
 - Removed unnecessary loading state in onClick handler
 - Optimized data flow from RTK Query hooks to reduce re-render cycles
+- Wrapped organization cards with `React.memo` to prevent unnecessary re-renders
 
 ### MultiSelectSearch Component
 - Memoized `selectedOptions` and `filteredOptions` with `useMemo` to prevent recalculation on every render
 - Wrapped event handlers (`addValue`, `removeValue`, `handleInputChange`, `handleContainerClick`, `handleClickOutside`) with `useCallback` to maintain referential equality
 - Optimized mousedown event handler cleanup with stable callback reference
 
+### Members Page (`/members`)
+- Created `MemberRow` component wrapped with `React.memo` to prevent re-rendering all rows when one row updates
+- Added `useCallback` for action handlers (view, edit, delete, re-invite, message)
+- Implemented skeleton loading state (`MembersTableSkeleton`) instead of full-page spinner
+- Removed unused `Link` components in favor of button-based navigation
+
+### Notifications Page (`/notifications`)
+- Created `NotificationItemRow` component wrapped with `React.memo` for optimized list rendering
+- Implemented skeleton loading state with `NotificationSkeleton` component
+- Removed local `useOpenNotificationMutation` hook in favor of RTK Query mutation
+
+### Dashboard Home (`/dashboard`)
+- Wrapped `StatCard` and `TopUsersCard` components with `React.memo`
+- Implemented skeleton loading state (`StatsCardSkeleton`) for loading states
+- Extracted `TopUsersCard` as a separate component for better memoization
+
+### RTK Query Optimizations
+- Added `invalidatesTags` to mutation endpoints for automatic cache invalidation:
+  - `userSlice.ts`: `change`, `deleteUser`, `updatedUser` mutations invalidate `["Users"]` tag
+  - `otherSlice.ts`: `addWorkingSector`, `deleteWorkingSector`, `addCohort`, `deleteCohort`, `addTrack`, `deleteTrack` mutations invalidate `["Data"]` tag
+  - `notificationSlice.ts`: `openNotification`, `updateSetup` mutations invalidate `["Notifications"]` tag
+- Added `tagTypes` configuration for proper cache management
+- Removed polling intervals (Socket.IO can be enabled for real-time updates)
+
+### Skeleton Components (`components/ui/skeleton.tsx`)
+- `Skeleton` - Base skeleton component with animation
+- `TableRowSkeleton` - Table row placeholder for lists
+- `CardSkeleton` - Card placeholder for grid layouts
+- `NotificationSkeleton` - Notification item placeholder
+- `StatsCardSkeleton` - Statistics card placeholder
+- `ListSkeleton` - Generic list placeholder
+- `PageSkeleton` - Full page loading state
+
 ### Best Practices Applied
 - Use `React.memo` for functional components to prevent unnecessary re-renders
 - Use `useMemo` for expensive computations
 - Use `useCallback` for callback functions passed to child components
 - Avoid copying API data to local state when possible - derive directly from RTK Query
+- Replace spinner loaders with skeleton UI for better perceived performance
+- Use inline CSS spinner instead of Lucide `Loader2` icon to reduce bundle size
 
 ---
 

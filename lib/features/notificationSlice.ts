@@ -4,6 +4,7 @@ import { baseQueryWithAuth } from "../fetchBaseQuery";
 export const notificationSlices = createApi({
   reducerPath: "notificationSlices",
   baseQuery: baseQueryWithAuth,
+  tagTypes: ["Notifications"],
   endpoints: (builder) => ({
     notifications: builder.query({
       query: (id) => `notification/${id}`,
@@ -23,6 +24,7 @@ export const notificationSlices = createApi({
         method: "POST",
         body: credentials,
       }),
+      invalidatesTags: ["Notifications"],
     }),
     updateSetup: builder.mutation({
       query: (data) => ({
@@ -30,6 +32,7 @@ export const notificationSlices = createApi({
         method: "PUT",
         body: data,
       }),
+      invalidatesTags: ["Notifications"],
     }),
   }),
 });

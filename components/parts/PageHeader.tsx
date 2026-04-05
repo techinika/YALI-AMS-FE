@@ -1,4 +1,3 @@
-import { Loader2 } from "lucide-react";
 import { IconType } from "react-icons";
 import { GoBlocked } from "react-icons/go";
 
@@ -47,7 +46,7 @@ export const PageHeader = ({
         {disabled ? null : (
           <div>
             {loading ? (
-              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
             ) : (
               <Icon className="w-5 h-5 mr-2" />
             )}
@@ -66,7 +65,7 @@ export const PageHeader = ({
           {disabled2 ? null : (
             <div>
               {loading2 ? (
-                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin mr-2" />
               ) : (
                 <Icon2 className="w-5 h-5 mr-2" />
               )}
