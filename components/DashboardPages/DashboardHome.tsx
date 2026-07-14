@@ -22,8 +22,31 @@ interface StatCardProps {
   numbers: number;
   icon: React.ReactNode;
   link: string;
-  color: string;
+  color: "blue" | "amber" | "green" | "red";
 }
+
+const statColorMap = {
+  blue: {
+    border: "border-blue-500",
+    bg: "bg-blue-100",
+    text: "text-blue-600",
+  },
+  amber: {
+    border: "border-amber-500",
+    bg: "bg-amber-100",
+    text: "text-amber-600",
+  },
+  green: {
+    border: "border-green-500",
+    bg: "bg-green-100",
+    text: "text-green-600",
+  },
+  red: {
+    border: "border-red-500",
+    bg: "bg-red-100",
+    text: "text-red-600",
+  },
+} as const;
 
 const StatCard: React.FC<StatCardProps> = React.memo(({
   title,
@@ -32,13 +55,14 @@ const StatCard: React.FC<StatCardProps> = React.memo(({
   link,
   color,
 }) => {
+  const colors = statColorMap[color];
   return (
     <Link href={link} className="block shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-0.5 rounded-2xl">
       <div
-        className={`bg-white border-l-4 border-${color}-500 p-6 flex items-center space-x-4 h-full rounded-2xl overflow-hidden`}
+        className={`bg-white border-l-4 ${colors.border} p-6 flex items-center space-x-4 h-full rounded-2xl overflow-hidden`}
       >
         <div
-          className={`p-3 rounded-full bg-${color}-100 text-${color}-600 shrink-0`}
+          className={`p-3 rounded-full ${colors.bg} ${colors.text} shrink-0`}
         >
           {icon}
         </div>
@@ -108,8 +132,8 @@ const TopUsersCard: React.FC<{ TopMembersData?: { data: { user: Member; messageC
 );
 
 const DashboardHome = () => {
-  const { data: StatsData, isLoading } = useStatsQuery("");
-  const { data: TopMembersData } = useTopMembersQuery("");
+  const { data: StatsData, isLoading } = useStatsQuery(undefined);
+  const { data: TopMembersData } = useTopMembersQuery(undefined);
 
   const stats = useMemo(
     () => [
@@ -135,7 +159,7 @@ const DashboardHome = () => {
         number: StatsData?.notificationsUnopened || 0,
         title: "Unresolved Tasks",
         link: "#",
-        color: "amber",
+        color: "amber" as const,
       },
       {
         id: 4,

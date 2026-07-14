@@ -22,10 +22,10 @@ import {
 import { getUser } from "@/helpers/auth";
 import { Track } from "@/types/track";
 import { Cohort } from "@/types/cohort";
-import { TailwindInput } from "@/components/ui/tail-input";
+import { TailwindInput } from "@/components/ui/TailInput";
 import { PhoneInputTailwind } from "@/components/ui/tail-phone";
 import { TailwindSelect } from "@/components/ui/tail-select";
-import { TailwindButton } from "@/components/ui/tail-btn";
+import { Button } from "@/components/ui/Button";
 import { TailwindAlert } from "@/components/ui/tail0alert";
 
 const CloudUploadIcon = (props: any) => (
@@ -144,10 +144,10 @@ const validate = (values: FormValues) => {
     errors.whatsAppNumber = "WhatsApp number must be digits only";
   }
   if (!values.genderId) {
-    errors.gender = "Gender is required";
+    errors.genderId = "Gender is required";
   }
   if (!values.trackId) {
-    errors.track = "Track is required";
+    errors.trackId = "Track is required";
   }
   if (!values.countryId) {
     errors.countryId = "Resident Country is required";
@@ -157,7 +157,7 @@ const validate = (values: FormValues) => {
     if (!values.districtId) errors.districtId = "District is required";
     if (!values.sectorId) errors.sectorId = "Sector is required";
   } else if (values.countryId && !values.stateId) {
-    errors.state = "State/Province is required";
+    errors.stateId = "State/Province is required";
   }
 
   return errors;
@@ -261,13 +261,13 @@ function AddPersonalInfo({
         ...prev,
         districtId: "",
         sectorId: "",
-        state: "",
+        stateId: "",
       }));
       setFormErrors((prev) => ({
         ...prev,
         districtId: "",
         sectorId: "",
-        state: "",
+        stateId: "",
       }));
     }
     if (id === "districtId") {
@@ -409,7 +409,7 @@ function AddPersonalInfo({
           ...prev,
           districtId: "",
           sectorId: "",
-          state: "",
+          stateId: "",
         }));
       }
       if (id === "districtId") {
@@ -451,15 +451,18 @@ function AddPersonalInfo({
                 />
                 <div className="flex gap-2 items-center my-2">
                   {!uploadSuccess && (
-                    <TailwindButton
+                    <Button
+                      size="sm"
                       onClick={handleFileUpload}
                       className="bg-green-500 hover:bg-green-600 px-3 py-1 text-sm"
                       disabled={loading}
                     >
                       {loading ? "Uploading..." : "Upload"}
-                    </TailwindButton>
+                    </Button>
                   )}
-                  <TailwindButton
+                  <Button
+                    size="sm"
+                    variant="danger"
                     onClick={() => {
                       setImagePreview(null);
                       setImageData(null);
@@ -472,7 +475,7 @@ function AddPersonalInfo({
                     className="bg-red-500 hover:bg-red-600 px-3 py-1 text-sm"
                   >
                     Clear
-                  </TailwindButton>
+                  </Button>
                 </div>
               </>
             )}
@@ -572,8 +575,8 @@ function AddPersonalInfo({
             options={genders}
             required
             placeholder="Select Gender"
-            error={!!formErrors.gender}
-            helperText={formErrors.gender}
+            error={!!formErrors.genderId}
+            helperText={formErrors.genderId}
           />
           <TailwindSelect
             id="countryId"
@@ -597,8 +600,8 @@ function AddPersonalInfo({
               options={states}
               required
               placeholder="Select State/Province"
-              error={!!formErrors.state}
-              helperText={formErrors.state}
+              error={!!formErrors.stateId}
+              helperText={formErrors.stateId}
               disabled={states.length === 0}
             />
           )}
@@ -651,8 +654,8 @@ function AddPersonalInfo({
             options={tracks}
             required
             placeholder="Select Track"
-            error={!!formErrors.track}
-            helperText={formErrors.track}
+            error={!!formErrors.trackId}
+            helperText={formErrors.trackId}
           />
           <TailwindInput
             id="nearlestLandmark"
@@ -707,13 +710,13 @@ function AddPersonalInfo({
         </div>
       </form>
       <div className="flex justify-end pt-4 mt-4 border-t">
-        <TailwindButton
+        <Button
           onClick={handleSubmit}
           className="bg-primary hover:bg-primary/80"
           disabled={loading}
         >
           {loading ? "Submitting..." : "Submit Personal Data"}
-        </TailwindButton>
+        </Button>
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import Tracks from "../Data/Tracks";
 import WorkingSector from "../Data/WorkingSector";
 import NotificationSetup from "../Data/NotificationSetup";
 import { PageHeader } from "../parts/PageHeader";
-import { Nut, Settings } from "lucide-react";
+import { Settings } from "lucide-react";
 
 function DataPage() {
   return (
@@ -18,12 +18,7 @@ function DataPage() {
         onAction={() => {}}
         loading={false}
         disabled={false}
-        second={false}
-        actionTitle2=""
-        onAction2={() => console.log("ff")}
-        loading2={false}
-        disabled2={false}
-        Icon2={Nut}
+
       />
       <div>
         <h2 className="font-bold text-2xl">Setup Notifications</h2>

@@ -52,7 +52,7 @@ const MemberRow = React.memo(
   }) => (
     <tr className="hover:bg-gray-50">
       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-        {member?.firstName + " " + member?.middleName || "" + " " + member?.lastName}
+        {member?.firstName + " " + (member?.middleName ? member.middleName + " " : "") + member?.lastName}
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
         {member.email}
@@ -76,9 +76,9 @@ const MemberRow = React.memo(
                     : "User is deleted."
             }
             className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-              member.status === "active"
+              member.status === userStatusTypes.ACTIVE
                 ? "bg-green-100 text-green-800"
-                : member.status === "inactive"
+                : member.status === userStatusTypes.INACTIVE
                   ? "bg-yellow-100 text-yellow-800"
                   : "bg-red-100 text-red-800"
             }`}
@@ -139,7 +139,7 @@ const MembersTableSkeleton: React.FC<{ rows?: number }> = ({ rows = 5 }) => (
 
 const MembersPage = () => {
   const router = useRouter();
-  const authUser: Member = getUser();
+  const authUser: Member | null = getUser();
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({
     country: "",
@@ -195,7 +195,7 @@ const MembersPage = () => {
     usersSuccess && countriesSuccess && cohortsSuccess && tracksSuccess;
 
   const filteredMembers = useMemo(() => {
-    return (membersData?.data ?? membersData?.data ?? []).filter(
+    return (membersData?.data ?? []).filter(
       (member: Member) => {
         const matchesSearch =
           member?.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||

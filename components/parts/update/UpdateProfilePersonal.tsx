@@ -8,7 +8,7 @@ import { Cohort } from "@/types/cohort";
 import { Track } from "@/types/track";
 import { TailwindSelect } from "@/components/ui/tail-select";
 import { PhoneInputTailwind } from "@/components/ui/tail-phone";
-import { TailwindInput } from "@/components/ui/tail-input";
+import { TailwindInput } from "@/components/ui/TailInput";
 import { getUser } from "@/helpers/auth";
 
 export const Personal = ({

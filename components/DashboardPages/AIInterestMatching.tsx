@@ -33,7 +33,6 @@ export const AIInterestMatching = () => {
   const router = useRouter();
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [aspirations, setAspirations] = useState("");
-  const [isMatching, setIsMatching] = useState(false);
   const [matches, setMatches] = useState<any>(null);
   const [error, setError] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -50,7 +49,11 @@ export const AIInterestMatching = () => {
       return;
     }
 
-    setIsMatching(true);
+    if (!user?.id) {
+      toastError("You must be logged in to use matchmaking.");
+      return;
+    }
+
     setError(null);
 
     try {
@@ -65,17 +68,16 @@ export const AIInterestMatching = () => {
     } catch (err) {
       console.error(err);
       toastError("AI Matchmaking failed. Please try again or contact support.");
-    } finally {
-      setIsMatching(false);
     }
   };
 
   const handleRequestToJoin = async () => {
+    if (!user?.id || !groupToJoin?.id) return;
     setRequestToJoinLoading(true);
     try {
       await requestToJoinGroup({
         userId: user.id,
-        groupId: groupToJoin?.id,
+        groupId: groupToJoin.id,
       }).unwrap();
 
       toastSuccess("Joining Group Requested!");
@@ -104,7 +106,7 @@ export const AIInterestMatching = () => {
           user={user}
           members={matches?.users || []}
           source="ai"
-          groupRefetching={() => console.log("there goes nothing")}
+          groupRefetching={() => {}}
         />
       )}
 
@@ -130,12 +132,6 @@ export const AIInterestMatching = () => {
         onAction={() => router.push("/dashboard/chat/groups")}
         loading={false}
         disabled={false}
-        second={false}
-        actionTitle2=""
-        onAction2={() => console.log("ff")}
-        loading2={false}
-        disabled2={false}
-        Icon2={User}
       />
 
       <main className="grid grid-cols-1 lg:grid-cols-12 gap-8 p-6 lg:p-10">
@@ -190,10 +186,10 @@ export const AIInterestMatching = () => {
 
               <button
                 onClick={runMatchingAI}
-                disabled={isMatching}
+                disabled={isLoading}
                 className="w-full py-4 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold flex items-center justify-center space-x-3 transition-all shadow-lg shadow-blue-100 disabled:opacity-70 disabled:cursor-not-allowed group"
               >
-                {isMatching || isLoading ? (
+                {isLoading ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     <span>Analyzing Profiles...</span>
@@ -215,7 +211,7 @@ export const AIInterestMatching = () => {
         </div>
 
         <div className="lg:col-span-7 space-y-6">
-          {!matches && !isMatching && (
+          {!matches && !isLoading && (
             <div className="h-full flex flex-col items-center justify-center text-center p-12 bg-white rounded-2xl border border-dashed border-gray-300">
               <div className="bg-blue-50 p-4 rounded-full mb-4">
                 <Search className="w-8 h-8 text-primary" />
@@ -230,7 +226,7 @@ export const AIInterestMatching = () => {
             </div>
           )}
 
-          {isMatching && (
+          {isLoading && (
             <div className="space-y-4 animate-pulse">
               {[1, 2, 3].map((i) => (
                 <div
@@ -241,7 +237,7 @@ export const AIInterestMatching = () => {
             </div>
           )}
 
-          {matches && !isMatching && (
+          {matches && !isLoading && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="bg-blue-50 rounded-2xl p-5 border border-blue-100 flex items-start space-x-4">
                 <div className="bg-primary rounded-lg p-2 shrink-0">
@@ -336,7 +332,7 @@ export const AIInterestMatching = () => {
                               {g.name}
                             </h4>
                             <p className="text-xs text-gray-500">
-                              {g?.members.length} active members
+                              {g?.members?.length ?? 0} active members
                             </p>
                           </div>
                         </div>

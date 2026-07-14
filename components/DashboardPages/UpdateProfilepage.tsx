@@ -23,7 +23,7 @@ import { getUser } from "@/helpers/auth";
 import { MdCloudUpload, MdClose, MdEdit } from "react-icons/md";
 import { Member } from "@/types/user";
 import { PageHeader } from "../parts/PageHeader";
-import { Nut, Save } from "lucide-react";
+import { Save } from "lucide-react";
 import { TextAreaField } from "../ui/textarea";
 import { Personal } from "../parts/update/UpdateProfilePersonal";
 import {
@@ -454,12 +454,7 @@ function UpdateProfilePage() {
         onAction={handleSubmit}
         loading={isLoading}
         disabled={false}
-        second={false}
-        actionTitle2=""
-        onAction2={() => console.log("ff")}
-        loading2={false}
-        disabled2={false}
-        Icon2={Nut}
+
       />
       {(error || success) && (
         <div

@@ -103,7 +103,7 @@ export const GroupChatsPage = () => {
       { groupId: activeGroup?.id || "", userId: user?.id },
       {
         skip: !activeGroup?.id,
-        pollingInterval: 1500,
+        pollingInterval: 5000,
       }
     );
 
@@ -164,12 +164,6 @@ export const GroupChatsPage = () => {
         onAction={() => router.push("/dashboard/chat")}
         loading={false}
         disabled={false}
-        second={false}
-        actionTitle2=""
-        onAction2={() => console.log("Second Action")}
-        loading2={false}
-        disabled2={false}
-        Icon2={MessageCircle}
       />
 
       <div className="flex h-screen overflow-hidden rounded">
@@ -420,12 +414,17 @@ export const GroupChatsPage = () => {
                 <div className="flex gap-3 mt-6">
                   <button
                     onClick={async () => {
-                      await acceptGroupInvitation({
-                        groupId: pendingGroup.id,
-                        userId: user?.id,
-                      }).unwrap();
-                      groupRefetching();
-                      setShowGroupStatusModal(false);
+                      try {
+                        await acceptGroupInvitation({
+                          groupId: pendingGroup.id,
+                          userId: user?.id,
+                        }).unwrap();
+                        groupRefetching();
+                        setShowGroupStatusModal(false);
+                      } catch (error) {
+                        console.error(error);
+                        toastError("Failed to accept invitation. Try again.");
+                      }
                     }}
                     className="bg-primary py-2 px-6 rounded-full text-white hover:bg-primary/80"
                   >
@@ -433,12 +432,17 @@ export const GroupChatsPage = () => {
                   </button>
                   <button
                     onClick={async () => {
-                      await declineGroupInvitation({
-                        groupId: pendingGroup.id,
-                        userId: user?.id,
-                      }).unwrap();
-                      groupRefetching();
-                      setShowGroupStatusModal(false);
+                      try {
+                        await declineGroupInvitation({
+                          groupId: pendingGroup.id,
+                          userId: user?.id,
+                        }).unwrap();
+                        groupRefetching();
+                        setShowGroupStatusModal(false);
+                      } catch (error) {
+                        console.error(error);
+                        toastError("Failed to decline invitation. Try again.");
+                      }
                     }}
                     className="bg-white py-2 px-6 rounded-full text-primary hover:bg-primary hover:text-white border-2 border-primary"
                   >
@@ -559,7 +563,7 @@ export const GroupChatsPage = () => {
                           await addNewGroupMember({
                             groupId: activeGroup.id,
                             userId: u.id,
-                          });
+                          }).unwrap();
                           toastSuccess(
                             `You have invited ${u?.firstName} to join group ${activeGroup?.name}!`
                           );

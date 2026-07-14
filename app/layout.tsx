@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import StoreProvider from "./StoreProvider";
-import AuthProvider from "@/helpers/provider";
 import AccessibilityLoader from "@/components/Other/AccessibilityLoader";
 
 export const metadata: Metadata = {
@@ -18,10 +17,8 @@ export default function RootLayout({
     <html>
       <body>
         <StoreProvider>
-          <AuthProvider>
-            <AccessibilityLoader />
-            {children}
-          </AuthProvider>
+          <AccessibilityLoader />
+          {children}
         </StoreProvider>
       </body>
     </html>

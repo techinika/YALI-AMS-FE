@@ -9,11 +9,7 @@ import { setCookie } from "cookies-next";
 import { useAppDispatch } from "@/lib/hooks";
 import { useRouter } from "next/navigation";
 import { setCredentials } from "@/lib/features/auth";
-
-const AUTH_STORED_DATA = {
-  USER: "auth_user_data",
-  TOKEN: "auth_token",
-};
+import { AUTH_STORED_DATA } from "@/helpers/auth";
 
 const LoginPage = () => {
   const router = useRouter();

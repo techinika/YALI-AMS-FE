@@ -11,9 +11,9 @@ import {
   X,
   AlertTriangle,
   Settings,
-  Nut,
 } from "lucide-react";
-import { getUser } from "@/helpers/auth";
+import DOMPurify from "dompurify";
+import { useAppSelector } from "@/lib/hooks";
 import { useNotificationsQuery, useOpenNotificationMutation } from "@/lib/features/notificationSlice";
 import { PageHeader } from "../parts/PageHeader";
 import { Skeleton, NotificationSkeleton } from "../ui/skeleton";
@@ -92,7 +92,7 @@ function Notifications() {
   const [currentNotificationId, setCurrentNotificationId] = useState<
     string | null
   >(null);
-  const user = getUser();
+  const user = useAppSelector((state) => state.auth.user);
 
   const { data, isLoading, refetch } = useNotificationsQuery(user?.id);
   const [openNotification] = useOpenNotificationMutation();
@@ -168,12 +168,6 @@ function Notifications() {
           Icon={Settings}
           loading={false}
           disabled={false}
-          second={false}
-          actionTitle2=""
-          onAction2={() => console.log("ff")}
-          loading2={false}
-          disabled2={false}
-          Icon2={Nut}
         />
 
         <div className="flex flex-col lg:flex-row bg-white rounded-xl shadow-2xl overflow-hidden min-h-[70vh]">
@@ -252,7 +246,7 @@ function Notifications() {
                   <div
                     className="prose prose-sm sm:prose lg:prose-lg xl:prose-xl max-w-none! p-4 text-gray-700"
                     dangerouslySetInnerHTML={{
-                      __html: selectedNotification.message,
+                      __html: DOMPurify.sanitize(selectedNotification.message),
                     }}
                   ></div>
                 </div>

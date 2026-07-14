@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, useCallback } from "react";
-import { TailwindInput } from "../ui/tail-input";
+import { TailwindInput } from "../ui/TailInput";
 import { MultiSelectSearch } from "../ui/multi-select-search";
 import { TailwindSelect } from "../ui/tail-select";
 import {
@@ -61,9 +61,10 @@ const OrganizationCard = React.memo(
         </div>
         {org.website && (
           <Link
-            href={org.website}
+            href={org.website.startsWith("http") ? org.website : `https://${org.website}`}
             target="_blank"
             className="text-slate-400 hover:text-primary"
+            rel="noopener noreferrer"
           >
             <Globe size={16} />
           </Link>
@@ -166,6 +167,10 @@ function OrganizationsPage() {
   }, [workingSectors]);
 
   const handleCreateOrganization = async () => {
+    if (!formData.name.trim()) {
+      toastError("Organization name is required.");
+      return;
+    }
     setSaving(true);
     try {
       const res = await addNewOrganization({
@@ -277,12 +282,6 @@ function OrganizationsPage() {
         }}
         loading={saving}
         disabled={false}
-        second={false}
-        actionTitle2=""
-        onAction2={() => console.log("ff")}
-        loading2={false}
-        disabled2={false}
-        Icon2={Save}
       />
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
         <div className="xl:col-span-5">

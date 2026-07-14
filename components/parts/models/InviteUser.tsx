@@ -24,7 +24,7 @@ const InviteUserModal: React.FC<InviteUserModalProps> = ({
 
   const [inviteUser, { isLoading }] = useInviteUserMutation();
 
-  if (!isOpen) {
+  if (!isOpen || typeof document === "undefined") {
     return null;
   }
 
@@ -69,12 +69,16 @@ const InviteUserModal: React.FC<InviteUserModalProps> = ({
 
     setIsSubmitting(true);
 
-    handleInviteUser(name.trim(), email.trim());
-
-    setName("");
-    setEmail("");
-    setIsSubmitting(false);
-    onClose();
+    try {
+      await handleInviteUser(name.trim(), email.trim());
+      setName("");
+      setEmail("");
+      onClose();
+    } catch {
+      // Error already handled in handleInviteUser
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return createPortal(

@@ -34,6 +34,15 @@ export interface Group {
   };
 }
 
+export interface GroupMember {
+  id: string;
+  userId: string;
+  groupId: string;
+  status: string;
+  user: Member;
+  joinedAt: string;
+}
+
 export const groupJoinStatusTypes = {
   ADMIN_APPROVAL_PENDING: "admin_approval_pending",
   MEMBER_JOINING_PENDING: "member_joining_pending",
