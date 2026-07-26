@@ -30,6 +30,7 @@ import {
 import { getUser } from "@/helpers/auth";
 import { Message } from "@/types/message";
 import { useRouter, useSearchParams } from "next/navigation";
+import { getSocket } from "@/lib/sockets";
 
 dayjs.extend(relativeTime);
 
@@ -87,11 +88,9 @@ const ChatInterface = () => {
 
   const { data: communityMessagesData } = useChatsQuery("", {
     skip: currentRecipientId !== "all",
-    pollingInterval: 1500,
   });
   const { data: privateMessagesData } = usePrivateMessagesQuery(
     { id: currentRecipientId, oid: user?.id || "" },
-    { pollingInterval: 1500 }
   );
 
   const { data: privateChatsData } = usePrivateChatsQuery(user?.id);
@@ -122,51 +121,55 @@ const ChatInterface = () => {
     setHeaderTitle(found ? `${found.firstName} ${found.lastName}` : "Unknown");
   }, [currentRecipientId, members]);
 
-  // useEffect(() => {
-  //   if (!user?.id) return;
+  useEffect(() => {
+    if (!user?.id) return;
 
-  //   const socket = getSocket();
-  //   socketRef.current = socket;
+    const socket = getSocket();
+    socketRef.current = socket;
 
-  //   socket.emit("join-room", { room: user?.id });
+    socket.emit("join-room", { room: user?.id });
 
-  //   socket.on("connection", () => {
-  //     console.log("Connected to socket:", socket.id);
-  //   });
+    socket.on("connect", () => {
+      console.log("Connected to socket:", socket.id);
+    });
 
-  //   socket.on("disconnect", () => {
-  //     console.log("Socket disconnected");
-  //   });
+    socket.on("disconnect", () => {
+      console.log("Socket disconnected");
+    });
 
-  //   return () => {
-  //     socket.off("connection");
-  //     socket.off("disconnect");
-  //   };
-  // }, []);
+    return () => {
+      socket.off("connect");
+      socket.off("disconnect");
+    };
+  }, [user?.id]);
 
-  // useEffect(() => {
-  //   if (!socketRef.current) return;
+  useEffect(() => {
+    if (!socketRef.current) return;
 
-  //   const socket = socketRef.current;
+    const socket = socketRef.current;
 
-  //   const handleNewMessage = (message: Message) => {
-  //     if (
-  //       (currentRecipientId === "all" && message?.public) ||
-  //       (currentRecipientId !== "all" &&
-  //         !message?.public &&
-  //         (message.senderId === currentRecipientId ||
-  //           message.receiverId === currentRecipientId))
-  //     ) {
-  //       setMessages((prev) => [...prev, message]);
-  //     }
-  //   };
+    const handleNewMessage = (message: Message) => {
+      if (
+        (currentRecipientId === "all" && message?.public) ||
+        (currentRecipientId !== "all" &&
+          !message?.public &&
+          (message.senderId === currentRecipientId ||
+            message.receiverId === currentRecipientId))
+      ) {
+        setMessages((prev) => {
+          const exists = prev.some((m) => m.id === message.id);
+          if (exists) return prev;
+          return [...prev, message];
+        });
+      }
+    };
 
-  //   socket.on("new-message", handleNewMessage);
+    socket.on("new-message", handleNewMessage);
 
-  //   return () => {
-  //     socket.off("new-message", handleNewMessage);
-  //   };
-  // }, [currentRecipientId]);
+    return () => {
+      socket.off("new-message", handleNewMessage);
+    };
+  }, [currentRecipientId]);
 
   const rawMessages: Message[] = useMemo(() => {
     if (currentRecipientId === "all") {
@@ -299,7 +302,10 @@ const ChatInterface = () => {
 
       try {
         await addMessage({ data: values }).unwrap();
-        socketRef.current?.emit("send-message", values);
+        socketRef.current?.emit("send-message", {
+          message: trimmedMessage,
+          receiverId: currentRecipientId === "all" ? "" : currentRecipientId,
+        });
         setMessageInput("");
       } catch (error) {
         console.error("Error sending message:", error);

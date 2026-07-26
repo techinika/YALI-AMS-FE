@@ -26,7 +26,7 @@ export const OnlyAdmin = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const user = getUser();
-    const isAdmin = user?.role?.name === "ADMIN";
+    const isAdmin = user?.role?.name?.toLowerCase() === "admin";
     if (!isAdmin) {
       router.push("/dashboard/profile");
     } else {

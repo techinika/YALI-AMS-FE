@@ -70,10 +70,34 @@ const LoginPage = () => {
 
       localStorage.setItem(
         AUTH_STORED_DATA?.USER,
-        JSON.stringify(result?.user)
+        JSON.stringify({
+          id: result?.user?.id,
+          firstName: result?.user?.firstName,
+          lastName: result?.user?.lastName,
+          email: result?.user?.email,
+          role: result?.user?.role,
+          profileImage: result?.user?.profileImage,
+        })
       );
-      setCookie(AUTH_STORED_DATA?.TOKEN, result?.token);
-      setCookie(AUTH_STORED_DATA?.USER, JSON.stringify(result?.user));
+      setCookie(AUTH_STORED_DATA?.TOKEN, result?.token, {
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        path: "/",
+        maxAge: 86400,
+      });
+      setCookie(AUTH_STORED_DATA?.USER, JSON.stringify({
+        id: result?.user?.id,
+        firstName: result?.user?.firstName,
+        lastName: result?.user?.lastName,
+        email: result?.user?.email,
+        role: result?.user?.role,
+        profileImage: result?.user?.profileImage,
+      }), {
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        path: "/",
+        maxAge: 86400,
+      });
 
       dispatch(
         setCredentials({
@@ -83,7 +107,7 @@ const LoginPage = () => {
       );
 
       if (result?.status === 200) {
-        if (result?.user?.role?.name === "ADMIN") {
+        if (result?.user?.role?.name?.toLowerCase() === "admin") {
           router.push("/dashboard");
         } else {
           router.push("/dashboard/profile");

@@ -1,12 +1,13 @@
 import { fetchBaseQuery, FetchBaseQueryError } from "@reduxjs/toolkit/query/react";
 import { RootState } from "./store";
 import { AUTH_STORED_DATA } from "@/helpers/auth";
-import { getCookie } from "cookies-next";
+import { getCookie, deleteCookie } from "cookies-next";
 
 const handleUnauthorized = () => {
   if (typeof window !== "undefined") {
     localStorage.removeItem(AUTH_STORED_DATA.USER);
-    document.cookie = `${AUTH_STORED_DATA.TOKEN}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+    deleteCookie(AUTH_STORED_DATA.TOKEN, { path: "/" });
+    deleteCookie(AUTH_STORED_DATA.USER, { path: "/" });
     window.location.href = "/";
   }
 };

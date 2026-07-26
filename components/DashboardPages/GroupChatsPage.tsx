@@ -39,6 +39,7 @@ import { useRouter } from "next/navigation";
 import Modal from "../parts/models/Modal";
 import { Member } from "@/types/user";
 import { toastError, toastSuccess } from "@/lib/toast";
+import { getSocket } from "@/lib/sockets";
 
 export const GroupChatsPage = () => {
   const user = getUser();
@@ -103,9 +104,27 @@ export const GroupChatsPage = () => {
       { groupId: activeGroup?.id || "", userId: user?.id },
       {
         skip: !activeGroup?.id,
-        pollingInterval: 5000,
       }
     );
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const socket = getSocket();
+
+    socket.on("new-group-message", (message: GroupMessage) => {
+      if (activeGroup && message.groupId === activeGroup.id) {
+        setMessages((prev) => {
+          const exists = prev.some((m) => m.id === message.id);
+          if (exists) return prev;
+          return [...prev, message];
+        });
+      }
+    });
+
+    return () => {
+      socket.off("new-group-message");
+    };
+  }, [activeGroup?.id, user?.id]);
 
   useEffect(() => {
     if (membersData?.data) {
@@ -138,6 +157,12 @@ export const GroupChatsPage = () => {
         senderId: user.id,
         content: newMessage,
       }).unwrap();
+
+      const socket = getSocket();
+      socket.emit("send-group-message", {
+        groupId: activeGroup.id,
+        message: newMessage,
+      });
 
       setNewMessage("");
     } catch (err) {

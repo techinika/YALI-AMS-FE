@@ -1,11 +1,18 @@
 import { io, Socket } from "socket.io-client";
+import { getCookie } from "cookies-next";
+import { AUTH_STORED_DATA } from "@/helpers/auth";
 
 let socket: Socket | null = null;
 
 export const getSocket = () => {
   if (socket?.connected) return socket;
 
-  socket ??= io(process.env.NEXT_PUBLIC_WS_URL, {
+  const token = getCookie(AUTH_STORED_DATA?.TOKEN);
+
+  socket ??= io(process.env.NEXT_PUBLIC_WS_URL || process.env.NEXT_PUBLIC_API_URL!, {
+    auth: {
+      token: token || "",
+    },
     transports: ["websocket"],
     withCredentials: true,
     path: "/ws/socket.io/",
