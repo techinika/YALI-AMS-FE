@@ -7,9 +7,11 @@ import {
 import { Cohort } from "@/types/cohort";
 import { Track } from "@/types/track";
 import { TailwindSelect } from "@/components/ui/tail-select";
+import { Combobox } from "@/components/ui/combobox";
 import { PhoneInputTailwind } from "@/components/ui/tail-phone";
 import { TailwindInput } from "@/components/ui/TailInput";
 import { getUser } from "@/helpers/auth";
+import { useCallback } from "react";
 
 export const Personal = ({
   values,
@@ -49,6 +51,72 @@ export const Personal = ({
   setChangeEmail: (value: boolean) => void;
 }) => {
   const member = getUser();
+
+  const handleCountryChange = useCallback(
+    (value: string) => {
+      setCountry(value);
+      handleSelectChange({
+        target: { id: "residentCountryId", value },
+      } as any);
+    },
+    [setCountry, handleSelectChange],
+  );
+
+  const handleDistrictChange = useCallback(
+    (value: string) => {
+      setSelectedDistrict(value);
+      handleSelectChange({
+        target: { id: "districtName", value },
+      } as any);
+    },
+    [setSelectedDistrict, handleSelectChange],
+  );
+
+  const handleStateChange = useCallback(
+    (value: string) => {
+      handleSelectChange({
+        target: { id: "state", value },
+      } as any);
+    },
+    [handleSelectChange],
+  );
+
+  const handleSectorChange = useCallback(
+    (value: string) => {
+      handleSelectChange({
+        target: { id: "sectorId", value },
+      } as any);
+    },
+    [handleSelectChange],
+  );
+
+  const handleGenderChange = useCallback(
+    (value: string) => {
+      handleSelectChange({
+        target: { id: "gender", value },
+      } as any);
+    },
+    [handleSelectChange],
+  );
+
+  const handleCohortChange = useCallback(
+    (value: string) => {
+      handleSelectChange({
+        target: { id: "cohortId", value },
+      } as any);
+    },
+    [handleSelectChange],
+  );
+
+  const handleTrackChange = useCallback(
+    (value: string) => {
+      handleSelectChange({
+        target: { id: "track", value },
+      } as any);
+    },
+    [handleSelectChange],
+  );
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       <TailwindInput
@@ -84,15 +152,7 @@ export const Personal = ({
         value={values.email}
         onChange={handleChange}
         placeholder="Email"
-        // disabled={!changeEmail}
         error={errors.email}
-        // helperText={
-        //   <span className="text-primary text-xs italic mt-1">
-        //     <b>Note:</b> Updating the email will change the login credentials,
-        //     so it can only be changed by the account owner! Proceed with
-        //     caution.
-        //   </span>
-        // }
       />
       <PhoneInputTailwind
         label="Phone Number"
@@ -110,86 +170,78 @@ export const Personal = ({
         placeholder="Edit WhatsApp number (e.g., +25078...)"
         error={errors.whatsAppNumber}
       />
-      <TailwindSelect
+      <Combobox
         label="Gender"
         id="gender"
         value={values.gender}
-        onChange={handleSelectChange}
-        options={genders}
+        onChange={handleGenderChange}
+        options={genders.map((g: any) => ({ id: g.id, name: g.name }))}
         placeholder="Select a gender"
         disabled={auth}
         error={errors.gender}
       />
-      <TailwindSelect
+      <Combobox
         label="Resident Country"
         id="residentCountryId"
         value={values.residentCountryId}
-        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-          handleSelectChange(e);
-          const selectedCountry = e.target.value;
-          setCountry(selectedCountry);
-        }}
-        options={countries}
+        onChange={handleCountryChange}
+        options={countries.map((c: Country) => ({ id: c.id, name: c.name }))}
         placeholder="Select a country"
         disabled={auth}
         error={errors.residentCountryId}
       />
       {values.residentCountryId && values.residentCountryId !== "RW" && (
-        <TailwindSelect
+        <Combobox
           label="State"
           id="state"
           value={values.state}
-          onChange={handleSelectChange}
-          options={states}
+          onChange={handleStateChange}
+          options={states.map((s: any) => ({ id: s.id, name: s.name }))}
           placeholder="Select a state"
           disabled={auth}
           error={errors.state}
         />
       )}
       {values.residentCountryId && values.residentCountryId === "RW" && (
-        <TailwindSelect
+        <Combobox
           label="District"
           id="districtName"
           value={values.districtName}
-          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-            handleSelectChange(e);
-            const selectedDistrict = e.target.value;
-            setSelectedDistrict(selectedDistrict);
-          }}
-          options={districts}
+          onChange={handleDistrictChange}
+          options={districts.map((d: ResidentDistrict) => ({ id: d.id, name: d.name }))}
           placeholder="Select a district"
           disabled={auth}
           error={errors.districtName}
         />
       )}
       {values.residentCountryId && values.residentCountryId === "RW" && (
-        <TailwindSelect
+        <Combobox
           label="Sector"
           id="sectorId"
           value={values.sectorId}
-          onChange={handleSelectChange}
-          options={sectors}
+          onChange={handleSectorChange}
+          options={sectors.map((s: ResidentSector) => ({ id: s.id, name: s.name }))}
           placeholder="Select a sector"
           disabled={auth}
           error={errors.sectorId}
         />
       )}
-      <TailwindSelect
+      <Combobox
         label="Cohort"
         id="cohortId"
         value={values.cohortId}
-        onChange={handleSelectChange}
-        options={cohorts}
+        onChange={handleCohortChange}
+        options={cohorts.map((c: Cohort) => ({ id: c.id, name: c.name }))}
         placeholder="Select a cohort"
         disabled={auth}
         error={errors.cohortId}
       />
-      <TailwindSelect
+      <Combobox
         label="Track"
         id="track"
         value={values.track}
-        onChange={handleSelectChange}
-        options={tracks}
+        onChange={handleTrackChange}
+        options={tracks.map((t: Track) => ({ id: t.id, name: t.name }))}
         placeholder="Select a track"
         disabled={auth}
         error={errors.track}

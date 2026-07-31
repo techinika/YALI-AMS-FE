@@ -4,6 +4,8 @@ import Copyright from "../parts/Copyright";
 import { MdMenu } from "react-icons/md";
 import Sidebar from "../parts/DashboardSidebar";
 import { useAppSelector } from "@/lib/hooks";
+import { RefDataPrefetcher } from "./RefDataPrefetcher";
+import NotificationBell from "./NotificationBell";
 
 function Layout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -35,11 +37,14 @@ function Layout({ children }: { children: React.ReactNode }) {
           </button>
 
           <div className="flex items-center space-x-4">
+            <NotificationBell />
             <span className="text-gray-500">
               Welcome{` ${member?.firstName}`}!
             </span>
           </div>
         </header>
+
+        <RefDataPrefetcher />
 
         <main className="flex-1 p-6 md:p-8 overflow-y-auto">
           <div className="h-full w-full">{children}</div>

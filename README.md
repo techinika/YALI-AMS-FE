@@ -147,8 +147,10 @@ NEXT_PUBLIC_WS_URL=ws://localhost:4500
 - `TailwindInput` - Reusable text/textarea input with label, error, and helper text support
 - `TailwindSelect` - Reusable dropdown select component
 - `MultiSelectSearch` - Searchable multi-select with chips
+- `Combobox` - Searchable combobox with keyboard navigation, outside-click dismiss, clearable (replaces native selects)
 - `PageHeader` - Standardized page header with actions
 - `Skeleton` - 7 skeleton variants for loading states
+- `NotificationBell` - Header notification bell with unread badge, socket-driven refresh, and dropdown panel
 
 ---
 
@@ -230,6 +232,26 @@ The app uses RTK Query for all API calls. Base configuration in `lib/fetchBaseQu
 - Added `invalidatesTags` to mutation endpoints for automatic cache invalidation
 - Added `tagTypes` configuration for proper cache management
 - All endpoints fully typed with explicit generics for better developer experience
+- Split the shared `"Data"` tag into per-domain tags (`Countries`, `States`, `Districts`, `Sectors`, `Genders`, `Cohorts`, `Tracks`, `WorkingSectors`) so refetching one domain no longer invalidates all reference data
+- Added `keepUnusedDataFor: 300` on reference-data endpoints to keep dropdown data cached in memory
+- `statesByCountry` and `sectorsByDistrict` cache by tagged IDs to avoid redundant fetches
+
+### Reference Data Prefetching
+- Created `RefDataPrefetcher` (mounted in the dashboard `Layout`) that subscribes to countries, districts, genders, cohorts, tracks, and working sectors so dropdowns open instantly without per-page loading states
+
+### Combobox Migration
+- Created a shared searchable `Combobox` (`components/ui/combobox.tsx`) with typeahead search, keyboard navigation (Arrow/Enter/Escape), outside-click dismiss, and clearable selection
+- Replaced large native `<select>` elements with `Combobox` in personal/employed/founded-info forms, profile update pages, and the organizations page
+- Removed intermediate `useState`/`useEffect` state-sync pairs — RTK Query data is now consumed directly
+
+### Members Page
+- Removed the all-or-nothing `isAnyLoading` blocker; the table skeleton now only shows while members load and filters render immediately
+- Removed native country FilterDropdown in favor of the shared Combobox
+
+### Notification Bell
+- Added `NotificationBell` to the dashboard header with an unread count badge and dropdown panel
+- Listens for `new-message`, `new-group-message`, and `notification:new` socket events to refresh the unread list in real time, with a 30s polling fallback
+- Clicking an item marks it opened (via `openNotification`) and routes to the notifications page
 
 ### Socket.IO
 - Singleton pattern with `hasListeners()` guard to prevent event handler duplication on reconnect

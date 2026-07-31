@@ -56,7 +56,7 @@ function NewProfile() {
   }, [DistrictData, CountryData]);
   const isProfileComplete = useMemo(() => {
     return SECTIONS.every((section) =>
-      ["success", "skipped"].includes(sectionFeedback[section.id])
+      ["success", "skipped"].includes(sectionFeedback[section.id]),
     );
   }, [sectionFeedback]);
 
@@ -111,12 +111,11 @@ function NewProfile() {
         onAction={() => setIsImportModalOpen(true)}
         loading={false}
         disabled={false}
-
       />
       <div className="space-y-8">
-        {SECTIONS.map((section) => (
+        {SECTIONS.map((section, index) => (
           <SectionWrapper
-            key={section.id}
+            key={section.id + index}
             id={section.id}
             title={section.title}
             mandatory={section.mandatory}

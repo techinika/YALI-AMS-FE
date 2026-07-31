@@ -4,42 +4,61 @@ import { ApiResponse, WorkingSector } from "@/types/api";
 import { Cohort } from "@/types/cohort";
 import { Track } from "@/types/track";
 
+const REF_CACHE_TTL = 300;
+
 export const otherSlices = createApi({
   reducerPath: "otherSlices",
   baseQuery: baseQueryWithAuth,
-  tagTypes: ["Data"],
+  tagTypes: [
+    "Countries",
+    "States",
+    "Districts",
+    "Sectors",
+    "Genders",
+    "Cohorts",
+    "Tracks",
+    "WorkingSectors",
+  ],
   endpoints: (builder) => ({
     gender: builder.query<{ data: { id: string; name: string }[] }, string | void>({
       query: () => `data/genders`,
-      providesTags: ["Data"],
+      providesTags: ["Genders"],
+      keepUnusedDataFor: REF_CACHE_TTL,
     }),
     districts: builder.query<{ data: { id: string; name: string }[] }, string | void>({
       query: () => `data/districts`,
-      providesTags: ["Data"],
+      providesTags: ["Districts"],
+      keepUnusedDataFor: REF_CACHE_TTL,
     }),
     countries: builder.query<{ data: { id: string; name: string }[] }, string | void>({
       query: () => `data/countries`,
-      providesTags: ["Data"],
+      providesTags: ["Countries"],
+      keepUnusedDataFor: REF_CACHE_TTL,
     }),
     states: builder.query<{ data: { id: string; name: string; countryCode: string }[] }, string | void>({
       query: () => `data/states`,
-      providesTags: ["Data"],
+      providesTags: ["States"],
+      keepUnusedDataFor: REF_CACHE_TTL,
     }),
     statesByCountry: builder.query<{ data: { id: string; name: string; countryCode: string }[] }, string>({
       query: (countryId) => `data/states/${countryId}`,
-      providesTags: ["Data"],
+      providesTags: (_result, _error, countryId) => [{ type: "States", id: countryId }],
+      keepUnusedDataFor: REF_CACHE_TTL,
     }),
     cohorts: builder.query<{ data: Cohort[] }, string | void>({
       query: () => `data/cohorts`,
-      providesTags: ["Data"],
+      providesTags: ["Cohorts"],
+      keepUnusedDataFor: REF_CACHE_TTL,
     }),
     sectorsByDistrict: builder.query<{ data: { id: string; name: string }[] }, string>({
       query: (districtName) => `data/district/sector/${districtName}`,
-      providesTags: ["Data"],
+      providesTags: (_result, _error, districtName) => [{ type: "Sectors", id: districtName }],
+      keepUnusedDataFor: REF_CACHE_TTL,
     }),
     workingSector: builder.query<{ data: WorkingSector[] }, string | void>({
       query: () => `data/working-sectors`,
-      providesTags: ["Data"],
+      providesTags: ["WorkingSectors"],
+      keepUnusedDataFor: REF_CACHE_TTL,
     }),
     addWorkingSector: builder.mutation<{ data: WorkingSector }, { name: string }>({
       query: (data) => ({
@@ -47,17 +66,19 @@ export const otherSlices = createApi({
         method: "POST",
         body: data,
       }),
-      invalidatesTags: ["Data"],
+      invalidatesTags: ["WorkingSectors"],
     }),
     deleteWorkingSector: builder.mutation<{ message: string }, string>({
       query: (id) => ({
         url: `data/working-sector/${id}`,
         method: "DELETE",
       }),
-      invalidatesTags: ["Data"],
+      invalidatesTags: ["WorkingSectors"],
     }),
     tracks: builder.query<{ data: Track[] }, string | void>({
       query: () => `data/tracks`,
+      providesTags: ["Tracks"],
+      keepUnusedDataFor: REF_CACHE_TTL,
     }),
     addCohort: builder.mutation<{ data: Cohort }, { name: string }>({
       query: (data) => ({
@@ -65,14 +86,14 @@ export const otherSlices = createApi({
         method: "POST",
         body: data,
       }),
-      invalidatesTags: ["Data"],
+      invalidatesTags: ["Cohorts"],
     }),
     deleteCohort: builder.mutation<{ message: string }, string>({
       query: (id) => ({
         url: `data/cohort/${id}`,
         method: "DELETE",
       }),
-      invalidatesTags: ["Data"],
+      invalidatesTags: ["Cohorts"],
     }),
     addTrack: builder.mutation<{ data: Track }, { name: string }>({
       query: (data) => ({
@@ -80,14 +101,14 @@ export const otherSlices = createApi({
         method: "POST",
         body: data,
       }),
-      invalidatesTags: ["Data"],
+      invalidatesTags: ["Tracks"],
     }),
     deleteTrack: builder.mutation<{ message: string }, string>({
       query: (id) => ({
         url: `data/track/${id}`,
         method: "DELETE",
       }),
-      invalidatesTags: ["Data"],
+      invalidatesTags: ["Tracks"],
     }),
   }),
 });
