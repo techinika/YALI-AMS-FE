@@ -136,7 +136,7 @@ NEXT_PUBLIC_WS_URL=ws://localhost:4500
 ### Dashboard Pages
 - **Organizations** - Manage organizations, working sectors, and associations
 - **Members** - View, search, filter, and register new members with Excel import/export
-- **Matching** - AI-powered member matching by interests
+- **Matching** - AI-powered member matching by interests with background processing, live status polling, and past-request history
 - **Notifications** - Notification center with read/unread tracking and setup configuration
 - **Profile** - User profile viewing and updates
 - **Settings** - Application and account settings
@@ -169,7 +169,7 @@ All slices are located in `lib/features/`:
 | `otherSlice.ts` | Reference data API (countries, districts, cohorts, tracks, sectors) |
 | `notificationSlice.ts` | Notifications API |
 | `activitySlice.ts` | Activity logs API |
-| `matchMakingSlice.ts` | AI matchmaking API |
+| `matchMakingSlice.ts` | AI matchmaking API (submit request, history, live status polling) |
 | `statsSlice.ts` | Dashboard statistics API |
 | `chatSlice.ts` | Chat API (private + group messaging, 19 endpoints) |
 
@@ -247,6 +247,11 @@ The app uses RTK Query for all API calls. Base configuration in `lib/fetchBaseQu
 ### Members Page
 - Removed the all-or-nothing `isAnyLoading` blocker; the table skeleton now only shows while members load and filters render immediately
 - Removed native country FilterDropdown in favor of the shared Combobox
+
+### AI Matchmaking Page (`/matching`)
+- Interest dropdown now closes on outside click (container ref + `mousedown` listener)
+- Past-requests section renders real data from `useGetMatchmakingHistoryQuery` instead of dummy entries, with an explicit empty state ("No matchmaking requests yet") when the user has no history
+- Live status polling via `useGetMatchmakingStatusQuery` (polls every 3s while `pending`, stops on `completed`/`failed`) with socket-driven result refresh
 
 ### Notification Bell
 - Added `NotificationBell` to the dashboard header with an unread count badge and dropdown panel
