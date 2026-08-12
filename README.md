@@ -24,7 +24,7 @@ A comprehensive Alumni Management System (AMS) built with Next.js, React, and Re
 
 | Category | Technology |
 |----------|------------|
-| Framework | Next.js 16 |
+| Framework | Next.js 15 |
 | UI Library | React 19 |
 | Styling | Tailwind CSS 4 |
 | State Management | Redux Toolkit + React-Redux |
