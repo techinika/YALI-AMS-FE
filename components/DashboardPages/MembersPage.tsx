@@ -18,10 +18,10 @@ import {
 } from "@/lib/features/userSlice";
 import {
   useCohortsQuery,
-  useCountriesQuery,
   useTracksQuery,
 } from "@/lib/features/otherSlice";
 import { FilterDropdown } from "../ui/filter-dropdown";
+import { Combobox } from "../ui/combobox";
 import { Member, userStatusTypes } from "@/types/user";
 import InviteUserModal from "../parts/models/InviteUser";
 import ConfirmModal from "../parts/models/confirmModal";
@@ -52,7 +52,7 @@ const MemberRow = React.memo(
   }) => (
     <tr className="hover:bg-gray-50">
       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-        {member?.firstName + " " + member?.middleName || "" + " " + member?.lastName}
+        {member?.firstName + " " + (member?.middleName ? member.middleName + " " : "") + member?.lastName}
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
         {member.email}
@@ -76,9 +76,9 @@ const MemberRow = React.memo(
                     : "User is deleted."
             }
             className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-              member.status === "active"
+              member.status === userStatusTypes.ACTIVE
                 ? "bg-green-100 text-green-800"
-                : member.status === "inactive"
+                : member.status === userStatusTypes.INACTIVE
                   ? "bg-yellow-100 text-yellow-800"
                   : "bg-red-100 text-red-800"
             }`}
@@ -139,7 +139,7 @@ const MembersTableSkeleton: React.FC<{ rows?: number }> = ({ rows = 5 }) => (
 
 const MembersPage = () => {
   const router = useRouter();
-  const authUser: Member = getUser();
+  const authUser: Member | null = getUser();
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({
     country: "",
@@ -168,34 +168,23 @@ const MembersPage = () => {
     data: membersData = [],
     refetch: memberDataRefetch,
     isLoading: usersLoading,
-    isSuccess: usersSuccess,
   } = useUsersQuery("");
 
   const {
-    data: countries = [],
-    isLoading: countriesLoading,
-    isSuccess: countriesSuccess,
-  } = useCountriesQuery("");
-
-  const {
-    data: cohorts = [],
-    isLoading: cohortsLoading,
-    isSuccess: cohortsSuccess,
+    data: cohortsData,
   } = useCohortsQuery("");
 
   const {
-    data: tracks = [],
-    isLoading: tracksLoading,
-    isSuccess: tracksSuccess,
+    data: tracksData,
   } = useTracksQuery("");
 
-  const isAnyLoading =
-    usersLoading || countriesLoading || cohortsLoading || tracksLoading;
-  const isReady =
-    usersSuccess && countriesSuccess && cohortsSuccess && tracksSuccess;
+  const cohorts = cohortsData?.data || [];
+  const tracks = tracksData?.data || [];
+
+  const members = membersData?.data || [];
 
   const filteredMembers = useMemo(() => {
-    return (membersData?.data ?? membersData?.data ?? []).filter(
+    return members.filter(
       (member: Member) => {
         const matchesSearch =
           member?.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -212,7 +201,7 @@ const MembersPage = () => {
         return matchesSearch && matchesFilters;
       },
     );
-  }, [searchTerm, filters, usersSuccess, membersData]);
+  }, [searchTerm, filters, members]);
 
   const totalPages = Math.ceil(filteredMembers.length / MEMBERS_PER_PAGE);
   const currentMembers = useMemo(() => {
@@ -243,26 +232,6 @@ const MembersPage = () => {
   const handleMessage = useCallback((id: string) => {
     router.push(`/dashboard/chat?rid=${id}`);
   }, [router]);
-
-  if (isAnyLoading || !isReady) {
-    return (
-      <div className="container mx-auto p-4 md:p-8">
-        <div className="mb-6">
-          <Skeleton className="h-10 w-64 mb-4" />
-          <Skeleton className="h-6 w-96" />
-        </div>
-        <div className="bg-white p-5 rounded-xl shadow-lg mb-6">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <Skeleton className="h-10 w-64" />
-            <Skeleton className="h-10 w-32" />
-            <Skeleton className="h-10 w-32" />
-            <Skeleton className="h-10 w-32" />
-          </div>
-        </div>
-        <MembersTableSkeleton rows={10} />
-      </div>
-    );
-  }
 
   const handleDelete = async () => {
     setDeleteLoading(true);
@@ -390,20 +359,14 @@ const MembersPage = () => {
           </div>
 
           <FilterDropdown
-            title="Country"
-            options={countries?.data || []}
-            onChange={(e) => handleFilterChange("country", e.target.value)}
-            value={filters.country}
-          />
-          <FilterDropdown
             title="Cohort"
-            options={cohorts?.data || []}
+            options={cohorts}
             onChange={(e) => handleFilterChange("cohort", e.target.value)}
             value={filters.cohort}
           />
           <FilterDropdown
             title="Track"
-            options={tracks?.data || []}
+            options={tracks}
             onChange={(e) => handleFilterChange("track", e.target.value)}
             value={filters.track}
           />
@@ -427,62 +390,70 @@ const MembersPage = () => {
             Clear Filters
           </button>
         </div>
-        <p className="text-sm text-gray-500 mt-2">
-          Found <b>{filteredMembers.length}</b> members matching your criteria.
-        </p>
+        {usersLoading ? (
+          <Skeleton className="h-5 w-48" />
+        ) : (
+          <p className="text-sm text-gray-500 mt-2">
+            Found <b>{filteredMembers.length}</b> members matching your criteria.
+          </p>
+        )}
       </div>
 
-      <div className="bg-white rounded-xl shadow-lg overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Name
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Email
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Country/Province
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Cohort/Track
-              </th>
-              {isAdmin && (
+      {usersLoading ? (
+        <MembersTableSkeleton rows={10} />
+      ) : currentMembers.length > 0 ? (
+        <div className="bg-white rounded-xl shadow-lg overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
+                  Name
                 </th>
-              )}
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Action
-              </th>
-              <th className="px-6 py-3"></th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {currentMembers.map((member: Member) => (
-              <MemberRow
-                key={member.id}
-                member={member}
-                isAdmin={isAdmin}
-                onDelete={(id) => {
-                  setDeleteOpen(true);
-                  setItemToDelete(id);
-                }}
-                onReInvite={(id) => {
-                  setReInviteOpen(true);
-                  setItemToReInvite(id);
-                }}
-                onView={handleView}
-                onEdit={handleEdit}
-                onMessage={handleMessage}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {filteredMembers.length <= 0 && <EmptyState isFiltered={true} />}
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Email
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Country/Province
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Cohort/Track
+                </th>
+                {isAdmin && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                )}
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Action
+                </th>
+                <th className="px-6 py-3"></th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {currentMembers.map((member: Member) => (
+                <MemberRow
+                  key={member.id}
+                  member={member}
+                  isAdmin={isAdmin}
+                  onDelete={(id) => {
+                    setDeleteOpen(true);
+                    setItemToDelete(id);
+                  }}
+                  onReInvite={(id) => {
+                    setReInviteOpen(true);
+                    setItemToReInvite(id);
+                  }}
+                  onView={handleView}
+                  onEdit={handleEdit}
+                  onMessage={handleMessage}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <EmptyState isFiltered={true} />
+      )}
 
       {totalPages > 1 && (
         <div className="flex justify-between items-center mt-6 p-4 bg-white rounded-xl shadow-lg">

@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import DOMPurify from "dompurify";
 
 const RichTextEditor = ({
   message,
@@ -64,7 +65,7 @@ const RichTextEditor = ({
       <div
         ref={editorRef}
         contentEditable
-        dangerouslySetInnerHTML={{ __html: message }}
+        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(message) }}
         onInput={handleInput}
         className="w-full p-3 border border-gray-300 rounded-lg h-40 resize-y overflow-auto focus:ring-primary focus:border-primary transition duration-150"
       ></div>

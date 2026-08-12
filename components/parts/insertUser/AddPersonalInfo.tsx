@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   Country,
   Gender,
@@ -22,10 +22,11 @@ import {
 import { getUser } from "@/helpers/auth";
 import { Track } from "@/types/track";
 import { Cohort } from "@/types/cohort";
-import { TailwindInput } from "@/components/ui/tail-input";
+import { TailwindInput } from "@/components/ui/TailInput";
 import { PhoneInputTailwind } from "@/components/ui/tail-phone";
 import { TailwindSelect } from "@/components/ui/tail-select";
-import { TailwindButton } from "@/components/ui/tail-btn";
+import { Combobox } from "@/components/ui/combobox";
+import { Button } from "@/components/ui/Button";
 import { TailwindAlert } from "@/components/ui/tail0alert";
 
 const CloudUploadIcon = (props: any) => (
@@ -144,10 +145,10 @@ const validate = (values: FormValues) => {
     errors.whatsAppNumber = "WhatsApp number must be digits only";
   }
   if (!values.genderId) {
-    errors.gender = "Gender is required";
+    errors.genderId = "Gender is required";
   }
   if (!values.trackId) {
-    errors.track = "Track is required";
+    errors.trackId = "Track is required";
   }
   if (!values.countryId) {
     errors.countryId = "Resident Country is required";
@@ -157,11 +158,19 @@ const validate = (values: FormValues) => {
     if (!values.districtId) errors.districtId = "District is required";
     if (!values.sectorId) errors.sectorId = "Sector is required";
   } else if (values.countryId && !values.stateId) {
-    errors.state = "State/Province is required";
+    errors.stateId = "State/Province is required";
   }
 
   return errors;
 };
+
+const genderToOption = (g: Gender) => ({ id: g.id, name: g.name });
+const countryToOption = (c: Country) => ({ id: c.id, name: c.name });
+const stateToOption = (s: State) => ({ id: s.id, name: s.name });
+const districtToOption = (d: ResidentDistrict) => ({ id: d.id, name: d.name });
+const sectorToOption = (s: ResidentSector) => ({ id: s.id, name: s.name });
+const trackToOption = (t: Track) => ({ id: t.id, name: t.name });
+const cohortToOption = (c: Cohort) => ({ id: c.id, name: c.name });
 
 function AddPersonalInfo({
   districts,
@@ -179,11 +188,6 @@ function AddPersonalInfo({
   setUserId: (v: string) => void;
 }) {
   const user = getUser();
-  const [tracks, setTracks] = useState<Track[]>([]);
-  const [genders, setGenders] = useState<Gender[]>([]);
-  const [cohorts, setCohorts] = useState<Cohort[]>([]);
-  const [states, setStates] = useState<State[]>([]);
-  const [sectors, setSectors] = useState<ResidentSector[]>([]);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -212,35 +216,11 @@ function AddPersonalInfo({
   const [createUserProfile] = useCreateUserProfileMutation();
   const [uploadPicture] = useUploadPictureMutation();
 
-  useEffect(() => {
-    if (TracksData) setTracks(TracksData?.data || []);
-  }, [TracksData]);
-
-  useEffect(() => {
-    if (GenderData) setGenders(GenderData?.data || []);
-  }, [GenderData]);
-
-  useEffect(() => {
-    if (CohortsData) setCohorts(CohortsData?.data || []);
-  }, [CohortsData]);
-
-  useEffect(() => {
-    if (StatesData) setStates(StatesData?.data || []);
-  }, [StatesData]);
-
-  useEffect(() => {
-    if (SectorsData) setSectors(SectorsData?.data || []);
-  }, [SectorsData]);
-
-  useEffect(() => {
-    if (success || error) {
-      const timer = setTimeout(() => {
-        setSuccess("");
-        setError("");
-      }, 10000);
-      return () => clearTimeout(timer);
-    }
-  }, [success, error]);
+  const genders = GenderData?.data || [];
+  const states = StatesData?.data || [];
+  const cohorts = CohortsData?.data || [];
+  const sectors = SectorsData?.data || [];
+  const tracks = TracksData?.data || [];
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -261,13 +241,13 @@ function AddPersonalInfo({
         ...prev,
         districtId: "",
         sectorId: "",
-        state: "",
+        stateId: "",
       }));
       setFormErrors((prev) => ({
         ...prev,
         districtId: "",
         sectorId: "",
-        state: "",
+        stateId: "",
       }));
     }
     if (id === "districtId") {
@@ -276,6 +256,30 @@ function AddPersonalInfo({
     }
   };
 
+  const handleComboboxChange = useCallback(
+    (id: keyof FormValues) => (value: string) => {
+      setFormValues((prev) => {
+        const next = { ...prev, [id]: value };
+        if (id === "countryId") {
+          next.districtId = "";
+          next.sectorId = "";
+          next.stateId = "";
+        }
+        if (id === "districtId") {
+          next.sectorId = "";
+        }
+        return next;
+      });
+      setTouched((prev) => ({ ...prev, [id]: true }));
+      if (touched[id]) {
+        const updated = { ...formValues, [id]: value };
+        const errs = validate(updated);
+        setFormErrors((prev) => ({ ...prev, [id]: errs[id] || "" }));
+      }
+    },
+    [formValues, touched],
+  );
+
   const handleBlur = (
     e: React.FocusEvent<
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
@@ -283,7 +287,6 @@ function AddPersonalInfo({
   ) => {
     const { id } = e.target;
     setTouched((prev) => ({ ...prev, [id]: true }));
-
     const newErrors = validate(formValues);
     setFormErrors((prev) => ({ ...prev, [id]: newErrors[id] || "" }));
   };
@@ -409,7 +412,7 @@ function AddPersonalInfo({
           ...prev,
           districtId: "",
           sectorId: "",
-          state: "",
+          stateId: "",
         }));
       }
       if (id === "districtId") {
@@ -451,15 +454,18 @@ function AddPersonalInfo({
                 />
                 <div className="flex gap-2 items-center my-2">
                   {!uploadSuccess && (
-                    <TailwindButton
+                    <Button
+                      size="sm"
                       onClick={handleFileUpload}
                       className="bg-green-500 hover:bg-green-600 px-3 py-1 text-sm"
                       disabled={loading}
                     >
                       {loading ? "Uploading..." : "Upload"}
-                    </TailwindButton>
+                    </Button>
                   )}
-                  <TailwindButton
+                  <Button
+                    size="sm"
+                    variant="danger"
                     onClick={() => {
                       setImagePreview(null);
                       setImageData(null);
@@ -472,7 +478,7 @@ function AddPersonalInfo({
                     className="bg-red-500 hover:bg-red-600 px-3 py-1 text-sm"
                   >
                     Clear
-                  </TailwindButton>
+                  </Button>
                 </div>
               </>
             )}
@@ -563,96 +569,73 @@ function AddPersonalInfo({
             error={!!formErrors.whatsAppNumber}
             helperText={formErrors.whatsAppNumber}
           />
-          <TailwindSelect
-            id="gender"
+          <Combobox
             label="Gender"
             value={formValues.genderId}
-            onChange={handleSelectChange("genderId")}
-            onBlur={handleBlur}
-            options={genders}
+            onChange={handleComboboxChange("genderId")}
+            options={genders.map(genderToOption)}
             required
             placeholder="Select Gender"
-            error={!!formErrors.gender}
-            helperText={formErrors.gender}
+            error={formErrors.genderId}
           />
-          <TailwindSelect
-            id="countryId"
+          <Combobox
             label="Resident Country"
             value={formValues.countryId}
-            onChange={handleSelectChange("countryId")}
-            onBlur={handleBlur}
-            options={countries}
+            onChange={handleComboboxChange("countryId")}
+            options={countries.map(countryToOption)}
             required
             placeholder="Select Country"
-            error={!!formErrors.countryId}
-            helperText={formErrors.countryId}
+            error={formErrors.countryId}
           />
           {formValues.countryId && formValues.countryId !== "RW" && (
-            <TailwindSelect
-              id="state"
+            <Combobox
               label="State / Province"
               value={formValues.stateId}
-              onChange={handleSelectChange("stateId")}
-              onBlur={handleBlur}
-              options={states}
+              onChange={handleComboboxChange("stateId")}
+              options={states.map(stateToOption)}
               required
               placeholder="Select State/Province"
-              error={!!formErrors.state}
-              helperText={formErrors.state}
-              disabled={states.length === 0}
+              error={formErrors.stateId}
             />
           )}
           {formValues.countryId === "RW" && (
-            <TailwindSelect
-              id="districtId"
+            <Combobox
               label="District"
               value={formValues.districtId}
-              onChange={handleSelectChange("districtId")}
-              onBlur={handleBlur}
-              options={districts}
+              onChange={handleComboboxChange("districtId")}
+              options={districts.map(districtToOption)}
               required
               placeholder="Select District"
-              error={!!formErrors.districtId}
-              helperText={formErrors.districtId}
-              disabled={districts.length === 0}
+              error={formErrors.districtId}
             />
           )}
           {formValues.countryId === "RW" && (
-            <TailwindSelect
-              id="sectorId"
+            <Combobox
               label="Sector"
               value={formValues.sectorId}
-              onChange={handleSelectChange("sectorId")}
-              onBlur={handleBlur}
-              options={sectors}
+              onChange={handleComboboxChange("sectorId")}
+              options={sectors.map(sectorToOption)}
               placeholder="Select Sector"
-              error={!!formErrors.sectorId}
-              helperText={formErrors.sectorId}
-              disabled={sectors.length === 0}
+              error={formErrors.sectorId}
             />
           )}
-          <TailwindSelect
-            id="cohortId"
+          <Combobox
             label="Cohort"
             value={formValues.cohortId}
-            onChange={handleSelectChange("cohortId")}
-            onBlur={handleBlur}
-            options={cohorts}
+            onChange={handleComboboxChange("cohortId")}
+            options={cohorts.map(cohortToOption)}
             placeholder="Select Cohort (Optional)"
-            error={!!formErrors.cohortId}
-            helperText={formErrors.cohortId}
+            required={false}
+            error={formErrors.cohortId}
           />
-          <TailwindSelect
-            id="track"
+          <Combobox
             label="Track"
             value={formValues.trackId}
-            onChange={handleSelectChange("trackId")}
-            onBlur={handleBlur}
-            options={tracks}
+            onChange={handleComboboxChange("trackId")}
+            options={tracks.map(trackToOption)}
             required
             placeholder="Select Track"
-            error={!!formErrors.track}
-            helperText={formErrors.track}
+            error={formErrors.trackId}
           />
           <TailwindInput
             id="nearlestLandmark"
@@ -707,13 +690,13 @@ function AddPersonalInfo({
         </div>
       </form>
       <div className="flex justify-end pt-4 mt-4 border-t">
-        <TailwindButton
+        <Button
           onClick={handleSubmit}
           className="bg-primary hover:bg-primary/80"
           disabled={loading}
         >
           {loading ? "Submitting..." : "Submit Personal Data"}
-        </TailwindButton>
+        </Button>
       </div>
     </div>
   );

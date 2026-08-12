@@ -14,6 +14,7 @@ A comprehensive Alumni Management System (AMS) built with Next.js, React, and Re
 - [Features](#features)
 - [State Management](#state-management)
 - [API Integration](#api-integration)
+- [Security](#security)
 - [Performance Optimizations](#performance-optimizations)
 - [Coding Standards](#coding-standards)
 
@@ -23,13 +24,16 @@ A comprehensive Alumni Management System (AMS) built with Next.js, React, and Re
 
 | Category | Technology |
 |----------|------------|
-| Framework | Next.js 16 |
+| Framework | Next.js 15 |
 | UI Library | React 19 |
 | Styling | Tailwind CSS 4 |
 | State Management | Redux Toolkit + React-Redux |
 | API Client | RTK Query |
+| Component Variants | class-variance-authority (CVA) |
 | Icons | Lucide React, React Icons |
+| Sanitization | DOMPurify |
 | Utilities | clsx, tailwind-merge, dayjs |
+| Real-time | Socket.IO Client |
 
 ---
 
@@ -39,24 +43,34 @@ A comprehensive Alumni Management System (AMS) built with Next.js, React, and Re
 AMS/
 ├── app/                    # Next.js App Router pages
 │   ├── dashboard/          # Authenticated dashboard pages
-│   │   ├── organizations/ # Organizations management
+│   │   ├── organizations/  # Organizations management
 │   │   ├── members/        # Member listings & registration
 │   │   ├── matching/       # Matchmaking features
-│   │   ├── notifications/   # Notification center
+│   │   ├── notifications/  # Notification center
 │   │   ├── profile/        # User profile pages
+│   │   ├── chat/           # Private & group messaging
 │   │   └── settings/       # App settings
-│   └── ...                 # Auth pages (login, forgot-password, etc.)
+│   └── ...                 # Auth pages (login, forgot-password, reset-password)
 ├── components/             # Reusable React components
-│   ├── ui/                 # Base UI components (buttons, inputs, selects)
+│   ├── ui/                 # Base UI components (Button, inputs, selects)
 │   ├── DashboardPages/     # Page-specific components
 │   ├── Home/               # Landing/auth page components
-│   └── Data/               # Data management components
+│   ├── Data/               # Data management components
+│   ├── Other/              # Layout and infrastructure components
+│   └── parts/              # Shared partial components
 ├── lib/                    # Core library code
 │   ├── features/           # Redux slices & RTK Query API services
 │   ├── store.ts            # Redux store configuration
-│   └── fetchBaseQuery.ts   # Base API query configuration
-├── helpers/                # Utility functions (auth, data, providers)
+│   ├── hooks.ts            # Typed Redux hooks
+│   ├── fetchBaseQuery.ts   # Base API query with auth & 401 handling
+│   ├── sockets.ts          # Socket.IO singleton
+│   └── toast.ts            # Toast notification helpers
+├── helpers/                # Utility functions (auth, logout)
 ├── types/                  # TypeScript type definitions
+│   ├── api.ts              # API request/response types
+│   ├── user.ts             # Member, Organization, Role types
+│   ├── message.ts          # Message, Group, GroupMember types
+│   └── ...
 └── public/                 # Static assets
 ```
 
@@ -106,9 +120,14 @@ The app will be available at `http://localhost:3000`.
 Create a `.env` file with the following variables:
 
 ```env
-NEXT_PUBLIC_API_URL=your_api_endpoint
-NEXT_PUBLIC_SOCKET_URL=your_socket_endpoint
+NEXT_PUBLIC_API_URL=http://localhost:9000/api
+NEXT_PUBLIC_WS_URL=ws://localhost:4500
 ```
+
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_API_URL` | Backend API base URL |
+| `NEXT_PUBLIC_WS_URL` | WebSocket server URL for real-time features |
 
 ---
 
@@ -116,19 +135,22 @@ NEXT_PUBLIC_SOCKET_URL=your_socket_endpoint
 
 ### Dashboard Pages
 - **Organizations** - Manage organizations, working sectors, and associations
-- **Members** - View, search, and register new members
-- **Matching** - AI-powered member matching system
-- **Notifications** - Real-time notification center
+- **Members** - View, search, filter, and register new members with Excel import/export
+- **Matching** - AI-powered member matching by interests with background processing, live status polling, and past-request history
+- **Notifications** - Notification center with read/unread tracking and setup configuration
 - **Profile** - User profile viewing and updates
 - **Settings** - Application and account settings
-- **Chat** - Real-time messaging system
+- **Chat** - Private and group messaging with real-time Socket.IO
 
 ### Core Components
-- `TailwindInput` - Reusable text input with label support
+- `Button` - Unified button component with CVA variants (primary/danger/ghost) and sizes (sm/md/lg)
+- `TailwindInput` - Reusable text/textarea input with label, error, and helper text support
 - `TailwindSelect` - Reusable dropdown select component
 - `MultiSelectSearch` - Searchable multi-select with chips
+- `Combobox` - Searchable combobox with keyboard navigation, outside-click dismiss, clearable (replaces native selects)
 - `PageHeader` - Standardized page header with actions
-- `ModalButton` - Button that opens modals
+- `Skeleton` - 7 skeleton variants for loading states
+- `NotificationBell` - Header notification bell with unread badge, socket-driven refresh, and dropdown panel
 
 ---
 
@@ -140,69 +162,104 @@ All slices are located in `lib/features/`:
 
 | Slice | Purpose |
 |-------|---------|
-| `authSlice.ts` | Authentication state (user, token, login/logout) |
-| `userSlice.ts` | User profile and associations |
-| `orgSlice.ts` | Organizations CRUD operations |
-| `otherSlice.ts` | Reference data (countries, districts, sectors) |
-| `notificationSlice.ts` | Notifications management |
-| `activitySlice.ts` | Activity tracking |
-| `matchMakingSlice.ts` | Matching algorithm state |
-| `statsSlice.ts` | Dashboard statistics |
-| `chatSlice.ts` | Chat/messaging state |
+| `auth.ts` | Local auth state (user, token, isAuthenticated) |
+| `authSlice.ts` | Auth API (login, logout, reset/change password) |
+| `userSlice.ts` | Users API (CRUD, invite, import, export) |
+| `orgSlice.ts` | Organizations API |
+| `otherSlice.ts` | Reference data API (countries, districts, cohorts, tracks, sectors) |
+| `notificationSlice.ts` | Notifications API |
+| `activitySlice.ts` | Activity logs API |
+| `matchMakingSlice.ts` | AI matchmaking API (submit request, history, live status polling) |
+| `statsSlice.ts` | Dashboard statistics API |
+| `chatSlice.ts` | Chat API (private + group messaging, 19 endpoints) |
 
 ### RTK Query APIs
 
-All API definitions use RTK Query with automatic caching and refetching. Each slice typically exports:
+All API definitions use RTK Query with automatic caching and refetching. Endpoints are fully typed with explicit response and argument types. Each slice typically exports:
 - `useXxxQuery` - Fetch data hooks
 - `useXxxMutation` - Write operation hooks
+
+### Typed Hooks (`lib/hooks.ts`)
+- `useAppDispatch` - Typed dispatch
+- `useAppSelector` - Typed selector
 
 ---
 
 ## API Integration
 
 The app uses RTK Query for all API calls. Base configuration in `lib/fetchBaseQuery.ts` handles:
-- Authorization headers
-- Error handling
-- Request/response interceptors
+- Authorization headers (Bearer token from cookies)
+- 401 response handling (auto-redirect to login on token expiry)
+- Content-Type headers
+
+---
+
+## Security
+
+- **XSS Protection** - All user-generated HTML content (notifications, rich text editor) is sanitized with DOMPurify before rendering via `dangerouslySetInnerHTML`
+- **Token Expiry Handling** - `baseQueryWithAuthAndReauth` detects 401 responses and clears stored credentials before redirecting to login
+- **Auth Guard** - `AuthGuard` component protects dashboard routes, redirecting unauthenticated users
+- **Role-based Access** - `OnlyAdmin` component restricts admin-only pages
 
 ---
 
 ## Performance Optimizations
 
 ### Organizations Page (`/organizations`)
-- Replaced redundant `useState` + `useEffect` chains with direct `useMemo` for derived data (sectors, states, districts, countries, workingSectors, organizations)
-- Removed unnecessary loading state in onClick handler
+- Replaced redundant `useState` + `useEffect` chains with direct `useMemo` for derived data
 - Optimized data flow from RTK Query hooks to reduce re-render cycles
 - Wrapped organization cards with `React.memo` to prevent unnecessary re-renders
 
 ### MultiSelectSearch Component
-- Memoized `selectedOptions` and `filteredOptions` with `useMemo` to prevent recalculation on every render
-- Wrapped event handlers (`addValue`, `removeValue`, `handleInputChange`, `handleContainerClick`, `handleClickOutside`) with `useCallback` to maintain referential equality
-- Optimized mousedown event handler cleanup with stable callback reference
+- Memoized `selectedOptions` and `filteredOptions` with `useMemo`
+- Wrapped event handlers with `useCallback` for referential equality
 
 ### Members Page (`/members`)
-- Created `MemberRow` component wrapped with `React.memo` to prevent re-rendering all rows when one row updates
-- Added `useCallback` for action handlers (view, edit, delete, re-invite, message)
-- Implemented skeleton loading state (`MembersTableSkeleton`) instead of full-page spinner
-- Removed unused `Link` components in favor of button-based navigation
+- Created `MemberRow` component wrapped with `React.memo`
+- Added `useCallback` for action handlers
+- Implemented skeleton loading state instead of full-page spinner
 
 ### Notifications Page (`/notifications`)
-- Created `NotificationItemRow` component wrapped with `React.memo` for optimized list rendering
+- Created `NotificationItemRow` component wrapped with `React.memo`
 - Implemented skeleton loading state with `NotificationSkeleton` component
-- Removed local `useOpenNotificationMutation` hook in favor of RTK Query mutation
 
 ### Dashboard Home (`/dashboard`)
 - Wrapped `StatCard` and `TopUsersCard` components with `React.memo`
-- Implemented skeleton loading state (`StatsCardSkeleton`) for loading states
-- Extracted `TopUsersCard` as a separate component for better memoization
+- Used static Tailwind class maps instead of dynamic string interpolation
+- Implemented skeleton loading state for loading states
 
 ### RTK Query Optimizations
-- Added `invalidatesTags` to mutation endpoints for automatic cache invalidation:
-  - `userSlice.ts`: `change`, `deleteUser`, `updatedUser` mutations invalidate `["Users"]` tag
-  - `otherSlice.ts`: `addWorkingSector`, `deleteWorkingSector`, `addCohort`, `deleteCohort`, `addTrack`, `deleteTrack` mutations invalidate `["Data"]` tag
-  - `notificationSlice.ts`: `openNotification`, `updateSetup` mutations invalidate `["Notifications"]` tag
+- Added `invalidatesTags` to mutation endpoints for automatic cache invalidation
 - Added `tagTypes` configuration for proper cache management
-- Removed polling intervals (Socket.IO can be enabled for real-time updates)
+- All endpoints fully typed with explicit generics for better developer experience
+- Split the shared `"Data"` tag into per-domain tags (`Countries`, `States`, `Districts`, `Sectors`, `Genders`, `Cohorts`, `Tracks`, `WorkingSectors`) so refetching one domain no longer invalidates all reference data
+- Added `keepUnusedDataFor: 300` on reference-data endpoints to keep dropdown data cached in memory
+- `statesByCountry` and `sectorsByDistrict` cache by tagged IDs to avoid redundant fetches
+
+### Reference Data Prefetching
+- Created `RefDataPrefetcher` (mounted in the dashboard `Layout`) that subscribes to countries, districts, genders, cohorts, tracks, and working sectors so dropdowns open instantly without per-page loading states
+
+### Combobox Migration
+- Created a shared searchable `Combobox` (`components/ui/combobox.tsx`) with typeahead search, keyboard navigation (Arrow/Enter/Escape), outside-click dismiss, and clearable selection
+- Replaced large native `<select>` elements with `Combobox` in personal/employed/founded-info forms, profile update pages, and the organizations page
+- Removed intermediate `useState`/`useEffect` state-sync pairs — RTK Query data is now consumed directly
+
+### Members Page
+- Removed the all-or-nothing `isAnyLoading` blocker; the table skeleton now only shows while members load and filters render immediately
+- Removed native country FilterDropdown in favor of the shared Combobox
+
+### AI Matchmaking Page (`/matching`)
+- Interest dropdown now closes on outside click (container ref + `mousedown` listener)
+- Past-requests section renders real data from `useGetMatchmakingHistoryQuery` instead of dummy entries, with an explicit empty state ("No matchmaking requests yet") when the user has no history
+- Live status polling via `useGetMatchmakingStatusQuery` (polls every 3s while `pending`, stops on `completed`/`failed`) with socket-driven result refresh
+
+### Notification Bell
+- Added `NotificationBell` to the dashboard header with an unread count badge and dropdown panel
+- Listens for `new-message`, `new-group-message`, and `notification:new` socket events to refresh the unread list in real time, with a 30s polling fallback
+- Clicking an item marks it opened (via `openNotification`) and routes to the notifications page
+
+### Socket.IO
+- Singleton pattern with `hasListeners()` guard to prevent event handler duplication on reconnect
 
 ### Skeleton Components (`components/ui/skeleton.tsx`)
 - `Skeleton` - Base skeleton component with animation
@@ -219,7 +276,6 @@ The app uses RTK Query for all API calls. Base configuration in `lib/fetchBaseQu
 - Use `useCallback` for callback functions passed to child components
 - Avoid copying API data to local state when possible - derive directly from RTK Query
 - Replace spinner loaders with skeleton UI for better perceived performance
-- Use inline CSS spinner instead of Lucide `Loader2` icon to reduce bundle size
 
 ---
 
@@ -227,12 +283,11 @@ The app uses RTK Query for all API calls. Base configuration in `lib/fetchBaseQu
 
 ### Component Structure
 ```tsx
-// Use "use client" for client-side components
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 
-export const ComponentName = React.memo(({ prop1, prop2 }) => {
+export const ComponentName = React.memo(({ prop1, prop2 }: Props) => {
   // Hooks first
   const [state, setState] = useState("");
   
@@ -248,15 +303,16 @@ export const ComponentName = React.memo(({ prop1, prop2 }) => {
 
 ### UI Components
 - All reusable UI components go in `components/ui/`
+- Use PascalCase file naming (e.g., `Button.tsx`, `TailInput.tsx`)
 - Use Tailwind CSS for styling
-- Export with `React.memo` wrapper
-- Define TypeScript interfaces for props
+- Use CVA for variant-based components
+- Define TypeScript interfaces for props (no `any`)
 
 ### State Management
 - Use RTK Query for server state
-- Use local `useState` for UI state only
+- Use Redux (`auth.ts`) for client auth state
+- Use `useAppSelector`/`useAppDispatch` instead of raw `useSelector`/`useDispatch`
 - Prefer deriving state via `useMemo` over copying to new state
-- Avoid `useEffect` for simple data synchronization
 
 ---
 

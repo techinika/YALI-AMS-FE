@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 
 import {
   User,
@@ -14,12 +14,22 @@ import {
   ArrowRight,
   Zap,
   Users2Icon,
+  X,
+  ChevronDown,
+  History,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { PageHeader } from "../parts/PageHeader";
 import { AVAILABLE_INTERESTS } from "@/helpers/data";
 import { getUser } from "@/helpers/auth";
-import { useAiMatchMakerMutation } from "@/lib/features/matchMakingSlice";
+import {
+  useAiMatchMakerMutation,
+  useGetMatchmakingHistoryQuery,
+  useGetMatchmakingStatusQuery,
+} from "@/lib/features/matchMakingSlice";
 import { Member } from "@/types/user";
 import CreateGroupChat from "../parts/models/CreateGroupChat";
 import { Group } from "@/types/message";
@@ -28,21 +38,85 @@ import { useRouter } from "next/navigation";
 import ConfirmModal from "../parts/models/confirmModal";
 import { useRequestToJoinGroupMutation } from "@/lib/features/chatSlice";
 
+const statusIcon: Record<string, React.ReactNode> = {
+  pending: <Clock className="w-4 h-4 text-amber-500" />,
+  completed: <CheckCircle2 className="w-4 h-4 text-green-500" />,
+  failed: <AlertCircle className="w-4 h-4 text-red-500" />,
+};
+
+const statusLabel: Record<string, string> = {
+  pending: "Processing...",
+  completed: "Completed",
+  failed: "Failed",
+};
+
 export const AIInterestMatching = () => {
   const user = getUser();
   const router = useRouter();
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [aspirations, setAspirations] = useState("");
-  const [isMatching, setIsMatching] = useState(false);
   const [matches, setMatches] = useState<any>(null);
   const [error, setError] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [requestToJoinOpen, setRequestToJoinOpen] = useState(false);
   const [requestToJoinLoading, setRequestToJoinLoading] = useState(false);
   const [groupToJoin, setGroupToJoin] = useState<Group | null>(null);
+  const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const interestDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        interestDropdownRef.current &&
+        !interestDropdownRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const [aiMatchMaker, { isLoading }] = useAiMatchMakerMutation();
   const [requestToJoinGroup] = useRequestToJoinGroupMutation();
+
+  const { data: historyData } = useGetMatchmakingHistoryQuery({
+    page: 1,
+    limit: 5,
+  });
+
+  const { data: statusData } = useGetMatchmakingStatusQuery(activeRequestId!, {
+    skip: !activeRequestId,
+    pollingInterval: (currentData) => {
+      return currentData?.status === "completed" ||
+        currentData?.status === "failed"
+        ? 0
+        : 3000;
+    },
+  });
+
+  useEffect(() => {
+    if (statusData?.status === "completed") {
+      const users = statusData.matches
+        .filter((m) => m.type === "user" && m.user)
+        .map((m) => m.user!);
+      const groups = statusData.matches
+        .filter((m) => m.type === "group" && m.group)
+        .map((m) => m.group!);
+      setMatches({
+        users,
+        groups,
+        reason: statusData.aiSummary || "AI matched based on shared interests.",
+      });
+      toastSuccess("Matchmaking completed!");
+      setActiveRequestId(null);
+    } else if (statusData?.status === "failed") {
+      toastError("Matchmaking failed. Please try again.");
+      setActiveRequestId(null);
+    }
+  }, [statusData]);
 
   const runMatchingAI = async () => {
     if (selectedInterests.length === 0) {
@@ -50,32 +124,36 @@ export const AIInterestMatching = () => {
       return;
     }
 
-    setIsMatching(true);
+    if (!user?.id) {
+      toastError("You must be logged in to use matchmaking.");
+      return;
+    }
+
     setError(null);
+    setMatches(null);
 
     try {
       const response = await aiMatchMaker({
-        userId: user.id,
-        interests: selectedInterests.join(","),
+        interests: selectedInterests,
         description: aspirations,
       }).unwrap();
 
-      setMatches(response.matches);
-      toastSuccess("AI Matchmaking completed successfully!");
+      setActiveRequestId(response.requestId);
+      toastSuccess(
+        "Matchmaking request submitted! Processing in the background...",
+      );
     } catch (err) {
       console.error(err);
       toastError("AI Matchmaking failed. Please try again or contact support.");
-    } finally {
-      setIsMatching(false);
     }
   };
 
   const handleRequestToJoin = async () => {
+    if (!user?.id || !groupToJoin?.id) return;
     setRequestToJoinLoading(true);
     try {
       await requestToJoinGroup({
-        userId: user.id,
-        groupId: groupToJoin?.id,
+        groupId: groupToJoin.id,
       }).unwrap();
 
       toastSuccess("Joining Group Requested!");
@@ -90,11 +168,21 @@ export const AIInterestMatching = () => {
     }
   };
 
-  const toggleInterest = (id: string) => {
+  const toggleInterest = useCallback((id: string) => {
     setSelectedInterests((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
-  };
+  }, []);
+
+  const removeInterest = useCallback((id: string) => {
+    setSelectedInterests((prev) => prev.filter((i) => i !== id));
+  }, []);
+
+  const filteredInterests = AVAILABLE_INTERESTS.filter(
+    (item) =>
+      item.label.toLowerCase().includes(search.toLowerCase()) &&
+      !selectedInterests.includes(item.id),
+  );
 
   return (
     <div className="min-h-screen p-4 sm:p-8 container mx-auto">
@@ -104,7 +192,7 @@ export const AIInterestMatching = () => {
           user={user}
           members={matches?.users || []}
           source="ai"
-          groupRefetching={() => console.log("there goes nothing")}
+          groupRefetching={() => {}}
         />
       )}
 
@@ -130,12 +218,6 @@ export const AIInterestMatching = () => {
         onAction={() => router.push("/dashboard/chat/groups")}
         loading={false}
         disabled={false}
-        second={false}
-        actionTitle2=""
-        onAction2={() => console.log("ff")}
-        loading2={false}
-        disabled2={false}
-        Icon2={User}
       />
 
       <main className="grid grid-cols-1 lg:grid-cols-12 gap-8 p-6 lg:p-10">
@@ -152,28 +234,76 @@ export const AIInterestMatching = () => {
 
             <div className="space-y-6">
               <div>
-                <label className="text-sm font-semibold text-gray-700 block mb-3">
-                  Choose Your Interests
+                <label className="text-sm font-semibold text-gray-700 block mb-2">
+                  Search & Select Interests
                 </label>
-                <div className="flex flex-wrap gap-2">
-                  {AVAILABLE_INTERESTS.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => toggleInterest(item.id)}
-                      className={`flex items-center space-x-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 border ${
-                        selectedInterests.includes(item.id)
-                          ? "bg-primary border-primary text-white shadow-md"
-                          : "bg-white border-gray-200 text-gray-600 hover:border-blue-300"
-                      }`}
-                    >
-                      {item.icon}
-                      <span>{item.label}</span>
-                      {selectedInterests.includes(item.id) && (
-                        <Check className="w-3 h-3 ml-1" />
+                <div className="relative" ref={interestDropdownRef}>
+                  <div
+                    className="flex items-center border border-gray-200 rounded-xl px-3 py-2 bg-white cursor-text focus-within:ring-2 focus-within:ring-primary focus-within:border-transparent transition-all"
+                    onClick={() => setOpen(true)}
+                  >
+                    <Search className="w-4 h-4 text-gray-400 mr-2 shrink-0" />
+                    <input
+                      type="text"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      onFocus={() => setOpen(true)}
+                      placeholder="Type to search interests..."
+                      className="flex-1 outline-none text-sm bg-transparent"
+                    />
+                    <ChevronDown
+                      className={`w-4 h-4 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`}
+                    />
+                  </div>
+                  {open && (
+                    <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                      {filteredInterests.length === 0 ? (
+                        <div className="p-3 text-sm text-gray-400 text-center">
+                          No interests found
+                        </div>
+                      ) : (
+                        filteredInterests.map((item, index) => (
+                          <button
+                            key={item.id + index}
+                            type="button"
+                            className="flex items-center space-x-2 w-full px-3 py-2 text-sm hover:bg-blue-50 text-left transition-colors"
+                            onClick={() => {
+                              toggleInterest(item.id);
+                              setSearch("");
+                            }}
+                          >
+                            {item.icon}
+                            <span>{item.label}</span>
+                          </button>
+                        ))
                       )}
-                    </button>
-                  ))}
+                    </div>
+                  )}
                 </div>
+                {selectedInterests.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {selectedInterests.map((id, index) => {
+                      const item = AVAILABLE_INTERESTS.find((i) => i.id === id);
+                      if (!item) return null;
+                      return (
+                        <span
+                          key={id + index}
+                          className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-medium bg-primary text-white"
+                        >
+                          {item.icon}
+                          <span>{item.label}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeInterest(id)}
+                            className="ml-0.5 hover:bg-white/20 rounded-full p-0.5"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -190,13 +320,18 @@ export const AIInterestMatching = () => {
 
               <button
                 onClick={runMatchingAI}
-                disabled={isMatching}
+                disabled={isLoading || activeRequestId != null}
                 className="w-full py-4 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold flex items-center justify-center space-x-3 transition-all shadow-lg shadow-blue-100 disabled:opacity-70 disabled:cursor-not-allowed group"
               >
-                {isMatching || isLoading ? (
+                {isLoading ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Analyzing Profiles...</span>
+                    <span>Submitting...</span>
+                  </>
+                ) : activeRequestId != null ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Processing in background...</span>
                   </>
                 ) : (
                   <>
@@ -212,10 +347,79 @@ export const AIInterestMatching = () => {
               )}
             </div>
           </section>
+
+          {historyData && historyData.data.length > 0 ? (
+            <section className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+              <h3 className="text-lg font-bold mb-4 flex items-center">
+                <History className="w-5 h-5 mr-2 text-primary" />
+                Past Requests
+              </h3>
+              <div className="space-y-3">
+                {historyData.data.slice(0, 5).map((item, index) => (
+                  <div
+                    key={item.id + index}
+                    className="flex items-start space-x-3 p-3 rounded-xl bg-gray-50 border border-gray-100 cursor-pointer hover:bg-blue-50 transition-colors"
+                    onClick={() => {
+                      if (item.status === "completed") {
+                        setMatches({
+                          users: item.matches
+                            .filter((m) => m.type === "user" && m.user)
+                            .map((m) => m.user!),
+                          groups: item.matches
+                            .filter((m) => m.type === "group" && m.group)
+                            .map((m) => m.group!),
+                          reason:
+                            item.aiSummary ||
+                            "AI matched based on shared interests.",
+                        });
+                      }
+                    }}
+                  >
+                    <div className="shrink-0 mt-0.5">
+                      {statusIcon[item.status] || (
+                        <Clock className="w-4 h-4 text-gray-400" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold text-gray-900 truncate">
+                          {item.interests?.substring(0, 40)}
+                        </p>
+                        <span className="text-[10px] font-medium text-gray-400">
+                          {new Date(item.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-gray-500 mt-0.5">
+                        {statusLabel[item.status] || item.status} &middot;{" "}
+                        {item.matches.length} match
+                        {item.matches.length !== 1 ? "es" : ""}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : (
+            historyData && (
+              <section className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+                <h3 className="text-lg font-bold mb-2 flex items-center">
+                  <History className="w-5 h-5 mr-2 text-primary" />
+                  Past Requests
+                </h3>
+                <div className="flex flex-col items-center justify-center text-center py-6 text-gray-400">
+                  <History className="w-8 h-8 mb-2 opacity-60" />
+                  <p className="text-sm">
+                    No matchmaking requests yet. Submit your first request above
+                    to see your history here.
+                  </p>
+                </div>
+              </section>
+            )
+          )}
         </div>
 
         <div className="lg:col-span-7 space-y-6">
-          {!matches && !isMatching && (
+          {!matches && activeRequestId == null && !isLoading && (
             <div className="h-full flex flex-col items-center justify-center text-center p-12 bg-white rounded-2xl border border-dashed border-gray-300">
               <div className="bg-blue-50 p-4 rounded-full mb-4">
                 <Search className="w-8 h-8 text-primary" />
@@ -230,7 +434,22 @@ export const AIInterestMatching = () => {
             </div>
           )}
 
-          {isMatching && (
+          {activeRequestId != null && !matches && (
+            <div className="flex flex-col items-center justify-center text-center p-12 bg-white rounded-2xl border border-dashed border-amber-300">
+              <div className="bg-amber-50 p-4 rounded-full mb-4">
+                <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                Processing Your Request
+              </h3>
+              <p className="text-gray-500 max-w-sm">
+                Our AI is analyzing the community to find the best matches for
+                you. This page will update automatically when complete.
+              </p>
+            </div>
+          )}
+
+          {isLoading && !activeRequestId && (
             <div className="space-y-4 animate-pulse">
               {[1, 2, 3].map((i) => (
                 <div
@@ -241,7 +460,7 @@ export const AIInterestMatching = () => {
             </div>
           )}
 
-          {matches && !isMatching && (
+          {matches && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="bg-blue-50 rounded-2xl p-5 border border-blue-100 flex items-start space-x-4">
                 <div className="bg-primary rounded-lg p-2 shrink-0">
@@ -252,7 +471,7 @@ export const AIInterestMatching = () => {
                     AI Matchmaking Logic
                   </h4>
                   <p className="text-sm text-primary leading-relaxed italic">
-                    "{matches.reason}"
+                    &quot;{matches.reason}&quot;
                   </p>
                 </div>
               </div>
@@ -268,9 +487,9 @@ export const AIInterestMatching = () => {
                   </span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {matches.users.map((u: Member) => (
+                  {matches.users.map((u: Member, index: number) => (
                     <div
-                      key={u.id}
+                      key={u.id + index}
                       className="bg-white p-5 rounded-2xl border border-gray-200 hover:shadow-md transition-shadow group"
                     >
                       <div className="flex items-center space-x-3 mb-3">
@@ -322,9 +541,9 @@ export const AIInterestMatching = () => {
                         Create New Collaborative Group
                       </button>
                     </div>
-                    {matches.groups.map((g: Group) => (
+                    {matches.groups.map((g: Group, index: number) => (
                       <div
-                        key={g.id}
+                        key={g.id + index}
                         className="bg-white p-5 rounded-2xl border border-gray-200 flex items-center justify-between hover:border-blue-200 transition-all"
                       >
                         <div className="flex items-center space-x-4">
@@ -336,7 +555,7 @@ export const AIInterestMatching = () => {
                               {g.name}
                             </h4>
                             <p className="text-xs text-gray-500">
-                              {g?.members.length} active members
+                              {g?.members?.length ?? 0} active members
                             </p>
                           </div>
                         </div>

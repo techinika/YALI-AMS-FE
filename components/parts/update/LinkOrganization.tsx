@@ -1,6 +1,6 @@
 "use client";
 
-import { TailwindInput } from "@/components/ui/tail-input";
+import { TailwindInput } from "@/components/ui/TailInput";
 import { TailwindSelect } from "@/components/ui/tail-select";
 import { useState } from "react";
 import { MdSearch } from "react-icons/md";

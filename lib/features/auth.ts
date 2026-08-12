@@ -1,8 +1,9 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { Member } from "@/types/user";
 
 interface AuthState {
   token: string | null;
-  user: any | null;
+  user: Member | null;
   isAuthenticated: boolean;
 }
 
@@ -18,7 +19,7 @@ const authSlice = createSlice({
   reducers: {
     setCredentials: (
       state,
-      action: PayloadAction<{ token: string; user: any }>
+      action: PayloadAction<{ token: string; user: Member }>
     ) => {
       state.token = action.payload.token;
       state.user = action.payload.user;

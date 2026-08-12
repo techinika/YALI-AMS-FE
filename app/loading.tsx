@@ -73,7 +73,7 @@ export const StatsCardSkeleton: React.FC = () => (
 export const ListSkeleton: React.FC<{ count?: number }> = ({ count = 5 }) => (
   <div className="space-y-3">
     {Array.from({ length: count }).map((_, i) => (
-      <Skeleton key={i} className="h-12 w-full" />
+      <Skeleton key={i+1} className="h-12 w-full" />
     ))}
   </div>
 );

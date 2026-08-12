@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useEffect, useMemo, useState, useCallback } from "react";
-import { TailwindInput } from "../ui/tail-input";
+import React, { useState, useMemo, useCallback } from "react";
+import { TailwindInput } from "../ui/TailInput";
 import { MultiSelectSearch } from "../ui/multi-select-search";
 import { TailwindSelect } from "../ui/tail-select";
+import { Combobox } from "../ui/combobox";
 import {
   useAddNewOrganizationMutation,
   useAddWStoOrgMutation,
@@ -61,9 +62,10 @@ const OrganizationCard = React.memo(
         </div>
         {org.website && (
           <Link
-            href={org.website}
+            href={org.website.startsWith("http") ? org.website : `https://${org.website}`}
             target="_blank"
             className="text-slate-400 hover:text-primary"
+            rel="noopener noreferrer"
           >
             <Globe size={16} />
           </Link>
@@ -147,14 +149,11 @@ function OrganizationsPage() {
     );
   }, [organizations, searchTerm]);
 
-  const sectors = useMemo(() => SectorsData?.data || [], [SectorsData]);
-  const states = useMemo(() => StatesData?.data || [], [StatesData]);
-  const districts = useMemo(() => DistrictData?.data || [], [DistrictData]);
-  const countries = useMemo(() => CountryData?.data || [], [CountryData]);
-  const workingSectors = useMemo(
-    () => WorkingSectorsData?.data || [],
-    [WorkingSectorsData],
-  );
+  const sectors = SectorsData?.data || [];
+  const states = StatesData?.data || [];
+  const districts = DistrictData?.data || [];
+  const countries = CountryData?.data || [];
+  const workingSectors = WorkingSectorsData?.data || [];
 
   const wsOptions = useMemo(() => {
     return workingSectors
@@ -166,6 +165,10 @@ function OrganizationsPage() {
   }, [workingSectors]);
 
   const handleCreateOrganization = async () => {
+    if (!formData.name.trim()) {
+      toastError("Organization name is required.");
+      return;
+    }
     setSaving(true);
     try {
       const res = await addNewOrganization({
@@ -258,6 +261,25 @@ function OrganizationsPage() {
     setSelectedDistrict(org?.district?.id ?? "");
   };
 
+  const handleCountryChange = useCallback((value: string) => {
+    setFormData((prev) => ({ ...prev, countryId: value, districtId: "", sectorId: "", stateId: "" }));
+    setSelectedCountry(value);
+    setSelectedDistrict("");
+  }, []);
+
+  const handleDistrictChange = useCallback((value: string) => {
+    setFormData((prev) => ({ ...prev, districtId: value, sectorId: "" }));
+    setSelectedDistrict(value);
+  }, []);
+
+  const handleStateChange = useCallback((value: string) => {
+    setFormData((prev) => ({ ...prev, stateId: value }));
+  }, []);
+
+  const handleSectorChange = useCallback((value: string) => {
+    setFormData((prev) => ({ ...prev, sectorId: value }));
+  }, []);
+
   return (
     <div className="container mx-auto p-4 md:p-8">
       <PageHeader
@@ -277,12 +299,6 @@ function OrganizationsPage() {
         }}
         loading={saving}
         disabled={false}
-        second={false}
-        actionTitle2=""
-        onAction2={() => console.log("ff")}
-        loading2={false}
-        disabled2={false}
-        Icon2={Save}
       />
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
         <div className="xl:col-span-5">
@@ -326,47 +342,38 @@ function OrganizationsPage() {
               />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <TailwindSelect
+                <Combobox
                   label="Country"
                   options={countries}
                   value={formData?.countryId}
-                  onChange={(e: any) => {
-                    setFormData({ ...formData, countryId: e.target.value });
-                    setSelectedCountry(e.target.value);
-                  }}
+                  onChange={handleCountryChange}
+                  placeholder="Select Country"
                 />
                 {formData?.countryId === "RW" ? (
                   <>
-                    <TailwindSelect
+                    <Combobox
                       label="District"
                       options={districts}
                       value={formData.districtId}
-                      onChange={(e: any) => {
-                        setFormData({
-                          ...formData,
-                          districtId: e.target.value,
-                        });
-                        setSelectedDistrict(e.target.value);
-                      }}
+                      onChange={handleDistrictChange}
+                      placeholder="Select District"
                     />
-                    <TailwindSelect
+                    <Combobox
                       label="Sector"
                       options={sectors}
                       value={formData.sectorId}
-                      onChange={(e: any) =>
-                        setFormData({ ...formData, sectorId: e.target.value })
-                      }
+                      onChange={handleSectorChange}
+                      placeholder="Select Sector"
                     />
                   </>
                 ) : (
                   formData.countryId && (
-                    <TailwindSelect
+                    <Combobox
                       label="State/Province"
                       options={states}
                       value={formData.stateId}
-                      onChange={(e: any) =>
-                        setFormData({ ...formData, stateId: e.target.value })
-                      }
+                      onChange={handleStateChange}
+                      placeholder="Select State/Province"
                     />
                   )
                 )}

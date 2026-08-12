@@ -1,4 +1,3 @@
-// UpdateProfilepage.tsx - Modernized Version
 "use client";
 
 import {
@@ -16,14 +15,14 @@ import {
   useUpdatedUserMutation,
   useUploadPictureMutation,
 } from "@/lib/features/userSlice";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Loading from "@/app/loading";
 import { useSearchParams } from "next/navigation";
 import { getUser } from "@/helpers/auth";
 import { MdCloudUpload, MdClose, MdEdit } from "react-icons/md";
 import { Member } from "@/types/user";
 import { PageHeader } from "../parts/PageHeader";
-import { Nut, Save } from "lucide-react";
+import { Save } from "lucide-react";
 import { TextAreaField } from "../ui/textarea";
 import { Personal } from "../parts/update/UpdateProfilePersonal";
 import {
@@ -66,13 +65,6 @@ function UpdateProfilePage() {
       : user?.id;
 
   const [activeTab, setActiveTab] = useState(0);
-  const [genders, setGenders] = useState<any>([]);
-  const [cohorts, setCohorts] = useState<any>([]);
-  const [districts, setDistricts] = useState<any>([]);
-  const [countries, setCountries] = useState<any>([]);
-  const [sectors, setSectors] = useState<any>([]);
-  const [tracks, setTracks] = useState<any>([]);
-  const [workingSectors, setWorkingSectors] = useState<any>([]);
   const [selectedDistrict, setSelectedDistrict] = useState<string>("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -81,9 +73,7 @@ function UpdateProfilePage() {
   const [imageData, setImageData] = useState<any>(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [country, setCountry] = useState<string>("");
-  const [states, setStates] = useState<any>([]);
   const [changeEmail, setChangeEmail] = useState(true);
-  const [allOrganizations, setAllOrganizations] = useState([]);
   const [foundedOrganizations, setFoundedOrganizations] = useState<any[]>([]);
   const [employedOrganizations, setEmployedOrganizations] = useState<any[]>([]);
 
@@ -114,26 +104,28 @@ function UpdateProfilePage() {
     skip: !selectedDistrict,
   });
 
-  useEffect(() => {
-    if (WorkingSectorsData) {
-      setWorkingSectors(WorkingSectorsData?.data || []);
-    }
-  }, [WorkingSectorsData]);
-
   const { data: StatesData } = useStatesByCountryQuery(country, {
     skip: !country,
   });
 
   const [uploadPicture] = useUploadPictureMutation();
 
+  const genders = GenderData?.data || [];
+  const districts = DistrictData?.data || [];
+  const countries = CountryData?.data || [];
+  const tracks = TracksData?.data || [];
+  const cohorts = CohortsData?.data || [];
+  const workingSectors = WorkingSectorsData?.data || [];
+  const allOrganizations = AllOrganizationsData?.data || [];
+  const sectors = SectorsData?.data || [];
+  const states = StatesData?.data || [];
+
   useEffect(() => {
     if (usr) {
       setValues(getInitialValues(usr));
       if (usr?.residentCountry?.id) setCountry(usr.residentCountry.id);
-
       if (usr?.residentDistrict?.id)
         setSelectedDistrict(usr?.residentDistrict?.id);
-
       if (usr.profileImage?.id && !imagePreview) {
         setImagePreview(usr.profileImage.link);
         setValues((prev: any) => ({
@@ -149,69 +141,13 @@ function UpdateProfilePage() {
       const foundedOrgs = userOrganizations.data.filter(
         (org: any) => org.relation === "founded",
       );
-
       const employedOrgs = userOrganizations.data.filter(
         (org: any) => org.relation === "employed",
       );
-
       setFoundedOrganizations(foundedOrgs);
       setEmployedOrganizations(employedOrgs);
     }
   }, [userOrganizations]);
-
-  useEffect(() => {
-    if (DistrictData) {
-      setDistricts(DistrictData?.data || []);
-    }
-  }, [DistrictData]);
-
-  useEffect(() => {
-    if (AllOrganizationsData) {
-      setAllOrganizations(AllOrganizationsData?.data || []);
-    }
-  }, [AllOrganizationsData]);
-
-  useEffect(() => {
-    if (CountryData) {
-      setCountries(CountryData?.data || []);
-    }
-  }, [CountryData]);
-
-  useEffect(() => {
-    if (TracksData) {
-      setTracks(TracksData?.data || []);
-    }
-  }, [TracksData]);
-  useEffect(() => {
-    if (GenderData) {
-      setGenders(GenderData?.data || []);
-    }
-  }, [GenderData]);
-  useEffect(() => {
-    if (CohortsData) {
-      setCohorts(CohortsData?.data || []);
-    }
-  }, [CohortsData]);
-
-  useEffect(() => {
-    if (SectorsData) {
-      setSectors(SectorsData?.data || []);
-    }
-  }, [SectorsData]);
-
-  useEffect(() => {
-    if (StatesData) {
-      setStates(StatesData?.data || []);
-    }
-  }, [StatesData]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setError("");
-      setSuccess("");
-    }, 10000);
-    return () => clearTimeout(timer);
-  }, [error, success]);
 
   const handleTabClick = (index: number) => {
     setActiveTab(index);
@@ -454,12 +390,7 @@ function UpdateProfilePage() {
         onAction={handleSubmit}
         loading={isLoading}
         disabled={false}
-        second={false}
-        actionTitle2=""
-        onAction2={() => console.log("ff")}
-        loading2={false}
-        disabled2={false}
-        Icon2={Nut}
+
       />
       {(error || success) && (
         <div

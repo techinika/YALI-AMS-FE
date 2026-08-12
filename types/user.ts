@@ -34,7 +34,6 @@ export interface Member {
   organizationEmployedId: number | null;
   organizationEmployed: Organization;
   positionInEmployed: string | null;
-  password: string | null;
   role: Role;
   profileImage: ProfileImage;
   createdAt: Date;

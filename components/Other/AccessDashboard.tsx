@@ -2,29 +2,38 @@
 
 import { getUser, isAuthenticated } from "@/helpers/auth";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState, ReactNode } from "react";
+import Loading from "@/app/loading";
 
-export const AccessDashboard = ({ children }: { children: any }) => {
+export const AuthGuard = ({ children }: { children: ReactNode }) => {
+  const [authorized, setAuthorized] = useState(false);
+
   useEffect(() => {
     if (!isAuthenticated()) {
       globalThis.location.href = "/";
+    } else {
+      setAuthorized(true);
     }
   }, []);
 
+  if (!authorized) return <Loading />;
   return <>{children}</>;
 };
 
-export const OnlyAdmin = ({ children }: { children: any }) => {
+export const OnlyAdmin = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
-  const user = getUser();
-
-  const isAdmin = user?.role?.name == "ADMIN";
+  const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
+    const user = getUser();
+    const isAdmin = user?.role?.name?.toLowerCase() === "admin";
     if (!isAdmin) {
       router.push("/dashboard/profile");
+    } else {
+      setAuthorized(true);
     }
-  }, [isAdmin]);
+  }, [router]);
 
+  if (!authorized) return <Loading />;
   return <div>{children}</div>;
 };

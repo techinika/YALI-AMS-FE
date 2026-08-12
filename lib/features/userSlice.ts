@@ -1,32 +1,40 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { createApi } from "@reduxjs/toolkit/query/react";
 import { baseQueryWithAuth } from "../fetchBaseQuery";
+import { Member } from "@/types/user";
+import {
+  ApiResponse,
+  InviteUserData,
+  ImportUsersData,
+  UpdateUserData,
+  OrgUserData,
+} from "@/types/api";
 
 export const usersSlices = createApi({
   reducerPath: "usersSlices",
   baseQuery: baseQueryWithAuth,
   tagTypes: ["Users"],
   endpoints: (builder) => ({
-    users: builder.query({
+    users: builder.query<{ data: Member[]; count: number; message: string }, void>({
       query: () => `users`,
     }),
-    getOneUser: builder.query({
+    getOneUser: builder.query<{ data: Member }, string>({
       query: (userId) => `users/${userId}`,
     }),
-    change: builder.mutation({
+    change: builder.mutation<{ message: string }, string>({
       query: (userId) => ({
         url: `users/role/${userId}`,
         method: "POST",
       }),
       invalidatesTags: ["Users"],
     }),
-    deleteUser: builder.mutation({
+    deleteUser: builder.mutation<{ message: string }, string>({
       query: (userId) => ({
         url: `users/${userId}`,
         method: "DELETE",
       }),
       invalidatesTags: ["Users"],
     }),
-    updatedUser: builder.mutation({
+    updatedUser: builder.mutation<{ message: string; data: Member }, UpdateUserData>({
       query: (data) => ({
         url: `users/${data?.userId}`,
         method: "PUT",
@@ -36,7 +44,7 @@ export const usersSlices = createApi({
       }),
       invalidatesTags: ["Users"],
     }),
-    inviteUser: builder.mutation({
+    inviteUser: builder.mutation<{ message: string }, InviteUserData>({
       query: (body) => ({
         url: "users/invite",
         method: "POST",
@@ -44,47 +52,47 @@ export const usersSlices = createApi({
       }),
       invalidatesTags: ["Users"],
     }),
-    reInviteUser: builder.mutation({
+    reInviteUser: builder.mutation<{ message: string }, { id: string }>({
       query: (body) => ({
         url: `users/invite/renew/${body.id}`,
         method: "PUT",
       }),
     }),
-    createUserProfile: builder.mutation({
+    createUserProfile: builder.mutation<{ message: string; user: Member }, Partial<Member>>({
       query: (credentials) => ({
         url: "users/profile",
         method: "POST",
         body: credentials,
       }),
     }),
-    uploadPicture: builder.mutation({
+    uploadPicture: builder.mutation<{ image: { id: string; link: string } }, FormData>({
       query: (credentials) => ({
         url: "upload/image",
         method: "POST",
         body: credentials,
       }),
     }),
-    importUsers: builder.mutation({
+    importUsers: builder.mutation<{ message: string }, ImportUsersData>({
       query: (data) => ({
-        url: "upload/users",
+        url: "users/import",
         method: "POST",
         body: data,
       }),
     }),
-    exportUsers: builder.mutation({
+    exportUsers: builder.mutation<Blob, void>({
       query: () => ({
         url: "users/export/all",
         method: "POST",
       }),
     }),
-    associateOrganization: builder.mutation({
+    associateOrganization: builder.mutation<{ message: string }, OrgUserData>({
       query: (data) => ({
         url: "users/org/add",
         method: "POST",
         body: data,
       }),
     }),
-    removeUserOrganization: builder.mutation({
+    removeUserOrganization: builder.mutation<{ message: string }, OrgUserData>({
       query: (data) => ({
         url: "users/org/remove",
         method: "DELETE",

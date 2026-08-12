@@ -1,6 +1,6 @@
 "use client";
 
-import ForgotPasswordPage from "@/components/Home/ForgotPassword ";
+import ForgotPasswordPage from "@/components/Home/ForgotPassword";
 import React from "react";
 
 function page() {

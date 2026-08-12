@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import relativeTime from "dayjs/plugin/relativeTime";
 import dayjs from "dayjs";
 import {
@@ -12,7 +12,7 @@ import ConfirmModal from "../parts/models/confirmModal";
 import { Member } from "@/types/user";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { PageHeader } from "../parts/PageHeader";
-import { EditIcon, Nut } from "lucide-react";
+import { EditIcon } from "lucide-react";
 import { getUser } from "@/helpers/auth";
 import { useRouter, useSearchParams } from "next/navigation";
 import { RoleChip } from "../ui/role-chip";
@@ -28,9 +28,10 @@ import {
   useWorkingSectorQuery,
 } from "@/lib/features/otherSlice";
 
+dayjs.extend(relativeTime);
+
 function ProfilePage() {
-  dayjs.extend(relativeTime);
-  const authUser: Member = getUser();
+  const authUser: Member | null = getUser();
   const router = useRouter();
   const searchParams = useSearchParams();
   const userId = searchParams.get("userId");
@@ -38,14 +39,8 @@ function ProfilePage() {
   const [activeTab, setActiveTab] = useState(0);
   const [roleModal, setRoleModal] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [foundedOrganizations, setFoundedOrganizations] = useState<any[]>([]);
-  const [employedOrganizations, setEmployedOrganizations] = useState<any[]>([]);
-  const [allOrganizations, setAllOrganizations] = useState([]);
-  const [districts, setDistricts] = useState<any>([]);
-  const [countries, setCountries] = useState<any>([]);
-  const [workingSectors, setWorkingSectors] = useState<any>([]);
 
-  const targetId = userId ?? authUser?.id;
+  const targetId = (userId ?? authUser?.id) as string;
   const userProfile = useGetOneUserQuery(targetId, {
     skip: !targetId,
   });
@@ -55,7 +50,7 @@ function ProfilePage() {
   const { data: WorkingSectorsData } = useWorkingSectorQuery("");
 
   const { data: organizations, isLoading } =
-    useGetOrganizationsForUserQuery(targetId);
+    useGetOrganizationsForUserQuery(targetId, { skip: !targetId });
   const { data: OrganizationsData } = useOrganizationsQuery("");
 
   const [change] = useChangeMutation();
@@ -63,48 +58,21 @@ function ProfilePage() {
 
   const isAdmin = authUser?.role?.name === "ADMIN";
 
-  useEffect(() => {
-    if (DistrictData) {
-      setDistricts(DistrictData?.data || []);
-    }
-  }, [DistrictData]);
-
-  useEffect(() => {
-    if (WorkingSectorsData) {
-      setWorkingSectors(WorkingSectorsData?.data || []);
-    }
-  }, [WorkingSectorsData]);
-
-  useEffect(() => {
-    if (CountryData) {
-      setCountries(CountryData?.data || []);
-    }
-  }, [CountryData]);
+  const districts = DistrictData?.data || [];
+  const workingSectors = WorkingSectorsData?.data || [];
+  const countries = CountryData?.data || [];
 
   const handleTabClick = (index: number) => {
     setActiveTab(index);
   };
 
-  useEffect(() => {
-    if (organizations?.data?.length > 0) {
-      const foundedOrgs = organizations.data.filter(
-        (org: any) => org.relation === "founded"
-      );
-
-      const employedOrgs = organizations.data.filter(
-        (org: any) => org.relation === "employed"
-      );
-
-      setFoundedOrganizations(foundedOrgs);
-      setEmployedOrganizations(employedOrgs);
-    }
-  }, [organizations]);
-
-  useEffect(() => {
-    if (OrganizationsData?.data) {
-      setAllOrganizations(OrganizationsData?.data);
-    }
-  }, [OrganizationsData]);
+  const foundedOrganizations = organizations?.data?.filter(
+    (org: any) => org.relation === "founded"
+  ) || [];
+  const employedOrganizations = organizations?.data?.filter(
+    (org: any) => org.relation === "employed"
+  ) || [];
+  const allOrganizations = OrganizationsData?.data || [];
 
   const tabs = [
     {
@@ -192,12 +160,6 @@ function ProfilePage() {
         onAction={() => router.push(`/dashboard/profile/update`)}
         loading={false}
         disabled={userId ? true : false}
-        second={false}
-        actionTitle2=""
-        onAction2={() => console.log("ff")}
-        loading2={false}
-        disabled2={false}
-        Icon2={Nut}
       />
 
       <div className="bg-white rounded-xl shadow-2xl overflow-hidden p-6 sm:p-8">

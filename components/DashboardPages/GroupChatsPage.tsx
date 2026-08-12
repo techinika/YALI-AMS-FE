@@ -39,6 +39,7 @@ import { useRouter } from "next/navigation";
 import Modal from "../parts/models/Modal";
 import { Member } from "@/types/user";
 import { toastError, toastSuccess } from "@/lib/toast";
+import { getSocket } from "@/lib/sockets";
 
 export const GroupChatsPage = () => {
   const user = getUser();
@@ -103,9 +104,27 @@ export const GroupChatsPage = () => {
       { groupId: activeGroup?.id || "", userId: user?.id },
       {
         skip: !activeGroup?.id,
-        pollingInterval: 1500,
       }
     );
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const socket = getSocket();
+
+    socket.on("new-group-message", (message: GroupMessage) => {
+      if (activeGroup && message.groupId === activeGroup.id) {
+        setMessages((prev) => {
+          const exists = prev.some((m) => m.id === message.id);
+          if (exists) return prev;
+          return [...prev, message];
+        });
+      }
+    });
+
+    return () => {
+      socket.off("new-group-message");
+    };
+  }, [activeGroup?.id, user?.id]);
 
   useEffect(() => {
     if (membersData?.data) {
@@ -139,6 +158,12 @@ export const GroupChatsPage = () => {
         content: newMessage,
       }).unwrap();
 
+      const socket = getSocket();
+      socket.emit("send-group-message", {
+        groupId: activeGroup.id,
+        message: newMessage,
+      });
+
       setNewMessage("");
     } catch (err) {
       console.error("Send Error:", err);
@@ -164,12 +189,6 @@ export const GroupChatsPage = () => {
         onAction={() => router.push("/dashboard/chat")}
         loading={false}
         disabled={false}
-        second={false}
-        actionTitle2=""
-        onAction2={() => console.log("Second Action")}
-        loading2={false}
-        disabled2={false}
-        Icon2={MessageCircle}
       />
 
       <div className="flex h-screen overflow-hidden rounded">
@@ -420,12 +439,17 @@ export const GroupChatsPage = () => {
                 <div className="flex gap-3 mt-6">
                   <button
                     onClick={async () => {
-                      await acceptGroupInvitation({
-                        groupId: pendingGroup.id,
-                        userId: user?.id,
-                      }).unwrap();
-                      groupRefetching();
-                      setShowGroupStatusModal(false);
+                      try {
+                        await acceptGroupInvitation({
+                          groupId: pendingGroup.id,
+                          userId: user?.id,
+                        }).unwrap();
+                        groupRefetching();
+                        setShowGroupStatusModal(false);
+                      } catch (error) {
+                        console.error(error);
+                        toastError("Failed to accept invitation. Try again.");
+                      }
                     }}
                     className="bg-primary py-2 px-6 rounded-full text-white hover:bg-primary/80"
                   >
@@ -433,12 +457,17 @@ export const GroupChatsPage = () => {
                   </button>
                   <button
                     onClick={async () => {
-                      await declineGroupInvitation({
-                        groupId: pendingGroup.id,
-                        userId: user?.id,
-                      }).unwrap();
-                      groupRefetching();
-                      setShowGroupStatusModal(false);
+                      try {
+                        await declineGroupInvitation({
+                          groupId: pendingGroup.id,
+                          userId: user?.id,
+                        }).unwrap();
+                        groupRefetching();
+                        setShowGroupStatusModal(false);
+                      } catch (error) {
+                        console.error(error);
+                        toastError("Failed to decline invitation. Try again.");
+                      }
                     }}
                     className="bg-white py-2 px-6 rounded-full text-primary hover:bg-primary hover:text-white border-2 border-primary"
                   >
@@ -559,7 +588,7 @@ export const GroupChatsPage = () => {
                           await addNewGroupMember({
                             groupId: activeGroup.id,
                             userId: u.id,
-                          });
+                          }).unwrap();
                           toastSuccess(
                             `You have invited ${u?.firstName} to join group ${activeGroup?.name}!`
                           );

@@ -12,13 +12,12 @@ import {
   Trash,
   LogOut,
   Settings as SettingsIcon,
-  Nut,
 } from "lucide-react";
 import { ToggleSwitch } from "../ui/toggle-switch";
-import { TailwindInput } from "../ui/tail-input";
+import { TailwindInput } from "../ui/TailInput";
 import { PageHeader } from "../parts/PageHeader";
 import { CgPassword } from "react-icons/cg";
-import { CustomButton } from "../ui/button1";
+import { Button } from "../ui/Button";
 
 const AccountSecurity = () => {
   const [name, setName] = useState("John Doe");
@@ -45,10 +44,10 @@ const AccountSecurity = () => {
         </div>
 
         <div className="pt-4">
-          <CustomButton onClick={() => console.log("Log out all sessions")}>
+          <Button size="md" onClick={() => console.log("Log out all sessions")}>
             <LogOut className="inline w-4 h-4 mr-2" />
             Log Out All Other Sessions
-          </CustomButton>
+          </Button>
         </div>
       </section>
     </div>
@@ -114,9 +113,9 @@ const DataPrivacy = () => {
           <p className="font-medium text-gray-700">
             Request Data Export (GDPR/CCPA)
           </p>
-          <CustomButton onClick={() => console.log("Request Data Export")}>
+          <Button size="md" onClick={() => console.log("Request Data Export")}>
             Export My Data
-          </CustomButton>
+          </Button>
         </div>
 
         <div className="flex justify-between items-center bg-red-50 p-4 rounded-xl border border-red-200">
@@ -128,9 +127,9 @@ const DataPrivacy = () => {
               This action is permanent and irreversible.
             </p>
           </div>
-          <CustomButton onClick={() => console.log("Confirm Account Deletion")}>
+          <Button size="md" variant="danger" onClick={() => console.log("Confirm Account Deletion")}>
             Delete
-          </CustomButton>
+          </Button>
         </div>
       </section>
     </div>
@@ -165,12 +164,7 @@ const SettingsPage = () => {
         onAction={() => {}}
         loading={false}
         disabled={false}
-        second={false}
-        actionTitle2=""
-        onAction2={() => console.log("ff")}
-        loading2={false}
-        disabled2={false}
-        Icon2={Nut}
+
       />
       <div className="container mx-auto bg-white rounded-3xl shadow-2xl overflow-hidden">
         <nav className="bg-white border-b border-gray-200 p-4 px-6 sm:px-10">

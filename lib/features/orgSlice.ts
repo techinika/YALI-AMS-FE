@@ -1,44 +1,56 @@
 import { createApi } from "@reduxjs/toolkit/query/react";
 import { baseQueryWithAuth } from "../fetchBaseQuery";
+import { Organization } from "@/types/user";
+import { ApiResponse, PaginatedResponse } from "@/types/api";
+
+interface OrgUserData {
+  userId: string;
+  organizationId: string;
+}
 
 export const orgsSlices = createApi({
   reducerPath: "orgsSlices",
   baseQuery: baseQueryWithAuth,
+  tagTypes: ["Organizations"],
   endpoints: (builder) => ({
-    organizations: builder.query({
+    organizations: builder.query<{ data: Organization[] }, void>({
       query: () => `organizations`,
+      providesTags: ["Organizations"],
     }),
-    getOrganizationById: builder.query({
+    getOrganizationById: builder.query<{ data: Organization }, string>({
       query: (id) => `organizations/${id}`,
     }),
-    getOrganizationsForUser: builder.query({
+    getOrganizationsForUser: builder.query<{ data: Organization[] }, string>({
       query: (id) => `organizations/user/${id}`,
+      providesTags: ["Organizations"],
     }),
-    getOrganizationsForUserById: builder.query({
+    getOrganizationsForUserById: builder.query<{ data: Organization }, { id: string; orgId: string }>({
       query: (data) => `organizations/user/${data?.id}/${data?.orgId}`,
     }),
-    addNewOrganization: builder.mutation({
+    addNewOrganization: builder.mutation<{ data: Organization; message: string }, Partial<Organization>>({
       query: (data) => ({
         url: `organizations/new`,
         method: "POST",
         body: data,
       }),
+      invalidatesTags: ["Organizations"],
     }),
-    updateOrganization: builder.mutation({
+    updateOrganization: builder.mutation<{ data: Organization; message: string }, Partial<Organization>>({
       query: (data) => ({
         url: `organizations/update`,
         method: "PUT",
         body: data,
       }),
+      invalidatesTags: ["Organizations"],
     }),
-    addWStoOrg: builder.mutation({
+    addWStoOrg: builder.mutation<{ message: string }, { organizationId: string; workingSectorId: string }>({
       query: (data) => ({
         url: `organizations/ws/add`,
         method: "POST",
         body: data,
       }),
     }),
-    removeWStoOrg: builder.mutation({
+    removeWStoOrg: builder.mutation<{ message: string }, { organizationId: string; workingSectorId: string }>({
       query: (data) => ({
         url: `organizations/ws/remove`,
         method: "DELETE",
@@ -56,5 +68,5 @@ export const {
   useAddWStoOrgMutation,
   useRemoveWStoOrgMutation,
   useUpdateOrganizationMutation,
-  useGetOrganizationsForUserByIdQuery
+  useGetOrganizationsForUserByIdQuery,
 } = orgsSlices;

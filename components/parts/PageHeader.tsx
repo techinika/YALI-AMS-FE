@@ -10,10 +10,10 @@ export const PageHeader = ({
   loading,
   disabled,
   second = false,
-  onAction2,
-  loading2,
-  disabled2,
-  actionTitle2,
+  onAction2 = () => {},
+  loading2 = false,
+  disabled2 = false,
+  actionTitle2 = "",
   Icon2,
 }: {
   title: string;
@@ -23,12 +23,12 @@ export const PageHeader = ({
   onAction?: () => void;
   loading: boolean;
   disabled: boolean;
-  second: boolean;
+  second?: boolean;
   onAction2?: () => void;
-  loading2: boolean;
-  disabled2: boolean;
-  actionTitle2: string;
-  Icon2: IconType;
+  loading2?: boolean;
+  disabled2?: boolean;
+  actionTitle2?: string;
+  Icon2?: IconType;
 }) => (
   <div className="flex justify-between items-center mb-6 border-b pb-4">
     <div>
@@ -54,7 +54,7 @@ export const PageHeader = ({
         )}
         {disabled ? <GoBlocked /> : actionTitle}
       </button>
-      {second && (
+      {second && Icon2 && (
         <button
           onClick={onAction2}
           disabled={disabled2 || loading2}

@@ -7,9 +7,10 @@ import {
   useNotSetupsQuery,
   useUpdateSetupMutation,
 } from "@/lib/features/notificationSlice";
-import { CustomButton } from "../ui/button1";
+import { Button } from "../ui/Button";
 import { toastError, toastSuccess, toastWarning } from "@/lib/toast";
 import RichTextEditor from "../ui/rich-text-editor";
+import { NotificationSetup as NotificationSetupData } from "@/types/api";
 
 export const notificationTypes = {
   SIGNUP: "signup",
@@ -28,11 +29,11 @@ export const actionOptions = [
 
 function NotificationSetup() {
   dayjs.extend(relativeTime);
-  const [notifications, setNotifications] = useState<any>([]);
+  const [notifications, setNotifications] = useState<NotificationSetupData[]>([]);
   const [currentNotificationId, setCurrentNotificationId] = useState<
     string | undefined
   >();
-  const [selectedNotification, setSelectedNotification] = useState<any>();
+  const [selectedNotification, setSelectedNotification] = useState<NotificationSetupData | undefined>();
 
   const [message, setMessage] = useState("");
   const [usage, setUsage] = useState("");
@@ -166,12 +167,13 @@ function NotificationSetup() {
               <h2 className="text-xl font-bold text-gray-800">
                 {currentNotiHeader}
               </h2>
-              <CustomButton
+              <Button
+                size="md"
                 onClick={handleSubmit}
                 disabled={isLoading || !currentNotificationId}
               >
                 {isLoading ? "Saving..." : "Save"}
-              </CustomButton>
+              </Button>
             </div>
           </div>
 

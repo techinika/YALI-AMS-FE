@@ -4,7 +4,7 @@ import {
   useSectorsByDistrictQuery,
   useStatesByCountryQuery,
 } from "@/lib/features/otherSlice";
-import React, { useEffect, useState, ChangeEvent } from "react";
+import React, { useState, ChangeEvent } from "react";
 import {
   Country,
   Organization,
@@ -16,6 +16,7 @@ import {
 import { FoundedInfoState } from "@/types/company";
 import { SelectField } from "@/components/ui/select";
 import { InputField } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
 import { useAssociateOrganizationMutation } from "@/lib/features/userSlice";
 import { Loader2 } from "lucide-react";
 
@@ -58,9 +59,6 @@ function AddFoundedInfo({
   const [selectedDistrictFoundedName, setSelectedDistrictFoundedName] =
     useState("");
 
-  const [foundedStates, setFoundedStates] = useState<State[]>([]);
-  const [sectorsFounded, setSectorsFounded] = useState<ResidentSector[]>([]);
-
   const [associateOrganization, { isLoading }] =
     useAssociateOrganizationMutation();
 
@@ -78,13 +76,8 @@ function AddFoundedInfo({
     }
   );
 
-  useEffect(() => {
-    if (FoundedStatesData?.data) setFoundedStates(FoundedStatesData.data);
-  }, [FoundedStatesData]);
-
-  useEffect(() => {
-    if (SectorsDataFounded?.data) setSectorsFounded(SectorsDataFounded.data);
-  }, [SectorsDataFounded]);
+  const foundedStates = FoundedStatesData?.data || [];
+  const sectorsFounded = SectorsDataFounded?.data || [];
 
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -97,9 +90,8 @@ function AddFoundedInfo({
     }));
   };
 
-  const handleCountryChange = (e: ChangeEvent<HTMLSelectElement>) => {
-    const countryId = e.target.value;
-    const selectedCountry = countries.find((c) => c.id === countryId);
+  const handleCountryChange = (value: string) => {
+    const selectedCountry = countries.find((c) => c.id === value);
 
     setFormData((prev) => ({
       ...prev,
@@ -109,13 +101,12 @@ function AddFoundedInfo({
       foundedSectorId: null,
     }));
 
-    setFoundedCountryId(countryId);
+    setFoundedCountryId(value);
     setSelectedDistrictFoundedName("");
   };
 
-  const handleDistrictChange = (e: ChangeEvent<HTMLSelectElement>) => {
-    const districtId = e.target.value;
-    const selectedDistrict = districts.find((d) => d.id === districtId);
+  const handleDistrictChange = (value: string) => {
+    const selectedDistrict = districts.find((d) => d.id === value);
 
     setFormData((prev) => ({
       ...prev,
@@ -126,8 +117,8 @@ function AddFoundedInfo({
     setSelectedDistrictFoundedName(selectedDistrict?.name || "");
   };
 
-  const handleStateChange = (e: ChangeEvent<HTMLSelectElement>) => {
-    const stateId = e.target.value;
+  const handleStateChange = (value: string) => {
+    const stateId = value;
     const selectedState = foundedStates.find((s) => s.id === stateId);
 
     setFormData((prev) => ({
@@ -136,9 +127,8 @@ function AddFoundedInfo({
     }));
   };
 
-  const handleSectorChange = (e: ChangeEvent<HTMLSelectElement>) => {
-    const sectorId = e.target.value;
-    const selectedSector = sectorsFounded.find((s) => s.id === sectorId);
+  const handleSectorChange = (value: string) => {
+    const selectedSector = sectorsFounded.find((s) => s.id === value);
 
     setFormData((prev) => ({
       ...prev,
@@ -275,74 +265,41 @@ function AddFoundedInfo({
               placeholder="https://example.com"
             />
 
-            <SelectField
+            <Combobox
               label="Initiative Location: Country"
-              name="foundedCountry"
               value={formData.foundedCountry?.id || ""}
               onChange={handleCountryChange}
-            >
-              <option value="" disabled>
-                Select a country
-              </option>
-              {countries.map((country: Country) => (
-                <option key={country?.id} value={country?.id}>
-                  {country?.name}
-                </option>
-              ))}
-            </SelectField>
+              options={countries.map((c) => ({ id: c.id, name: c.name }))}
+              placeholder="Select a country"
+            />
 
             {formData.foundedCountry && !isRwanda && (
-              <SelectField
+              <Combobox
                 label="State/Province"
-                name="foundedState"
                 value={formData.foundedState?.id || ""}
                 onChange={handleStateChange}
-              >
-                <option value="" disabled>
-                  Select a state/province
-                </option>
-                {foundedStates.map((state: State) => (
-                  <option key={state?.id} value={state?.id}>
-                    {state?.name}
-                  </option>
-                ))}
-              </SelectField>
+                options={foundedStates.map((s) => ({ id: s.id, name: s.name }))}
+                placeholder="Select a state/province"
+              />
             )}
 
             {formData.foundedCountry && isRwanda && (
               <>
-                <SelectField
+                <Combobox
                   label="District (Rwanda)"
-                  name="foundedDistrictName"
                   value={formData.foundedDistrictName?.id || ""}
                   onChange={handleDistrictChange}
-                >
-                  <option value="" disabled>
-                    Select a district
-                  </option>
-                  {districts.map((district: ResidentDistrict) => (
-                    <option key={district?.id} value={district?.id}>
-                      {district?.name}
-                    </option>
-                  ))}
-                </SelectField>
-
+                  options={districts.map((d) => ({ id: d.id, name: d.name }))}
+                  placeholder="Select a district"
+                />
                 {formData.foundedDistrictName && (
-                  <SelectField
+                  <Combobox
                     label="Sector (Rwanda)"
-                    name="foundedSectorId"
                     value={formData.foundedSectorId?.id || ""}
                     onChange={handleSectorChange}
-                  >
-                    <option value="" disabled>
-                      Select a sector
-                    </option>
-                    {sectorsFounded.map((sector: ResidentSector) => (
-                      <option key={sector?.id} value={sector?.id}>
-                        {sector?.name}
-                      </option>
-                    ))}
-                  </SelectField>
+                    options={sectorsFounded.map((s) => ({ id: s.id, name: s.name }))}
+                    placeholder="Select a sector"
+                  />
                 )}
               </>
             )}
