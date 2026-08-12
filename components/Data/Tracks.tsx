@@ -45,7 +45,7 @@ function Tracks() {
     }
   }, [TracksData]);
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     try {
       setLoading(true);
       await deleteTrack(id).unwrap();

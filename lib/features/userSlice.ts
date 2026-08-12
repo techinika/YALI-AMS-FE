@@ -9,6 +9,39 @@ import {
   OrgUserData,
 } from "@/types/api";
 
+interface CreateUserProfileData {
+  user: Omit<Partial<Member>, "cohortId"> & {
+    trackId?: string | null;
+    stateId?: string | null;
+    countryId?: string | null;
+    genderId?: string | null;
+    profileImageId?: string | null;
+    cohortId?: number | null | string;
+  };
+}
+
+interface InsertExistingOrgData {
+  userId: string;
+  mode: string;
+  existingOrganizationId: number;
+  associationType: string;
+}
+
+interface InsertNewOrgData {
+  userId: string;
+  mode: string;
+  associationType: string;
+  newOrganizationData: {
+    name: string;
+    workingSectorId: string | null;
+    website: string | null;
+    countryId: string | null;
+    stateId: string | null;
+    districtId: string | null;
+    sectorId: string | null;
+  };
+}
+
 export const usersSlices = createApi({
   reducerPath: "usersSlices",
   baseQuery: baseQueryWithAuth,
@@ -58,7 +91,7 @@ export const usersSlices = createApi({
         method: "PUT",
       }),
     }),
-    createUserProfile: builder.mutation<{ message: string; user: Member }, Partial<Member>>({
+    createUserProfile: builder.mutation<{ message: string; user: Member }, CreateUserProfileData>({
       query: (credentials) => ({
         url: "users/profile",
         method: "POST",
@@ -79,13 +112,13 @@ export const usersSlices = createApi({
         body: data,
       }),
     }),
-    exportUsers: builder.mutation<Blob, void>({
+    exportUsers: builder.mutation<{ success: boolean; downloadUrl: string }, void>({
       query: () => ({
         url: "users/export/all",
         method: "POST",
       }),
     }),
-    associateOrganization: builder.mutation<{ message: string }, OrgUserData>({
+    associateOrganization: builder.mutation<{ message: string }, OrgUserData | InsertExistingOrgData | InsertNewOrgData>({
       query: (data) => ({
         url: "users/org/add",
         method: "POST",

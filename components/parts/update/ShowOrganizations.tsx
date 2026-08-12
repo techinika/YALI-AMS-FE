@@ -23,7 +23,7 @@ export const ShowOrganizationToUpdate = ({
 }) => {
   const router = useRouter();
   const initDeleteData = {
-    orgId: 0,
+    orgId: "",
     userId: "",
     connectionId: "",
     relation: "",

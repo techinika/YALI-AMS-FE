@@ -143,7 +143,7 @@ const ChangePasswordPage = () => {
 
     try {
       const result = await changePassword({
-        userId: user?.id,
+        userId: user?.id || "",
         pastPassword: formData.oldPassword,
         password: formData.newPassword,
       }).unwrap();

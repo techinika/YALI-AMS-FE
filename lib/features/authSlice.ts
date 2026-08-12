@@ -28,7 +28,7 @@ export const authSlices = createApi({
         body: credentials,
       }),
     }),
-    requestReset: builder.mutation<{ message: string }, ResetPasswordRequest>({
+    requestReset: builder.mutation<{ message: string; status?: number }, ResetPasswordRequest>({
       query: (credentials) => ({
         url: "auth/request-link",
         method: "POST",
@@ -42,7 +42,7 @@ export const authSlices = createApi({
         body: credentials,
       }),
     }),
-    changePassword: builder.mutation<{ message: string }, ChangePasswordRequest>({
+    changePassword: builder.mutation<{ status: number; message: string }, ChangePasswordRequest>({
       query: (credentials) => ({
         url: "auth/change-pass",
         method: "POST",

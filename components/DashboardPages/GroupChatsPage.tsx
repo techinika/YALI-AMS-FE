@@ -50,12 +50,12 @@ export const GroupChatsPage = () => {
   const [newMessage, setNewMessage] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [members, setMembers] = useState([]);
+  const [members, setMembers] = useState<Member[]>([]);
   const [pendingGroup, setPendingGroup] = useState<Group | null>(null);
   const [showGroupStatusModal, setShowGroupStatusModal] = useState(false);
   const [showManageMembersModal, setShowManageMembersModal] = useState(false);
   const [inviteSearch, setInviteSearch] = useState("");
-  const [membersInvite, setMembersInvite] = useState([]);
+  const [membersInvite, setMembersInvite] = useState<Member[]>([]);
 
   const [sendGroupMessage] = useSendGroupMessageMutation();
   const [declineGroupInvitation] = useDeclineGroupInvitationMutation();
@@ -64,9 +64,9 @@ export const GroupChatsPage = () => {
   const [rejectJoinRequest] = useRejectJoinRequestMutation();
   const [addNewGroupMember] = useAddNewGroupMemberMutation();
 
-  const { data: membersData = [], isLoading: usersLoading } = useUsersQuery("");
-  const { data: membersToInviteData = [] } = useGetUsersToInviteQuery(
-    { currentUserId: user?.id, activeGroupId: activeGroup?.id },
+  const { data: membersData, isLoading: usersLoading } = useUsersQuery();
+  const { data: membersToInviteData } = useGetUsersToInviteQuery(
+    { currentUserId: user?.id || "", activeGroupId: activeGroup?.id || "" },
     {
       skip: !activeGroup,
     }
@@ -81,7 +81,7 @@ export const GroupChatsPage = () => {
   const groupUserIds = new Set(activeGroup?.members?.map((m) => m.id));
 
   const inviteCandidates = membersInvite
-    .filter((u) => !groupUserIds.has(u))
+    .filter((u) => !groupUserIds.has(u.id))
     .filter((u: Member) =>
       `${u.firstName} ${u.lastName}`
         .toLowerCase()
@@ -94,14 +94,14 @@ export const GroupChatsPage = () => {
     ) ?? [];
 
   const {
-    data: groupsData = [],
+    data: groupsData,
     isLoading: groupsLoading,
     refetch: groupRefetching,
-  } = useGetMyGroupsQuery(user?.id);
+  } = useGetMyGroupsQuery(user?.id || "");
 
-  const { data: groupsMessagesData = [], isLoading: groupsMessagesLoading } =
+  const { data: groupsMessagesData, isLoading: groupsMessagesLoading } =
     useGetAllGroupMessagesQuery(
-      { groupId: activeGroup?.id || "", userId: user?.id },
+      { groupId: activeGroup?.id || "", userId: user?.id || "" },
       {
         skip: !activeGroup?.id,
       }
@@ -442,7 +442,7 @@ export const GroupChatsPage = () => {
                       try {
                         await acceptGroupInvitation({
                           groupId: pendingGroup.id,
-                          userId: user?.id,
+                          userId: user?.id || "",
                         }).unwrap();
                         groupRefetching();
                         setShowGroupStatusModal(false);
@@ -460,7 +460,7 @@ export const GroupChatsPage = () => {
                       try {
                         await declineGroupInvitation({
                           groupId: pendingGroup.id,
-                          userId: user?.id,
+                          userId: user?.id || "",
                         }).unwrap();
                         groupRefetching();
                         setShowGroupStatusModal(false);

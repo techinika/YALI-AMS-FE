@@ -120,7 +120,7 @@ function OrganizationsPage() {
   const { data: CountryData } = useCountriesQuery("");
   const { data: DistrictData } = useDistrictsQuery("");
   const { data: orgData, refetch: orgRefetch } =
-    useGetOrganizationsForUserQuery(user?.id);
+    useGetOrganizationsForUserQuery(user?.id || "");
 
   const [selectedCountry, setSelectedCountry] = useState(
     formData.countryId || "",
@@ -181,16 +181,16 @@ function OrganizationsPage() {
         stateId: formData?.stateId ?? undefined,
       }).unwrap();
       await associateOrganization({
-        organizationId: res?.data?.id,
-        userId: user?.id,
+        organizationId: res?.data?.id || "",
+        userId: user?.id || "",
         relation: formData?.relation,
         position: formData?.position,
       }).unwrap();
       await Promise.all(
         formData.workingSectors.map((v) =>
           addWStoOrg({
-            userId: user?.id,
-            organizationId: res?.data?.id,
+            userId: user?.id || "",
+            organizationId: res?.data?.id || "",
             wsId: v,
           }).unwrap(),
         ),
@@ -216,7 +216,7 @@ function OrganizationsPage() {
       if (editMode && selectedOrgId) {
         await updateOrganization({
           organizationId: selectedOrgId,
-          userId: user?.id,
+          userId: user?.id || "",
           name: formData.name,
           website: formData.website,
           countryId: formData.countryId || null,

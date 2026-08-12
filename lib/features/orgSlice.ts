@@ -8,6 +8,31 @@ interface OrgUserData {
   organizationId: string;
 }
 
+interface AddOrganizationData {
+  name: string;
+  website?: string;
+  addedById?: string;
+  countryId?: string;
+  stateId?: string;
+  districtId?: string;
+  sectorId?: string;
+}
+
+interface UpdateOrganizationData {
+  organizationId: string;
+  userId: string;
+  name: string;
+  website: string;
+  countryId?: string | null;
+  districtId?: string | null;
+  sectorId?: string | null;
+  stateId?: string | null;
+  relation?: string;
+  position?: string;
+  workingSectors: string[];
+  connectionId?: string;
+}
+
 export const orgsSlices = createApi({
   reducerPath: "orgsSlices",
   baseQuery: baseQueryWithAuth,
@@ -27,7 +52,7 @@ export const orgsSlices = createApi({
     getOrganizationsForUserById: builder.query<{ data: Organization }, { id: string; orgId: string }>({
       query: (data) => `organizations/user/${data?.id}/${data?.orgId}`,
     }),
-    addNewOrganization: builder.mutation<{ data: Organization; message: string }, Partial<Organization>>({
+    addNewOrganization: builder.mutation<{ data: Organization; message: string }, AddOrganizationData>({
       query: (data) => ({
         url: `organizations/new`,
         method: "POST",
@@ -35,7 +60,7 @@ export const orgsSlices = createApi({
       }),
       invalidatesTags: ["Organizations"],
     }),
-    updateOrganization: builder.mutation<{ data: Organization; message: string }, Partial<Organization>>({
+    updateOrganization: builder.mutation<{ data: Organization; message: string }, UpdateOrganizationData>({
       query: (data) => ({
         url: `organizations/update`,
         method: "PUT",
@@ -43,7 +68,7 @@ export const orgsSlices = createApi({
       }),
       invalidatesTags: ["Organizations"],
     }),
-    addWStoOrg: builder.mutation<{ message: string }, { organizationId: string; workingSectorId: string }>({
+    addWStoOrg: builder.mutation<{ message: string }, { userId: string; organizationId: string; wsId: string }>({
       query: (data) => ({
         url: `organizations/ws/add`,
         method: "POST",

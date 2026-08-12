@@ -51,10 +51,10 @@ function ProfilePage() {
 
   const { data: organizations, isLoading } =
     useGetOrganizationsForUserQuery(targetId, { skip: !targetId });
-  const { data: OrganizationsData } = useOrganizationsQuery("");
+  const { data: OrganizationsData } = useOrganizationsQuery();
 
   const [change] = useChangeMutation();
-  const user: Member = userProfile?.data;
+  const user: Member = userProfile?.data?.data!;
 
   const isAdmin = authUser?.role?.name === "ADMIN";
 
@@ -101,7 +101,7 @@ function ProfilePage() {
     },
   ];
 
-  if (loading || !authUser || isLoading) {
+  if (loading || !authUser || isLoading || !user) {
     return <Loading />;
   }
 

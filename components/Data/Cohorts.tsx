@@ -10,13 +10,7 @@ import dayjs from "dayjs";
 import { FiDelete } from "react-icons/fi";
 import { CustomInputError } from "../ui/input-error";
 import { toastError, toastSuccess } from "@/lib/toast";
-
-interface CohortType {
-  id: number;
-  name: string;
-  description: string;
-  createdAt: string;
-}
+import { Cohort } from "@/types/cohort";
 
 function Cohorts() {
   const [cohortName, setCohortName] = useState("");
@@ -30,19 +24,21 @@ function Cohorts() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any>([]);
 
-  const { data: CohortsData, refetch } = useCohortsQuery("");
+  const { data: CohortsData, refetch } = useCohortsQuery();
   const [addCohort] = useAddCohortMutation();
   const [deleteCohort] = useDeleteCohortMutation();
 
   useEffect(() => {
     if (CohortsData && CohortsData.data) {
       const processedData = CohortsData.data
-        .map((c: CohortType) => {
+        .map((c: Cohort) => {
           return {
             id: c.id,
             Name: c?.name,
-            Description: c?.description,
-            CreatedAt: dayjs(c.createdAt).format("DD-MM-YYYY"),
+            Description: c?.description ?? "",
+            CreatedAt: c?.createdAt
+              ? dayjs(c.createdAt).format("DD-MM-YYYY")
+              : "",
             isDefault: c?.name === "Not Specified",
           };
         })
@@ -54,7 +50,7 @@ function Cohorts() {
     }
   }, [CohortsData]);
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     try {
       setLoading(true);
       await deleteCohort(id).unwrap();
@@ -95,10 +91,6 @@ function Cohorts() {
         name: cohortName,
         description: cohortDescription,
       }).unwrap();
-      if (res && res.status === 400) {
-        toastError(res?.data?.message || "Error adding cohort.");
-        return;
-      }
 
       setCohortName("");
       setCohortDescription("");

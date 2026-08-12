@@ -166,7 +166,7 @@ const DashboardHome = () => {
         link: "/dashboard/notifications",
         color: "green",
       },
-    ],
+    ] as const,
     [StatsData],
   );
 

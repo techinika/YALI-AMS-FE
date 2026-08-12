@@ -10,12 +10,7 @@ import dayjs from "dayjs";
 import { FiDelete } from "react-icons/fi";
 import { CustomInputError } from "../ui/input-error";
 import { toastError, toastSuccess, toastWarning } from "@/lib/toast";
-
-interface WorkingSectorType {
-  id: number;
-  name: string;
-  createdAt: string;
-}
+import { WorkingSector as WorkingSectorType } from "@/types/api";
 
 function WorkingSector() {
   const [sectorName, setSectorName] = useState("");
@@ -38,7 +33,9 @@ function WorkingSector() {
           return {
             id: c.id,
             Name: c?.name,
-            CreatedAt: dayjs(c.createdAt).format("DD-MM-YYYY"),
+            CreatedAt: c?.createdAt
+              ? dayjs(c.createdAt).format("DD-MM-YYYY")
+              : "",
             isDefault: c?.name === "Not Specified", // Flag to disable deletion
           };
         })
@@ -50,7 +47,7 @@ function WorkingSector() {
     }
   }, [WorkingSectorData]);
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     try {
       setLoading(true);
       await deleteWorkingSector(id).unwrap();

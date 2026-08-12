@@ -80,7 +80,7 @@ export const otherSlices = createApi({
       providesTags: ["Tracks"],
       keepUnusedDataFor: REF_CACHE_TTL,
     }),
-    addCohort: builder.mutation<{ data: Cohort }, { name: string }>({
+    addCohort: builder.mutation<{ data: Cohort }, { name: string; description: string }>({
       query: (data) => ({
         url: "data/cohort",
         method: "POST",

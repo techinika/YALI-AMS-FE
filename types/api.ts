@@ -25,6 +25,7 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
+  status: number;
   token: string;
   user: Member;
   message: string;
@@ -40,13 +41,13 @@ export interface ResetPasswordRequest {
 
 export interface ResetPasswordConfirmRequest {
   token: string;
-  password: string;
+  newPassword: string;
 }
 
 export interface ChangePasswordRequest {
-  oldPassword: string;
-  newPassword: string;
   userId: string;
+  pastPassword: string;
+  password: string;
 }
 
 export interface TopMember {
@@ -74,6 +75,7 @@ export interface NotificationSetup {
 export interface WorkingSector {
   id: string;
   name: string;
+  createdAt?: string;
 }
 
 export interface MatchMakingRequest {
@@ -97,7 +99,7 @@ export interface GroupMember {
 export interface InviteUserData {
   email: string;
   firstName: string;
-  lastName: string;
+  lastName?: string;
   cohortId?: string;
 }
 
@@ -107,10 +109,13 @@ export interface ImportUsersData {
 
 export interface UpdateUserData {
   userId: string;
-  user: Partial<Member>;
+  user: Partial<Member> & { trackId?: string | null; profileImageId?: string | null };
 }
 
 export interface OrgUserData {
   userId: string;
   organizationId: string;
+  relation?: string;
+  position?: string;
+  id?: string;
 }

@@ -86,18 +86,18 @@ const ChatInterface = () => {
   const [recipientUser, setRecipientUser] = useState<Member | null>(null);
   const [headerTitle, setHeaderTitle] = useState("Community Chat");
 
-  const { data: communityMessagesData } = useChatsQuery("", {
+  const { data: communityMessagesData } = useChatsQuery(undefined, {
     skip: currentRecipientId !== "all",
   });
   const { data: privateMessagesData } = usePrivateMessagesQuery(
     { id: currentRecipientId, oid: user?.id || "" },
   );
 
-  const { data: privateChatsData } = usePrivateChatsQuery(user?.id);
+  const { data: privateChatsData } = usePrivateChatsQuery(user?.id || "");
 
   const [addMessage] = useAddMessageMutation();
-  const { data: allUsers } = useUsersQuery("");
-  const { data: searchableUsers } = useUsersQuery(usersSearch);
+  const { data: allUsers } = useUsersQuery();
+  const { data: searchableUsers } = useUsersQuery();
 
   useEffect(() => {
     if (allUsers) {
@@ -301,7 +301,7 @@ const ChatInterface = () => {
       };
 
       try {
-        await addMessage({ data: values }).unwrap();
+        await addMessage(values).unwrap();
         socketRef.current?.emit("send-message", {
           message: trimmedMessage,
           receiverId: currentRecipientId === "all" ? "" : currentRecipientId,
@@ -379,7 +379,7 @@ const ChatInterface = () => {
             </div>
             {usersSearch && (
               <div className="absolute z-10 w-72 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
-                {searchableUsers.data.length > 0 ? (
+                {searchableUsers?.data.length ? (
                   searchableUsers.data.map((u: Member) => (
                     <button
                       key={u.id}

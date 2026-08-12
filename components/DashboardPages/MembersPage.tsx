@@ -165,10 +165,10 @@ const MembersPage = () => {
   const [exportUsers] = useExportUsersMutation();
 
   const {
-    data: membersData = [],
+    data: membersData,
     refetch: memberDataRefetch,
     isLoading: usersLoading,
-  } = useUsersQuery("");
+  } = useUsersQuery();
 
   const {
     data: cohortsData,
@@ -276,7 +276,7 @@ const MembersPage = () => {
     setExporting(true);
 
     try {
-      const res = await exportUsers("");
+      const res = await exportUsers();
       window.open(res?.data?.downloadUrl);
       toastSuccess("Excel file exported successfully!");
     } catch (error) {

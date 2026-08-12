@@ -89,9 +89,6 @@ export const matchmakingSlices = createApi({
         method: "GET",
       }),
       providesTags: (_result, _error, requestId) => [{ type: "MatchHistory", id: requestId }],
-      pollingInterval: (currentData, _arg) => {
-        return currentData?.status === "completed" || currentData?.status === "failed" ? 0 : 5000;
-      },
     }),
   }),
 });

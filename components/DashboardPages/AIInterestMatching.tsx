@@ -87,15 +87,21 @@ export const AIInterestMatching = () => {
     limit: 5,
   });
 
+  const [matchmakingFinished, setMatchmakingFinished] = useState(false);
+
   const { data: statusData } = useGetMatchmakingStatusQuery(activeRequestId!, {
-    skip: !activeRequestId,
-    pollingInterval: (currentData) => {
-      return currentData?.status === "completed" ||
-        currentData?.status === "failed"
-        ? 0
-        : 3000;
-    },
+    skip: !activeRequestId || matchmakingFinished,
+    pollingInterval: 3000,
   });
+
+  useEffect(() => {
+    if (
+      statusData?.status === "completed" ||
+      statusData?.status === "failed"
+    ) {
+      setMatchmakingFinished(true);
+    }
+  }, [statusData]);
 
   useEffect(() => {
     if (statusData?.status === "completed") {
@@ -139,6 +145,7 @@ export const AIInterestMatching = () => {
       }).unwrap();
 
       setActiveRequestId(response.requestId);
+      setMatchmakingFinished(false);
       toastSuccess(
         "Matchmaking request submitted! Processing in the background...",
       );
@@ -154,6 +161,7 @@ export const AIInterestMatching = () => {
     try {
       await requestToJoinGroup({
         groupId: groupToJoin.id,
+        userId: user.id,
       }).unwrap();
 
       toastSuccess("Joining Group Requested!");

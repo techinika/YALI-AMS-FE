@@ -13,6 +13,7 @@ type Option = { id: string; name: string };
 
 type ComboboxProps = {
   label: string;
+  id?: string;
   options: Option[];
   value: string;
   onChange: (value: string) => void;

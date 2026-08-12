@@ -4,13 +4,6 @@ import { Message, GroupMessage, Group } from "@/types/message";
 import { Member } from "@/types/user";
 import { TopMember } from "@/types/api";
 
-interface PrivateChat {
-  id: string;
-  otherUser: Member;
-  lastMessage: string;
-  updatedAt: string;
-}
-
 interface SendMessageData {
   senderId: string;
   receiverId: string;
@@ -19,7 +12,9 @@ interface SendMessageData {
 
 interface CreateGroupData {
   name: string;
-  createdById: string;
+  createdBy?: string;
+  memberIds: string[];
+  interests: string;
 }
 
 interface GroupMemberData {
@@ -56,7 +51,7 @@ export const chatSlices = createApi({
         body: credentials,
       }),
     }),
-    privateChats: builder.query<{ data: PrivateChat[] }, string>({
+    privateChats: builder.query<{ data: Message[] }, string>({
       query: (id) => `chat/${id}`,
     }),
     privateMessages: builder.query<{ data: Message[] }, { id: string; oid: string }>({

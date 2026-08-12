@@ -312,7 +312,7 @@ function AddPersonalInfo({
       try {
         const formData = new FormData();
         formData.append("profileImage", imageData);
-        formData.append("userId", user?.id);
+        formData.append("userId", user?.id || "");
 
         const data = await uploadPicture(formData).unwrap();
 

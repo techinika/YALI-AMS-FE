@@ -79,7 +79,8 @@ function UpdateProfilePage() {
 
   const [updatedUser] = useUpdatedUserMutation();
   const { data: UserData, refetch } = useGetOneUserQuery<{ data: Member }>(
-    targetId,
+    targetId || "",
+    { skip: !targetId },
   );
 
   useEffect(() => {
@@ -96,10 +97,10 @@ function UpdateProfilePage() {
   const { data: CountryData } = useCountriesQuery("");
   const { data: DistrictData } = useDistrictsQuery("");
   const { data: TracksData } = useTracksQuery("");
-  const { data: AllOrganizationsData } = useOrganizationsQuery("");
+  const { data: AllOrganizationsData } = useOrganizationsQuery();
   const { data: WorkingSectorsData } = useWorkingSectorQuery("");
   const { data: userOrganizations, refetch: organizationRefetch } =
-    useGetOrganizationsForUserQuery(targetId);
+    useGetOrganizationsForUserQuery(targetId || "", { skip: !targetId });
   const { data: SectorsData } = useSectorsByDistrictQuery(selectedDistrict, {
     skip: !selectedDistrict,
   });
@@ -357,7 +358,7 @@ function UpdateProfilePage() {
       content: (
         <ShowOrganizationToUpdate
           orgs={foundedOrganizations}
-          userId={targetId}
+          userId={targetId || ""}
           refetch={organizationRefetch}
           organizations={allOrganizations}
         />
@@ -368,7 +369,7 @@ function UpdateProfilePage() {
       content: (
         <ShowOrganizationToUpdate
           orgs={employedOrganizations}
-          userId={targetId}
+          userId={targetId || ""}
           refetch={organizationRefetch}
           organizations={allOrganizations}
         />

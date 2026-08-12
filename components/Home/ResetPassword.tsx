@@ -9,7 +9,8 @@ import Header from "./Header";
 import { ErrorType } from "@/types/feedback";
 
 const ResetPassword = () => {
-  const { token } = useParams();
+  const { token: tokenParam } = useParams();
+  const token = typeof tokenParam === "string" ? tokenParam : "";
 
   const [credentials, setCredentials] = useState({
     password: "",

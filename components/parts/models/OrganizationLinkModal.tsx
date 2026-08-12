@@ -27,7 +27,7 @@ export default function OrganizationLinkModal({
 }: OrganizationLinkModalProps) {
   const router = useRouter();
   const initData = {
-    orgId: 0,
+    orgId: "",
     relation: "",
     position: "",
   };

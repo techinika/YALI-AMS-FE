@@ -33,7 +33,7 @@ export const Personal = ({
   setChangeEmail,
 }: {
   values: any;
-  handleChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   handleSelectChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
   errors: any;
   sectors: ResidentSector[];
