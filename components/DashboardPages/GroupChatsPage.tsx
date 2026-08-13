@@ -127,6 +127,11 @@ export const GroupChatsPage = () => {
   }, [activeGroup?.id, user?.id]);
 
   useEffect(() => {
+    if (!user?.id || !activeGroup?.id) return;
+    getSocket().emit("join-group", { groupId: activeGroup.id });
+  }, [activeGroup?.id, user?.id]);
+
+  useEffect(() => {
     if (membersData?.data) {
       setMembers(membersData?.data);
     }
@@ -151,18 +156,21 @@ export const GroupChatsPage = () => {
     if (!newMessage.trim() || !activeGroup || !user) return;
 
     try {
-      await sendGroupMessage({
+      const result = await sendGroupMessage({
         groupId: activeGroup?.id,
         userId: user?.id,
         senderId: user.id,
         content: newMessage,
       }).unwrap();
 
-      const socket = getSocket();
-      socket.emit("send-group-message", {
-        groupId: activeGroup.id,
-        message: newMessage,
-      });
+      const created = result?.data as GroupMessage | undefined;
+      if (created) {
+        setMessages((prev) => {
+          const exists = prev.some((m) => m.id === created.id);
+          if (exists) return prev;
+          return [...prev, created];
+        });
+      }
 
       setNewMessage("");
     } catch (err) {

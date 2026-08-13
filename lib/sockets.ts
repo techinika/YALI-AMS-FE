@@ -13,7 +13,7 @@ export const getSocket = () => {
     auth: {
       token: token || "",
     },
-    transports: ["websocket"],
+    transports: ["polling", "websocket"],
     withCredentials: true,
     path: "/ws/socket.io/",
     reconnection: true,

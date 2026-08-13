@@ -301,11 +301,15 @@ const ChatInterface = () => {
       };
 
       try {
-        await addMessage(values).unwrap();
-        socketRef.current?.emit("send-message", {
-          message: trimmedMessage,
-          receiverId: currentRecipientId === "all" ? "" : currentRecipientId,
-        });
+        const result = await addMessage(values).unwrap();
+        const created = result?.data as Message | undefined;
+        if (created) {
+          setMessages((prev) => {
+            const exists = prev.some((m) => m.id === created.id);
+            if (exists) return prev;
+            return [...prev, created];
+          });
+        }
         setMessageInput("");
       } catch (error) {
         console.error("Error sending message:", error);

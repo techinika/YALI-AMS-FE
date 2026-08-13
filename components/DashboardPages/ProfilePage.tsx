@@ -54,7 +54,9 @@ function ProfilePage() {
   const { data: OrganizationsData } = useOrganizationsQuery();
 
   const [change] = useChangeMutation();
-  const user: Member = userProfile?.data?.data!;
+  const user: Member | undefined = userProfile?.data as unknown as
+    | Member
+    | undefined;
 
   const isAdmin = authUser?.role?.name === "ADMIN";
 
@@ -65,6 +67,10 @@ function ProfilePage() {
   const handleTabClick = (index: number) => {
     setActiveTab(index);
   };
+
+  if (loading || !authUser || isLoading || !user) {
+    return <Loading />;
+  }
 
   const foundedOrganizations = organizations?.data?.filter(
     (org: any) => org.relation === "founded"
@@ -100,10 +106,6 @@ function ProfilePage() {
       ),
     },
   ];
-
-  if (loading || !authUser || isLoading || !user) {
-    return <Loading />;
-  }
 
   const handleChangeRole = async () => {
     if (isAdmin) {

@@ -121,13 +121,15 @@ Create a `.env` file with the following variables:
 
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:9000/api
-NEXT_PUBLIC_WS_URL=ws://localhost:4500
+NEXT_PUBLIC_WS_URL=ws://localhost:9000
 ```
 
 | Variable | Description |
 |----------|-------------|
 | `NEXT_PUBLIC_API_URL` | Backend API base URL |
-| `NEXT_PUBLIC_WS_URL` | WebSocket server URL for real-time features |
+| `NEXT_PUBLIC_WS_URL` | WebSocket server URL for real-time features (defaults to `NEXT_PUBLIC_API_URL` if unset) |
+
+> **Production:** Socket.IO is served by the same backend process as the REST API (no separate socket port). Point `NEXT_PUBLIC_WS_URL` at the API origin (e.g. `wss://api.example.com`) — the socket path `/ws/socket.io/` is appended automatically. Use `wss://` on HTTPS to avoid mixed-content blocks, and never ship localhost values in a production build.
 
 ---
 
@@ -259,7 +261,11 @@ The app uses RTK Query for all API calls. Base configuration in `lib/fetchBaseQu
 - Clicking an item marks it opened (via `openNotification`) and routes to the notifications page
 
 ### Socket.IO
-- Singleton pattern with `hasListeners()` guard to prevent event handler duplication on reconnect
+- Singleton pattern (`lib/sockets.ts`) with `hasListeners()` guard to prevent event handler duplication on reconnect
+- Uses `["polling", "websocket"]` transports so real-time falls back to HTTP long-polling when a reverse proxy does not forward WebSocket upgrade headers
+- JWT is passed via `socket.handshake.auth.token` (read from the auth cookie) and verified server-side
+- **Single-writer messaging:** the REST endpoints persist messages; the backend broadcasts `new-message` / `new-group-message` events over the socket. The client subscribes with `socket.on(...)` and dedupes incoming messages by `id` — it does not re-emit `send-message` (which previously caused duplicate rows)
+- **Group rooms:** the group chat page emits `join-group` when the active group changes so members receive `new-group-message` broadcasts for that group only
 
 ### Skeleton Components (`components/ui/skeleton.tsx`)
 - `Skeleton` - Base skeleton component with animation
