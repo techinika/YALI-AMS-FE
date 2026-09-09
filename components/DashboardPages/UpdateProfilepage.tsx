@@ -18,7 +18,7 @@ import {
 import { useEffect, useState, useCallback } from "react";
 import Loading from "@/app/loading";
 import { useSearchParams } from "next/navigation";
-import { getUser } from "@/helpers/auth";
+import { getUserOrCache } from "@/helpers/auth";
 import { MdCloudUpload, MdClose, MdEdit } from "react-icons/md";
 import { Member } from "@/types/user";
 import { PageHeader } from "../parts/PageHeader";
@@ -57,7 +57,7 @@ const getInitialValues = (usr: Member | undefined) => ({
 function UpdateProfilePage() {
   const searchParams = useSearchParams();
   const userId = searchParams.get("userId");
-  const user = getUser();
+  const user = getUserOrCache();
   const isAdmin = user?.role?.name === "ADMIN";
   const targetId =
     isAdmin && typeof userId === "string" && userId.trim() !== ""
@@ -78,16 +78,14 @@ function UpdateProfilePage() {
   const [employedOrganizations, setEmployedOrganizations] = useState<any[]>([]);
 
   const [updatedUser] = useUpdatedUserMutation();
-  const { data: UserData, refetch } = useGetOneUserQuery<{ data: Member }>(
-    targetId || "",
-    { skip: !targetId },
-  );
-
+  const { data: UserData, refetch } = useGetOneUserQuery(targetId || "", {
+    skip: !targetId,
+  });
   useEffect(() => {
     if (targetId !== user?.id) setChangeEmail(false);
   }, [targetId, user]);
 
-  const usr: Member | undefined = UserData;
+  const usr: Member | undefined = UserData?.data;
 
   const [values, setValues] = useState<any>(getInitialValues(usr));
   const [formErrors, setFormErrors] = useState<any>({});
@@ -226,12 +224,17 @@ function UpdateProfilePage() {
       return;
     }
 
+    if (!usr?.id) {
+      setError("User data is still loading. Please try again.");
+      return;
+    }
+
     setIsLoading(true);
     const formValues: any = values;
 
     try {
       const res = await updatedUser({
-        userId: usr?.id,
+        userId: usr.id,
         user: {
           firstName: formValues.firstName,
           middleName: formValues.middleName,

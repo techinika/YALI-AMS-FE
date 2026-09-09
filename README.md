@@ -249,6 +249,10 @@ The app uses RTK Query for all API calls. Base configuration in `lib/fetchBaseQu
 ### Members Page
 - Removed the all-or-nothing `isAnyLoading` blocker; the table skeleton now only shows while members load and filters render immediately
 - Removed native country FilterDropdown in favor of the shared Combobox
+- `ProfilePage` waits on the auth user / `getOneUser` result before rendering (via `getUserOrCache` in `helpers/auth.ts`), with a guard that skips the update submit until the target user has loaded — no more flash-of-empty screens or bogus empty submits
+
+### Private Chat (`/chat`)
+- The backend now returns private chats paginated (default 200, max 500, newest-first); `IndividualChatPage` re-sorts replies by `createdAt desc` so the conversation stays in the expected order regardless of page size
 
 ### AI Matchmaking Page (`/matching`)
 - Interest dropdown now closes on outside click (container ref + `mousedown` listener)

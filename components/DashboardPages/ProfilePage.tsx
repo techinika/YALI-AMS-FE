@@ -13,7 +13,7 @@ import { Member } from "@/types/user";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { PageHeader } from "../parts/PageHeader";
 import { EditIcon } from "lucide-react";
-import { getUser } from "@/helpers/auth";
+import { getUserOrCache } from "@/helpers/auth";
 import { useRouter, useSearchParams } from "next/navigation";
 import { RoleChip } from "../ui/role-chip";
 import {
@@ -31,7 +31,7 @@ import {
 dayjs.extend(relativeTime);
 
 function ProfilePage() {
-  const authUser: Member | null = getUser();
+  const authUser: Member | null = getUserOrCache();
   const router = useRouter();
   const searchParams = useSearchParams();
   const userId = searchParams.get("userId");
@@ -49,14 +49,17 @@ function ProfilePage() {
   const { data: DistrictData } = useDistrictsQuery("");
   const { data: WorkingSectorsData } = useWorkingSectorQuery("");
 
-  const { data: organizations, isLoading } =
+  const { data: organizations } =
     useGetOrganizationsForUserQuery(targetId, { skip: !targetId });
   const { data: OrganizationsData } = useOrganizationsQuery();
 
   const [change] = useChangeMutation();
-  const user: Member | undefined = userProfile?.data as unknown as
+  const user: Member | undefined = userProfile?.data?.data as unknown as
     | Member
     | undefined;
+
+  const userLoading = userProfile.isLoading;
+  const userError = userProfile.isError;
 
   const isAdmin = authUser?.role?.name === "ADMIN";
 
@@ -68,7 +71,20 @@ function ProfilePage() {
     setActiveTab(index);
   };
 
-  if (loading || !authUser || isLoading || !user) {
+  if (userError || !authUser) {
+    return (
+      <div className="container mx-auto p-8 text-center">
+        <h2 className="text-xl font-bold text-gray-800 mb-2">
+          Unable to load profile
+        </h2>
+        <p className="text-gray-600">
+          The member profile could not be fetched. Please try again later.
+        </p>
+      </div>
+    );
+  }
+
+  if (loading || userLoading || !user) {
     return <Loading />;
   }
 

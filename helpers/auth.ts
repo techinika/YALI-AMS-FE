@@ -16,16 +16,18 @@ const safeParseJSON = <T,>(value: string | null): T | null => {
 };
 
 export const getUser = (): Member | null => {
-  const user =
-    typeof window !== "undefined"
-      ? localStorage.getItem(AUTH_STORED_DATA?.USER)
-      : null;
+  if (typeof window === "undefined") return null;
+  const user = localStorage.getItem(AUTH_STORED_DATA?.USER);
   return safeParseJSON<Member>(user);
 };
 
 export const getCookieUser = (): Member | null => {
   const user = getCookie(AUTH_STORED_DATA?.USER);
   return safeParseJSON<Member>(typeof user === "string" ? user : null);
+};
+
+export const getUserOrCache = (): Member | null => {
+  return getUser() ?? getCookieUser();
 };
 
 export const token = () => getCookie(AUTH_STORED_DATA?.TOKEN);
