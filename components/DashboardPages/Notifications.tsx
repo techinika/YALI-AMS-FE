@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import {
@@ -24,10 +25,20 @@ interface NotificationItem {
   id: string;
   title: string;
   message: string;
+  link?: string;
   createdAt: string;
   opened: boolean;
   type: "system" | "alert" | "update";
 }
+
+const NotificationActionMap: Record<
+  string,
+  { label: string; path: string }
+> = {
+  confirm: { label: "Confirm to update", path: "/dashboard/profile/update" },
+  decline: { label: "Decline to update", path: "/dashboard/profile" },
+  login: { label: "Login", path: "/" },
+};
 
 const NotificationIcon = ({ type }: { type: NotificationItem["type"] }) => {
   switch (type) {
@@ -93,6 +104,7 @@ function Notifications() {
     string | null
   >(null);
   const user = useAppSelector((state) => state.auth.user);
+  const router = useRouter();
 
   const { data, isLoading, refetch } = useNotificationsQuery(user?.id);
   const [openNotification] = useOpenNotificationMutation();
@@ -134,6 +146,18 @@ function Notifications() {
   const handleCloseDetail = useCallback(() => {
     setCurrentNotificationId(null);
   }, []);
+
+  // Handler for notification action buttons (e.g. confirm/decline update)
+  const handleNotificationAction = useCallback(
+    async (noti: NotificationItem, path: string) => {
+      if (!noti.opened) {
+        await openNotification({ id: noti.id });
+        refetch();
+      }
+      router.push(path);
+    },
+    [openNotification, refetch, router]
+  );
 
   // Set the first unread notification as selected on initial load
   useEffect(() => {
@@ -249,6 +273,31 @@ function Notifications() {
                       __html: DOMPurify.sanitize(selectedNotification.message),
                     }}
                   ></div>
+
+                  {selectedNotification.link && (
+                    <div className="flex flex-wrap gap-3 pt-2">
+                      {selectedNotification.link
+                        .split("+")
+                        .map((actionId) => {
+                          const action = NotificationActionMap[actionId as string];
+                          if (!action) return null;
+                          return (
+                            <button
+                              key={actionId}
+                              onClick={() =>
+                                handleNotificationAction(
+                                  selectedNotification,
+                                  action.path
+                                )
+                              }
+                              className="px-5 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/80 shadow-md transition-colors"
+                            >
+                              {action.label}
+                            </button>
+                          );
+                        })}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center p-16 text-gray-500">

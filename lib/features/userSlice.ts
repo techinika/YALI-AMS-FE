@@ -42,13 +42,27 @@ interface InsertNewOrgData {
   };
 }
 
+interface DeleteAccountData {
+  email: string;
+  firstName: string;
+}
+
+export interface UsersQueryArgs {
+  page?: number;
+  limit?: number;
+}
+
 export const usersSlices = createApi({
   reducerPath: "usersSlices",
   baseQuery: baseQueryWithAuth,
   tagTypes: ["Users"],
   endpoints: (builder) => ({
-    users: builder.query<{ data: Member[]; count: number; message: string }, void>({
-      query: () => `users`,
+    users: builder.query<{ data: Member[]; count: number; total?: number; message: string }, UsersQueryArgs | void>({
+      query: (args) => {
+        const page = args?.page ?? 1;
+        const limit = args?.limit ?? 500;
+        return `users?page=${page}&limit=${limit}`;
+      },
     }),
     getOneUser: builder.query<{ data: Member }, string>({
       query: (userId) => `users/${userId}`,
@@ -105,7 +119,7 @@ export const usersSlices = createApi({
         body: credentials,
       }),
     }),
-    importUsers: builder.mutation<{ message: string }, ImportUsersData>({
+    importUsers: builder.mutation<{ message: string; jobId?: string }, ImportUsersData>({
       query: (data) => ({
         url: "users/import",
         method: "POST",
@@ -117,6 +131,20 @@ export const usersSlices = createApi({
         url: "users/export/all",
         method: "POST",
       }),
+    }),
+    exportMyData: builder.mutation<{ exportedAt: string; data: Record<string, unknown> }, void>({
+      query: () => ({
+        url: "users/me/data",
+        method: "GET",
+      }),
+    }),
+    deleteMyAccount: builder.mutation<{ message: string }, DeleteAccountData>({
+      query: (body) => ({
+        url: "users/me",
+        method: "DELETE",
+        body,
+      }),
+      invalidatesTags: ["Users"],
     }),
     associateOrganization: builder.mutation<{ message: string }, OrgUserData | InsertExistingOrgData | InsertNewOrgData>({
       query: (data) => ({
@@ -137,6 +165,7 @@ export const usersSlices = createApi({
 
 export const {
   useUsersQuery,
+  useLazyUsersQuery,
   useGetOneUserQuery,
   useDeleteUserMutation,
   useUpdatedUserMutation,
@@ -149,4 +178,6 @@ export const {
   useRemoveUserOrganizationMutation,
   useReInviteUserMutation,
   useExportUsersMutation,
+  useExportMyDataMutation,
+  useDeleteMyAccountMutation,
 } = usersSlices;

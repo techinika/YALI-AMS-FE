@@ -5,12 +5,14 @@ interface AuthState {
   token: string | null;
   user: Member | null;
   isAuthenticated: boolean;
+  sessionExpired: boolean;
 }
 
 const initialState: AuthState = {
   token: null,
   user: null,
   isAuthenticated: false,
+  sessionExpired: false,
 };
 
 const authSlice = createSlice({
@@ -30,8 +32,15 @@ const authSlice = createSlice({
       state.user = null;
       state.isAuthenticated = false;
     },
+    markSessionExpired: (state) => {
+      state.sessionExpired = true;
+    },
+    clearSessionExpired: (state) => {
+      state.sessionExpired = false;
+    },
   },
 });
 
-export const { setCredentials, processLogout } = authSlice.actions;
+export const { setCredentials, processLogout, markSessionExpired, clearSessionExpired } =
+  authSlice.actions;
 export default authSlice.reducer;

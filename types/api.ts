@@ -59,6 +59,7 @@ export interface NotificationItem {
   id: string;
   title: string;
   message: string;
+  link?: string;
   createdAt: string;
   opened: boolean;
   type: "system" | "alert" | "update";

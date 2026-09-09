@@ -1,10 +1,9 @@
 "use client";
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
   MdSearch,
-  MdNavigateBefore,
-  MdNavigateNext,
   MdAdd,
+  MdExpandMore,
 } from "react-icons/md";
 import { PageHeader } from "../parts/PageHeader";
 import { Delete, Edit, Eye, MessageCircle, Redo2 } from "lucide-react";
@@ -14,7 +13,7 @@ import {
   useDeleteUserMutation,
   useExportUsersMutation,
   useReInviteUserMutation,
-  useUsersQuery,
+  useLazyUsersQuery,
 } from "@/lib/features/userSlice";
 import {
   useCohortsQuery,
@@ -147,7 +146,6 @@ const MembersPage = () => {
     track: "",
     status: "",
   });
-  const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [reInviteOpen, setReInviteOpen] = useState(false);
@@ -156,7 +154,11 @@ const MembersPage = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [reInviteLoading, setReInviteLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const MEMBERS_PER_PAGE = 10;
+  const [members, setMembers] = useState<Member[]>([]);
+  const [hasMorePages, setHasMorePages] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const MEMBERS_PER_LOAD = 50;
   const isAdmin = authUser?.role?.name === "ADMIN";
   const isDeletingSelf = itemToDelete && itemToDelete === authUser?.id;
 
@@ -164,11 +166,72 @@ const MembersPage = () => {
   const [reInviteUser] = useReInviteUserMutation();
   const [exportUsers] = useExportUsersMutation();
 
-  const {
-    data: membersData,
-    refetch: memberDataRefetch,
-    isLoading: usersLoading,
-  } = useUsersQuery();
+  const [fetchUsers] = useLazyUsersQuery();
+
+  const membersRef = useRef<Member[]>([]);
+  const currentPageRef = useRef(1);
+  const busyRef = useRef(false);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  const loadMembers = useCallback(
+    async (reset = false) => {
+      if (busyRef.current) return;
+      busyRef.current = true;
+      if (reset) {
+        setIsInitialLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
+      try {
+        const nextPage = reset ? 1 : currentPageRef.current;
+        const result = await fetchUsers({
+          page: nextPage,
+          limit: MEMBERS_PER_LOAD,
+        }).unwrap();
+        const base = reset ? [] : membersRef.current;
+        const existingIds = new Set(base.map((m) => m.id));
+        const incoming = result.data.filter((m) => !existingIds.has(m.id));
+        const merged = reset ? incoming : [...base, ...incoming];
+        membersRef.current = merged;
+        setMembers(merged);
+        currentPageRef.current = nextPage + 1;
+        setHasMorePages(
+          (result.total !== undefined && result.total > merged.length) ||
+            result.data.length === MEMBERS_PER_LOAD
+        );
+      } catch (error) {
+        console.error("Failed to load members:", error);
+      } finally {
+        busyRef.current = false;
+        setIsInitialLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [fetchUsers]
+  );
+
+  const memberDataRefetch = useCallback(() => loadMembers(true), [loadMembers]);
+
+  const loadMoreMembers = useCallback(() => {
+    if (!loadingMore && hasMorePages) loadMembers(false);
+  }, [loadingMore, hasMorePages, loadMembers]);
+
+  useEffect(() => {
+    loadMembers(true);
+  }, [loadMembers]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasMorePages || loadingMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) loadMoreMembers();
+      },
+      { rootMargin: "150px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMorePages, loadingMore, loadMoreMembers]);
 
   const {
     data: cohortsData,
@@ -180,8 +243,6 @@ const MembersPage = () => {
 
   const cohorts = cohortsData?.data || [];
   const tracks = tracksData?.data || [];
-
-  const members = membersData?.data || [];
 
   const filteredMembers = useMemo(() => {
     return members.filter(
@@ -203,22 +264,8 @@ const MembersPage = () => {
     );
   }, [searchTerm, filters, members]);
 
-  const totalPages = Math.ceil(filteredMembers.length / MEMBERS_PER_PAGE);
-  const currentMembers = useMemo(() => {
-    const startIndex = (currentPage - 1) * MEMBERS_PER_PAGE;
-    const endIndex = startIndex + MEMBERS_PER_PAGE;
-    return filteredMembers.slice(startIndex, endIndex);
-  }, [filteredMembers, currentPage]);
-
   const handleFilterChange = (key: keyof typeof filters, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
-    setCurrentPage(1);
-  };
-
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setCurrentPage(newPage);
-    }
   };
 
   const handleView = useCallback((id: string) => {
@@ -352,7 +399,6 @@ const MembersPage = () => {
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
-                setCurrentPage(1);
               }}
               className="p-2 border border-gray-300 rounded focus:ring-primary focus:border-primary shadow-sm w-full"
             />
@@ -383,14 +429,13 @@ const MembersPage = () => {
             onClick={() => {
               setSearchTerm("");
               setFilters({ country: "", cohort: "", track: "", status: "" });
-              setCurrentPage(1);
             }}
             className="p-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg transition-colors"
           >
             Clear Filters
           </button>
         </div>
-        {usersLoading ? (
+        {isInitialLoading ? (
           <Skeleton className="h-5 w-48" />
         ) : (
           <p className="text-sm text-gray-500 mt-2">
@@ -399,9 +444,9 @@ const MembersPage = () => {
         )}
       </div>
 
-      {usersLoading ? (
+      {isInitialLoading ? (
         <MembersTableSkeleton rows={10} />
-      ) : currentMembers.length > 0 ? (
+      ) : filteredMembers.length > 0 ? (
         <div className="bg-white rounded-xl shadow-lg overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -430,7 +475,7 @@ const MembersPage = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {currentMembers.map((member: Member) => (
+              {filteredMembers.map((member: Member) => (
                 <MemberRow
                   key={member.id}
                   member={member}
@@ -455,41 +500,19 @@ const MembersPage = () => {
         <EmptyState isFiltered={true} />
       )}
 
-      {totalPages > 1 && (
-        <div className="flex justify-between items-center mt-6 p-4 bg-white rounded-xl shadow-lg">
-          <p className="text-sm text-gray-700">
-            Showing{" "}
-            <span className="font-medium">
-              {(currentPage - 1) * MEMBERS_PER_PAGE + 1}
-            </span>{" "}
-            to{" "}
-            <span className="font-medium">
-              {Math.min(currentPage * MEMBERS_PER_PAGE, filteredMembers.length)}
-            </span>{" "}
-            of <span className="font-medium">{filteredMembers.length}</span>{" "}
-            results
-          </p>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="p-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <MdNavigateBefore className="w-5 h-5" />
-            </button>
-
-            <span className="p-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg">
-              Page {currentPage} of {totalPages}
-            </span>
-
-            <button
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="p-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <MdNavigateNext className="w-5 h-5" />
-            </button>
-          </div>
+      {(hasMorePages || loadingMore) && (
+        <div
+          ref={sentinelRef}
+          className="flex justify-center mt-6 p-4"
+        >
+          <button
+            onClick={loadMoreMembers}
+            disabled={loadingMore}
+            className="flex items-center gap-2 px-6 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-wait transition-colors"
+          >
+            <MdExpandMore className="w-5 h-5" />
+            {loadingMore ? "Loading more members..." : "Load more members"}
+          </button>
         </div>
       )}
     </div>

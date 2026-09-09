@@ -64,13 +64,14 @@ export default function OrganizationLinkModal({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center">
+    <div
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4"
+      onClick={closeModal}
+    >
       <div
-        className="fixed inset-0 bg-gray-900 bg-opacity-70 backdrop-blur-sm"
-        onClick={closeModal}
-      />
-
-      <div className="relative z-50 w-full max-w-5xl rounded-xl bg-white shadow-2xl">
+        className="relative w-full max-w-5xl rounded-2xl bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
           onClick={closeModal}
           className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
@@ -110,7 +111,7 @@ export default function OrganizationLinkModal({
           </div>
         </div>
 
-        <div className="bg-gray-50 flex justify-end gap-3 px-6 py-4 rounded-b-xl">
+        <div className="flex justify-end gap-3 px-6 pb-6">
           <ModalButton variant="cancel" onClick={closeModal}>
             Cancel
           </ModalButton>

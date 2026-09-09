@@ -71,22 +71,30 @@ function CreateGroupChat({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-primary text-white">
+    <div
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4"
+      onClick={() => setShowCreateModal(false)}
+    >
+      <div
+        className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-bold">New Collaborative Group</h3>
-            <p className="text-xs opacity-80">Assemble your dream team</p>
+            <h3 className="text-lg font-bold text-gray-900">
+              New Collaborative Group
+            </h3>
+            <p className="text-xs text-gray-500">Assemble your dream team</p>
           </div>
           <button
             onClick={() => setShowCreateModal(false)}
-            className="p-2 hover:bg-white/10 rounded-full transition-colors"
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-8 space-y-6">
+        <div className="p-6 space-y-6">
           <div>
             <label className="text-xs font-bold text-gray-400 uppercase tracking-widest block mb-3">
               Group Identity
@@ -155,10 +163,10 @@ function CreateGroupChat({
           </div>
         </div>
 
-        <div className="p-6 bg-gray-50 border-t border-gray-100 flex items-center justify-end space-x-3">
+        <div className="p-6 flex items-center justify-end gap-3">
           <button
             onClick={() => setShowCreateModal(false)}
-            className="px-6 py-2.5 text-xs font-bold text-gray-500 hover:text-gray-700 transition-colors border border-gray-200 rounded-xl hover:bg-gray-100"
+            className="px-6 py-2.5 text-xs font-bold text-gray-500 hover:text-gray-700 transition-colors border border-gray-300 rounded-xl hover:bg-gray-100"
           >
             Cancel
           </button>

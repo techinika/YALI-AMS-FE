@@ -82,13 +82,14 @@ const InviteUserModal: React.FC<InviteUserModalProps> = ({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center">
+    <div
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
       <div
-        className="fixed inset-0 bg-gray-900 bg-opacity-70 backdrop-blur-sm"
-        onClick={onClose}
-      ></div>
-
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 relative z-50 transform scale-100 transition-transform duration-300">
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative transform scale-100 transition-transform duration-300"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex justify-between items-center border-b pb-3 mb-4">
           <h2 className="text-xl font-bold text-gray-800">Invite New Member</h2>
           <button

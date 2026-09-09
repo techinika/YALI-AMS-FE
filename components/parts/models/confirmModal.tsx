@@ -29,17 +29,16 @@ function ConfirmModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center"
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4"
       aria-labelledby="modal-title"
       role="dialog"
       aria-modal="true"
+      onClick={closeModal}
     >
       <div
-        className="fixed inset-0 bg-gray-900 bg-opacity-70 backdrop-blur-sm transition-opacity"
-        onClick={closeModal}
-      ></div>
-
-      <div className="relative z-50 w-full max-w-md transform overflow-hidden rounded-xl bg-white text-left shadow-2xl transition-all sm:my-8">
+        className="relative w-full max-w-md transform rounded-2xl bg-white p-6 text-left shadow-2xl transition-all sm:my-8"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
           onClick={closeModal}
           className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-full hover:bg-gray-100"
@@ -48,27 +47,25 @@ function ConfirmModal({
           <MdClose className="w-6 h-6" />
         </button>
 
-        <div className="bg-white p-6 sm:p-8">
-          <div className="flex items-start">
-            <div className="mx-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 border border-red-300">
-              <MdWarning className="h-6 w-6 text-red-600" aria-hidden="true" />
-            </div>
+        <div className="flex items-start">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 border border-red-300">
+            <MdWarning className="h-6 w-6 text-red-600" aria-hidden="true" />
+          </div>
 
-            <div className="mt-0 text-left sm:ml-4">
-              <h3
-                className="text-xl font-bold leading-6 text-gray-900 mb-2"
-                id="modal-title"
-              >
-                {title}
-              </h3>
-              <div className="mt-2">
-                <p className="text-sm text-gray-600">{description}</p>
-              </div>
+          <div className="mt-0 text-left sm:ml-4">
+            <h3
+              className="text-xl font-bold leading-6 text-gray-900 mb-2"
+              id="modal-title"
+            >
+              {title}
+            </h3>
+            <div className="mt-2">
+              <p className="text-sm text-gray-600">{description}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-gray-50 flex justify-end gap-3 px-6 py-4 rounded-b-xl">
+        <div className="mt-6 flex justify-end gap-3">
           <ModalButton
             onClick={closeModal}
             variant="cancel"

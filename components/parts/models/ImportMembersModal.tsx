@@ -10,6 +10,50 @@ interface ImportUsersModalProps {
   closeModal: () => void;
 }
 
+const parseCSV = (text: string): string[][] => {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ",") {
+      row.push(field);
+      field = "";
+    } else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      row.push(field);
+      field = "";
+      if (row.some((cell) => cell.length > 0)) rows.push(row);
+      row = [];
+    } else {
+      field += ch;
+    }
+  }
+
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    if (row.some((cell) => cell.length > 0)) rows.push(row);
+  }
+
+  return rows;
+};
+
 const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
   const [file, setFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<any[]>([]);
@@ -48,6 +92,47 @@ const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
       }
 
       try {
+        if (file.name.toLowerCase().endsWith(".csv")) {
+          const text = new TextDecoder("utf-8").decode(data as ArrayBuffer);
+          const rows = parseCSV(text);
+          const headers: string[] = (rows[0] ?? []).map((h) =>
+            String(h ?? "").trim()
+          );
+          if (headers[0]) headers[0] = headers[0].replace(/^\uFEFF/, "");
+
+          if (headers.filter(Boolean).length === 0) {
+            setUploadError("No valid headers found in file.");
+            setPreviewData([]);
+            return;
+          }
+
+          const parsedRows: Record<string, any>[] = [];
+
+          rows.slice(1).forEach((row) => {
+            const rowData: Record<string, any> = {};
+            let hasValue = false;
+
+            headers.forEach((header, index) => {
+              if (!header) return;
+              const value = String(row[index] ?? "").trim();
+              if (value !== "") hasValue = true;
+              rowData[header] = value;
+            });
+
+            if (hasValue) parsedRows.push(rowData);
+          });
+
+          if (parsedRows.length === 0) {
+            setUploadError("No valid data rows found.");
+            setPreviewData([]);
+            return;
+          }
+
+          setPreviewData(parsedRows);
+          setUploadError("");
+          return;
+        }
+
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(data as ArrayBuffer);
 
@@ -61,9 +146,9 @@ const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
         const headerRow = worksheet.getRow(1);
         const headers: string[] = [];
 
-        for (let col = 0; col <= headerRow.cellCount; col++) {
+        for (let col = 1; col <= headerRow.cellCount; col++) {
           const cell = headerRow.getCell(col);
-          headers.push(String(cell.value ?? "").trim());
+          headers.push(String(cell?.value ?? "").trim());
         }
 
         if (headers.filter(Boolean).length === 0) {
@@ -143,15 +228,18 @@ const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
         data: previewData,
       }).unwrap();
 
-      toastSuccess("Members imported successfully, existing members skipped!");
+      toastSuccess(
+        response?.message ||
+          "Import started in the background. You will be notified when it is done."
+      );
+      setFile(null);
+      setPreviewData([]);
+      closeModal();
     } catch (error: any) {
       toastError(error?.data?.message || "Import failed. Please try again.");
-
-      setIsUploading(false);
     } finally {
       setIsUploading(false);
       setUploadError(null);
-      closeModal();
     }
   };
 
@@ -164,16 +252,15 @@ const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
 
   return (
     <div
-      className="fixed inset-0 z-[110] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4"
       aria-modal="true"
       role="dialog"
+      onClick={closeModal}
     >
       <div
-        className="fixed inset-0 bg-gray-900 bg-opacity-70 backdrop-blur-sm"
-        onClick={closeModal}
-      ></div>
-
-      <div className="relative z-50 w-full max-w-4xl transform overflow-hidden rounded-xl bg-white text-left shadow-2xl transition-all">
+        className="relative w-full max-w-4xl transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex justify-between items-center p-6 border-b">
           <h3 className="text-xl font-bold text-gray-900 flex items-center">
             <MdCloudUpload className="w-6 h-6 mr-2 text-primary" />
@@ -269,7 +356,7 @@ const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
         </div>
 
         {/* Footer */}
-        <div className="p-6 bg-gray-50 flex justify-end space-x-3 rounded-b-xl">
+        <div className="p-6 flex justify-end space-x-3">
           <button
             onClick={closeModal}
             disabled={isUploading}

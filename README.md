@@ -137,9 +137,9 @@ NEXT_PUBLIC_WS_URL=ws://localhost:9000
 
 ### Dashboard Pages
 - **Organizations** - Manage organizations, working sectors, and associations
-- **Members** - View, search, filter, and register new members with Excel import/export
+- **Members** - View, search, filter, and register new members with Excel import/export; the directory loads server-side pages (50/page) with infinite-scroll "Load more", and bulk import runs in the background
 - **Matching** - AI-powered member matching by interests with background processing, live status polling, and past-request history
-- **Notifications** - Notification center with read/unread tracking and setup configuration
+- **Notifications** - Notification center with read/unread tracking, per-notification action buttons, and setup configuration
 - **Profile** - User profile viewing and updates
 - **Settings** - Application and account settings
 - **Chat** - Private and group messaging with real-time Socket.IO
@@ -165,7 +165,7 @@ All slices are located in `lib/features/`:
 | Slice | Purpose |
 |-------|---------|
 | `auth.ts` | Local auth state (user, token, isAuthenticated) |
-| `authSlice.ts` | Auth API (login, logout, reset/change password) |
+| `authSlice.ts` | Auth API (login, logout, extend session, reset/change password) |
 | `userSlice.ts` | Users API (CRUD, invite, import, export) |
 | `orgSlice.ts` | Organizations API |
 | `otherSlice.ts` | Reference data API (countries, districts, cohorts, tracks, sectors) |
@@ -191,7 +191,7 @@ All API definitions use RTK Query with automatic caching and refetching. Endpoin
 
 The app uses RTK Query for all API calls. Base configuration in `lib/fetchBaseQuery.ts` handles:
 - Authorization headers (Bearer token from cookies)
-- 401 response handling (auto-redirect to login on token expiry)
+- 401 response handling (dispatches `markSessionExpired` so the UI can offer to extend the session or log out — no silent wipe/redirect)
 - Content-Type headers
 
 ---
@@ -199,9 +199,15 @@ The app uses RTK Query for all API calls. Base configuration in `lib/fetchBaseQu
 ## Security
 
 - **XSS Protection** - All user-generated HTML content (notifications, rich text editor) is sanitized with DOMPurify before rendering via `dangerouslySetInnerHTML`
-- **Token Expiry Handling** - `baseQueryWithAuthAndReauth` detects 401 responses and clears stored credentials before redirecting to login
+- **Session Expiry** - On 401, `baseQueryWithAuth` sets a `sessionExpired` flag that shows `SessionExpiredModal` (no automatic logout). The user can extend the session via `POST /auth/me/extend` (re-issues a 24h JWT) or log out. The dashboards `AuthGuard` also seeds Redux credentials from the cached user/token on mount, preventing a blank welcome header after a refresh
 - **Auth Guard** - `AuthGuard` component protects dashboard routes, redirecting unauthenticated users
 - **Role-based Access** - `OnlyAdmin` component restricts admin-only pages
+
+---
+
+## UI Consistency
+
+- All modals (confirm dialogs, bulk import, invite member, organization link, create group, session-expired, shared `Modal`) share one shell — a `bg-black/50` backdrop with click-outside-to-close and a centered `rounded-2xl bg-white shadow-2xl` card — using `stopPropagation` so clicks inside the card never dismiss it.
 
 ---
 
@@ -249,6 +255,7 @@ The app uses RTK Query for all API calls. Base configuration in `lib/fetchBaseQu
 ### Members Page
 - Removed the all-or-nothing `isAnyLoading` blocker; the table skeleton now only shows while members load and filters render immediately
 - Removed native country FilterDropdown in favor of the shared Combobox
+- **Server-side pagination:** the directory is fetched 50 rows at a time via `useLazyUsersQuery({ page, limit })` and appended (deduped by id) as the user scrolls (`IntersectionObserver`) or clicks "Load more", with `hasMore` driven by the backend `total`. The shared `users` query now defaults to `limit=500` / falls back to the backend default of 100 (max 1000), so the members list can show the full member count that dashboard stats report
 - `ProfilePage` waits on the auth user / `getOneUser` result before rendering (via `getUserOrCache` in `helpers/auth.ts`), with a guard that skips the update submit until the target user has loaded — no more flash-of-empty screens or bogus empty submits
 
 ### Private Chat (`/chat`)
@@ -263,6 +270,13 @@ The app uses RTK Query for all API calls. Base configuration in `lib/fetchBaseQu
 - Added `NotificationBell` to the dashboard header with an unread count badge and dropdown panel
 - Listens for `new-message`, `new-group-message`, and `notification:new` socket events to refresh the unread list in real time, with a 30s polling fallback
 - Clicking an item marks it opened (via `openNotification`) and routes to the notifications page
+
+### Notification Actions
+- Notification templates (`/dashboard/data`) let admins attach actions (Confirm to update / Decline to update / Login); the selected action ids are stored on the template's `link`
+- The profile-update cron stamps each notification with that `link`, and the notifications page renders a matching button in the detail view — Confirm routes to `/dashboard/profile/update`, Decline to `/dashboard/profile` (both mark the notification read first)
+
+### Bulk Import
+- Importing members is now fire-and-forget: `ImportMembersModal` submits the parsed rows and closes on a `202`, showing "Import started in the background...". The backend worker sends a success/failure notification when the job finishes
 
 ### Socket.IO
 - Singleton pattern (`lib/sockets.ts`) with `hasListeners()` guard to prevent event handler duplication on reconnect

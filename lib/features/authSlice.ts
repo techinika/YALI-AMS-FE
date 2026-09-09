@@ -7,6 +7,7 @@ import {
   ResetPasswordConfirmRequest,
   ChangePasswordRequest,
 } from "@/types/api";
+import { Member } from "@/types/user";
 
 export const authSlices = createApi({
   reducerPath: "authApi",
@@ -49,6 +50,17 @@ export const authSlices = createApi({
         body: credentials,
       }),
     }),
+    extendSession: builder.mutation<
+      { status: number; message: string; token: string; user: Member },
+      string
+    >({
+      query: (token) => ({
+        url: "auth/me/extend",
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: {},
+      }),
+    }),
   }),
 });
 
@@ -58,4 +70,5 @@ export const {
   useRequestResetMutation,
   useResetPasswordMutation,
   useChangePasswordMutation,
+  useExtendSessionMutation,
 } = authSlices;

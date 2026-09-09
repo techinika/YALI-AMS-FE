@@ -32,16 +32,13 @@ export default function Modal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
+    <div
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-        onClick={onClose}
-      />
-
-      {/* Modal */}
-      <div
-        className={`relative w-full ${sizeClasses[size]} mx-4 bg-white rounded-2xl shadow-xl animate-in fade-in zoom-in-95`}
+        className={`relative w-full ${sizeClasses[size]} transform rounded-2xl bg-white shadow-2xl animate-in fade-in zoom-in-95`}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         {title && (

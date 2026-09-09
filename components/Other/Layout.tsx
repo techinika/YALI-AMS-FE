@@ -6,6 +6,7 @@ import Sidebar from "../parts/DashboardSidebar";
 import { useAppSelector } from "@/lib/hooks";
 import { RefDataPrefetcher } from "./RefDataPrefetcher";
 import NotificationBell from "./NotificationBell";
+import SessionExpiredModal from "./SessionExpiredModal";
 
 function Layout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -49,6 +50,8 @@ function Layout({ children }: { children: React.ReactNode }) {
         <main className="flex-1 p-6 md:p-8 overflow-y-auto">
           <div className="h-full w-full">{children}</div>
         </main>
+
+        <SessionExpiredModal />
 
         <footer className="p-4 border-t border-gray-200 bg-white">
           <Copyright />

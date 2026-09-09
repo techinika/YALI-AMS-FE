@@ -30,7 +30,11 @@ export const getUserOrCache = (): Member | null => {
   return getUser() ?? getCookieUser();
 };
 
-export const token = () => getCookie(AUTH_STORED_DATA?.TOKEN);
+export const token = (): string | undefined => {
+  if (typeof window === "undefined") return undefined;
+  const value = getCookie(AUTH_STORED_DATA?.TOKEN);
+  return typeof value === "string" ? value : undefined;
+};
 
 export const isAuthenticated = () => {
   const user = getUser();

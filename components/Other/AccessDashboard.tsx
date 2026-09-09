@@ -1,20 +1,30 @@
 "use client";
 
-import { getUser, isAuthenticated } from "@/helpers/auth";
+import { getUser, isAuthenticated, token } from "@/helpers/auth";
+import { setCredentials } from "@/lib/features/auth";
+import { useAppDispatch } from "@/lib/hooks";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, ReactNode } from "react";
 import Loading from "@/app/loading";
 
 export const AuthGuard = ({ children }: { children: ReactNode }) => {
   const [authorized, setAuthorized] = useState(false);
+  const dispatch = useAppDispatch();
 
   useEffect(() => {
+    const authUser = getUser();
+    const authToken = token();
+
+    if (authUser && authToken) {
+      dispatch(setCredentials({ token: authToken, user: authUser }));
+    }
+
     if (!isAuthenticated()) {
       globalThis.location.href = "/";
     } else {
       setAuthorized(true);
     }
-  }, []);
+  }, [dispatch]);
 
   if (!authorized) return <Loading />;
   return <>{children}</>;
