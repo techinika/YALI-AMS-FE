@@ -73,9 +73,10 @@ const ChatInterface = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
   const socketRef = useRef<any>(null);
+  const prevRecipientRef = useRef<string>(oid ?? "all");
 
   const [currentRecipientId, setCurrentRecipientId] = useState<string>(
-    oid ?? "all"
+    oid ?? "all",
   );
   const [messageInput, setMessageInput] = useState("");
   const [chatSearch, setChatSearch] = useState("");
@@ -89,20 +90,20 @@ const ChatInterface = () => {
   const { data: communityMessagesData } = useChatsQuery(undefined, {
     skip: currentRecipientId !== "all",
   });
-  const { data: privateMessagesData } = usePrivateMessagesQuery(
-    { id: currentRecipientId, oid: user?.id || "" },
-  );
+  const { data: privateMessagesData } = usePrivateMessagesQuery({
+    id: currentRecipientId,
+    oid: user?.id || "",
+  });
 
   const { data: privateChatsData } = usePrivateChatsQuery(user?.id || "");
 
   const [addMessage] = useAddMessageMutation();
   const { data: allUsers } = useUsersQuery();
-  const { data: searchableUsers } = useUsersQuery();
 
   useEffect(() => {
     if (allUsers) {
       const otherMembers = allUsers?.data.filter(
-        (u: Member) => u.id !== user?.id
+        (u: Member) => u.id !== user?.id,
       );
       setMembers(otherMembers);
     }
@@ -142,6 +143,15 @@ const ChatInterface = () => {
       socket.off("disconnect");
     };
   }, [user?.id]);
+
+  useEffect(() => {
+    if (prevRecipientRef.current !== currentRecipientId) {
+      setMessages([]);
+      isFirstLoadRef.current = true;
+      lastMessageIdRef.current = null;
+      prevRecipientRef.current = currentRecipientId;
+    }
+  }, [currentRecipientId]);
 
   useEffect(() => {
     if (!socketRef.current) return;
@@ -193,7 +203,7 @@ const ChatInterface = () => {
     [...privateChatsData.data]
       .sort(
         (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       )
       .forEach((msg) => {
         const otherUserId =
@@ -209,11 +219,11 @@ const ChatInterface = () => {
         members.find(
           (u: Member) =>
             u.id ===
-            (chat.senderId === user.id ? chat.receiverId : chat.senderId)
-        )
+            (chat.senderId === user.id ? chat.receiverId : chat.senderId),
+        ),
       )
       .filter((u): u is Member => Boolean(u));
-  }, [privateMessagesData?.data, members, user?.id]);
+  }, [privateChatsData?.data, members, user?.id]);
 
   const filteredChatList = useMemo(() => {
     const list = [
@@ -236,7 +246,7 @@ const ChatInterface = () => {
           messages.findLast(
             (m: Message) =>
               (m.senderId === user?.id && m.receiverId === p.id) ||
-              (m.senderId === p.id && m.receiverId === user?.id)
+              (m.senderId === p.id && m.receiverId === user?.id),
           )?.message || "",
       })),
     ];
@@ -244,19 +254,19 @@ const ChatInterface = () => {
     if (!chatSearch) return list;
 
     return list.filter((chat) =>
-      chat.title.toLowerCase().includes(chatSearch.toLowerCase())
+      chat.title.toLowerCase().includes(chatSearch.toLowerCase()),
     );
   }, [communityMessagesData, privateChatPartners, chatSearch, user?.id]);
 
   const displayedMessages = useMemo(() => {
     let sorted = [...messages].sort(
       (a, b) =>
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     );
 
     if (messageSearch) {
       sorted = sorted.filter((msg) =>
-        msg.message.toLowerCase().includes(messageSearch.toLowerCase())
+        msg.message.toLowerCase().includes(messageSearch.toLowerCase()),
       );
     }
     return sorted;
@@ -315,7 +325,7 @@ const ChatInterface = () => {
         console.error("Error sending message:", error);
       }
     },
-    [messageInput, user?.id, currentRecipientId, addMessage]
+    [messageInput, user?.id, currentRecipientId, addMessage],
   );
 
   const headerSubtitle =
@@ -324,7 +334,7 @@ const ChatInterface = () => {
       : "Private conversation";
 
   return (
-    <div className="container mx-auto min-h-screen p-4 sm:p-8 ">
+    <div className="container mx-auto p-4 sm:p-8 ">
       <PageHeader
         title="Conversations"
         description="Chat with the community and build relationships privately."
@@ -333,7 +343,6 @@ const ChatInterface = () => {
         loading={false}
         Icon={Settings}
         disabled={false}
-
       />
 
       <div
@@ -345,7 +354,8 @@ const ChatInterface = () => {
           isNearBottomRef.current =
             el.scrollHeight - el.scrollTop - el.clientHeight < 100;
         }}
-        className="rounded shadow bg-white flex flex-col lg:flex-row h-screen overflow-hidden"
+        className="rounded shadow bg-white flex flex-col lg:flex-row overflow-hidden"
+        style={{ minHeight: "80vh" }}
       >
         <div
           className={`flex flex-col w-full lg:w-80 shrink-0 border-r border-gray-100 ${
@@ -383,8 +393,8 @@ const ChatInterface = () => {
             </div>
             {usersSearch && (
               <div className="absolute z-10 w-72 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
-                {searchableUsers?.data.length ? (
-                  searchableUsers.data.map((u: Member) => (
+                {allUsers?.data.length ? (
+                  allUsers.data.map((u: Member) => (
                     <button
                       key={u.id}
                       type="button"
@@ -508,7 +518,7 @@ const ChatInterface = () => {
               displayedMessages.map((message) => {
                 const isSent = message.senderId === user?.id;
                 const senderUser = members.find(
-                  (u: Member) => u?.id === message?.senderId
+                  (u: Member) => u?.id === message?.senderId,
                 );
                 const senderName = senderUser
                   ? `${senderUser.firstName}`

@@ -1,9 +1,8 @@
 "use client";
-import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
   MdSearch,
   MdAdd,
-  MdExpandMore,
 } from "react-icons/md";
 import { PageHeader } from "../parts/PageHeader";
 import { Delete, Edit, Eye, MessageCircle, Redo2 } from "lucide-react";
@@ -155,10 +154,11 @@ const MembersPage = () => {
   const [reInviteLoading, setReInviteLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [members, setMembers] = useState<Member[]>([]);
-  const [hasMorePages, setHasMorePages] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalMembers, setTotalMembers] = useState(0);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const MEMBERS_PER_LOAD = 50;
+  const MEMBERS_PER_PAGE = 20;
   const isAdmin = authUser?.role?.name === "ADMIN";
   const isDeletingSelf = itemToDelete && itemToDelete === authUser?.id;
 
@@ -168,70 +168,37 @@ const MembersPage = () => {
 
   const [fetchUsers] = useLazyUsersQuery();
 
-  const membersRef = useRef<Member[]>([]);
-  const currentPageRef = useRef(1);
-  const busyRef = useRef(false);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-
   const loadMembers = useCallback(
-    async (reset = false) => {
-      if (busyRef.current) return;
-      busyRef.current = true;
-      if (reset) {
+    async (page: number) => {
+      if (loadingMore) return;
+      if (page === 1) {
         setIsInitialLoading(true);
       } else {
         setLoadingMore(true);
       }
       try {
-        const nextPage = reset ? 1 : currentPageRef.current;
         const result = await fetchUsers({
-          page: nextPage,
-          limit: MEMBERS_PER_LOAD,
+          page,
+          limit: MEMBERS_PER_PAGE,
         }).unwrap();
-        const base = reset ? [] : membersRef.current;
-        const existingIds = new Set(base.map((m) => m.id));
-        const incoming = result.data.filter((m) => !existingIds.has(m.id));
-        const merged = reset ? incoming : [...base, ...incoming];
-        membersRef.current = merged;
-        setMembers(merged);
-        currentPageRef.current = nextPage + 1;
-        setHasMorePages(
-          (result.total !== undefined && result.total > merged.length) ||
-            result.data.length === MEMBERS_PER_LOAD
-        );
+        setMembers(result.data);
+        setCurrentPage(page);
+        setTotalMembers(result.total ?? result.data.length);
       } catch (error) {
         console.error("Failed to load members:", error);
       } finally {
-        busyRef.current = false;
         setIsInitialLoading(false);
         setLoadingMore(false);
       }
     },
-    [fetchUsers]
+    [fetchUsers, loadingMore]
   );
 
-  const memberDataRefetch = useCallback(() => loadMembers(true), [loadMembers]);
-
-  const loadMoreMembers = useCallback(() => {
-    if (!loadingMore && hasMorePages) loadMembers(false);
-  }, [loadingMore, hasMorePages, loadMembers]);
+  const memberDataRefetch = useCallback(() => loadMembers(currentPage), [loadMembers, currentPage]);
 
   useEffect(() => {
-    loadMembers(true);
+    loadMembers(1);
   }, [loadMembers]);
-
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el || !hasMorePages || loadingMore) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) loadMoreMembers();
-      },
-      { rootMargin: "150px" }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [hasMorePages, loadingMore, loadMoreMembers]);
 
   const {
     data: cohortsData,
@@ -439,7 +406,10 @@ const MembersPage = () => {
           <Skeleton className="h-5 w-48" />
         ) : (
           <p className="text-sm text-gray-500 mt-2">
-            Found <b>{filteredMembers.length}</b> members matching your criteria.
+            Showing <b>{members.length}</b> of <b>{totalMembers}</b> members.
+            {filteredMembers.length !== members.length && (
+              <> <b>{filteredMembers.length}</b> match your filters.</>
+            )}
           </p>
         )}
       </div>
@@ -500,19 +470,62 @@ const MembersPage = () => {
         <EmptyState isFiltered={true} />
       )}
 
-      {(hasMorePages || loadingMore) && (
-        <div
-          ref={sentinelRef}
-          className="flex justify-center mt-6 p-4"
-        >
-          <button
-            onClick={loadMoreMembers}
-            disabled={loadingMore}
-            className="flex items-center gap-2 px-6 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-wait transition-colors"
-          >
-            <MdExpandMore className="w-5 h-5" />
-            {loadingMore ? "Loading more members..." : "Load more members"}
-          </button>
+      {totalMembers > MEMBERS_PER_PAGE && (
+        <div className="flex items-center justify-between mt-6 px-4 py-3 bg-white rounded-xl shadow-lg">
+          <p className="text-sm text-gray-500">
+            Page <b>{currentPage}</b> of <b>{Math.ceil(totalMembers / MEMBERS_PER_PAGE)}</b>
+          </p>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => loadMembers(currentPage - 1)}
+              disabled={currentPage === 1 || loadingMore}
+              className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Previous
+            </button>
+            {Array.from({ length: Math.ceil(totalMembers / MEMBERS_PER_PAGE) }, (_, i) => i + 1)
+              .filter((page) => {
+                const totalPages = Math.ceil(totalMembers / MEMBERS_PER_PAGE);
+                if (totalPages <= 7) return true;
+                if (page === 1 || page === totalPages) return true;
+                if (Math.abs(page - currentPage) <= 1) return true;
+                return false;
+              })
+              .reduce<(number | "ellipsis")[]>((acc, page, idx, arr) => {
+                if (idx > 0 && page - (arr[idx - 1] as number) > 1) {
+                  acc.push("ellipsis");
+                }
+                acc.push(page);
+                return acc;
+              }, [])
+              .map((item, idx) =>
+                item === "ellipsis" ? (
+                  <span key={`ellipsis-${idx}`} className="px-2 py-1.5 text-sm text-gray-400">
+                    ...
+                  </span>
+                ) : (
+                  <button
+                    key={item}
+                    onClick={() => loadMembers(item)}
+                    disabled={loadingMore}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                      item === currentPage
+                        ? "bg-primary text-white"
+                        : "text-gray-700 bg-white border border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    {item}
+                  </button>
+                )
+              )}
+            <button
+              onClick={() => loadMembers(currentPage + 1)}
+              disabled={currentPage >= Math.ceil(totalMembers / MEMBERS_PER_PAGE) || loadingMore}
+              className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
     </div>

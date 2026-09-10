@@ -19,6 +19,15 @@ export interface StatsResponse {
   sentNotifications: number;
 }
 
+export interface ActivityTrendPoint {
+  date: string;
+  count: number;
+}
+
+export interface ActivityTrendResponse {
+  data: ActivityTrendPoint[];
+}
+
 export interface LoginRequest {
   email: string;
   password: string;

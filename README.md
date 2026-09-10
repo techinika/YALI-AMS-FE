@@ -137,7 +137,7 @@ NEXT_PUBLIC_WS_URL=ws://localhost:9000
 
 ### Dashboard Pages
 - **Organizations** - Manage organizations, working sectors, and associations
-- **Members** - View, search, filter, and register new members with Excel import/export; the directory loads server-side pages (50/page) with infinite-scroll "Load more", and bulk import runs in the background
+- **Members** - View, search, filter, and register new members with Excel import/export; the directory loads server-side pages (20/page) with numbered pagination and a live total count, and bulk import runs in the background
 - **Matching** - AI-powered member matching by interests with background processing, live status polling, and past-request history
 - **Notifications** - Notification center with read/unread tracking, per-notification action buttons, and setup configuration
 - **Profile** - User profile viewing and updates
@@ -172,7 +172,7 @@ All slices are located in `lib/features/`:
 | `notificationSlice.ts` | Notifications API |
 | `activitySlice.ts` | Activity logs API |
 | `matchMakingSlice.ts` | AI matchmaking API (submit request, history, live status polling) |
-| `statsSlice.ts` | Dashboard statistics API |
+| `statsSlice.ts` | Dashboard statistics API (aggregate counts + 7-day activity trend) |
 | `chatSlice.ts` | Chat API (private + group messaging, 19 endpoints) |
 
 ### RTK Query APIs
@@ -232,9 +232,10 @@ The app uses RTK Query for all API calls. Base configuration in `lib/fetchBaseQu
 - Implemented skeleton loading state with `NotificationSkeleton` component
 
 ### Dashboard Home (`/dashboard`)
-- Wrapped `StatCard` and `TopUsersCard` components with `React.memo`
+- Wrapped `StatCard`, `TopUsersCard`, and `ActivityTrendCard` components with `React.memo`
 - Used static Tailwind class maps instead of dynamic string interpolation
 - Implemented skeleton loading state for loading states
+- **7-Day Activity Trend** rendered as a CSS bar chart fed by `GET /stats/activity-trend` (`useActivityTrendQuery`), with per-day message counts and weekday labels — no chart library dependency
 
 ### RTK Query Optimizations
 - Added `invalidatesTags` to mutation endpoints for automatic cache invalidation
@@ -255,11 +256,14 @@ The app uses RTK Query for all API calls. Base configuration in `lib/fetchBaseQu
 ### Members Page
 - Removed the all-or-nothing `isAnyLoading` blocker; the table skeleton now only shows while members load and filters render immediately
 - Removed native country FilterDropdown in favor of the shared Combobox
-- **Server-side pagination:** the directory is fetched 50 rows at a time via `useLazyUsersQuery({ page, limit })` and appended (deduped by id) as the user scrolls (`IntersectionObserver`) or clicks "Load more", with `hasMore` driven by the backend `total`. The shared `users` query now defaults to `limit=500` / falls back to the backend default of 100 (max 1000), so the members list can show the full member count that dashboard stats report
+- **Server-side pagination:** the directory is fetched 20 rows at a time via `useLazyUsersQuery({ page, limit: 20 })`. Numbered page buttons (with ellipses for large page counts), plus Previous/Next links, drive page changes — replacing the old infinite-scroll loader. The footer shows "Page X of Y" and the summary line shows "Showing X of Y members" using the backend `total`. The shared `users` query defaults to `limit=500` / falls back to the backend default of 100 (max 1000)
 - `ProfilePage` waits on the auth user / `getOneUser` result before rendering (via `getUserOrCache` in `helpers/auth.ts`), with a guard that skips the update submit until the target user has loaded — no more flash-of-empty screens or bogus empty submits
 
 ### Private Chat (`/chat`)
 - The backend now returns private chats paginated (default 200, max 500, newest-first); `IndividualChatPage` re-sorts replies by `createdAt desc` so the conversation stays in the expected order regardless of page size
+- The chat layout fills the viewport cleanly at `80vh` with its own internal scroll (sidebar, message list, and composer), so the page never overflows into the layout's footer
+- Switching recipients clears the previous conversation's messages immediately (tracked via a ref), so opening a new chat — from the sidebar or the "Start new chat" user search — shows an empty conversation instead of stale messages below the new header
+- The sidebar's user search and the member list share a single `useUsersQuery` instance (the duplicate query hook was removed), reducing API traffic and avoiding rate-limit (423) errors during quick chat switching
 
 ### AI Matchmaking Page (`/matching`)
 - Interest dropdown now closes on outside click (container ref + `mousedown` listener)

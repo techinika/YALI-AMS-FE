@@ -8,9 +8,8 @@ import {
   Bell,
   BarChart,
   Trophy,
-  Activity,
 } from "lucide-react";
-import { useStatsQuery } from "@/lib/features/statsSlice";
+import { useStatsQuery, useActivityTrendQuery } from "@/lib/features/statsSlice";
 import Link from "next/link";
 import { useTopMembersQuery } from "@/lib/features/chatSlice";
 import { Member } from "@/types/user";
@@ -128,9 +127,51 @@ const TopUsersCard: React.FC<{
   </div>
 ));
 
+const ActivityTrendCard: React.FC<{ trend?: { date: string; count: number }[] }> = React.memo(
+  ({ trend }) => {
+    const data = trend || [];
+    const maxCount = Math.max(...data.map((d) => d.count), 1);
+
+    return (
+      <div className="bg-white p-6 rounded-2xl shadow-lg h-96 flex flex-col">
+        <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+          <BarChart className="w-5 h-5 mr-2 text-primary" />
+          7-Day Activity Trend
+        </h3>
+        <div className="flex-1 flex items-end gap-2 px-2 pb-6 pt-2">
+          {data.length > 0 ? (
+            data.map((day) => {
+              const height = Math.max((day.count / maxCount) * 100, 2);
+              const dayLabel = new Date(day.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" });
+              return (
+                <div key={day.date} className="flex-1 flex flex-col items-center gap-1">
+                  <span className="text-xs font-semibold text-gray-600">{day.count}</span>
+                  <div className="w-full flex items-end" style={{ height: "200px" }}>
+                    <div
+                      className="w-full bg-primary rounded-t-lg transition-all duration-500 hover:bg-primary/80"
+                      style={{ height: `${height}%` }}
+                      title={`${day.count} messages on ${day.date}`}
+                    />
+                  </div>
+                  <span className="text-xs text-gray-400 mt-1">{dayLabel}</span>
+                </div>
+              );
+            })
+          ) : (
+            <div className="flex-1 flex justify-center items-center text-gray-400">
+              <p>No activity data available yet.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  },
+);
+
 const DashboardHome = () => {
   const { data: StatsData, isLoading } = useStatsQuery(undefined);
   const { data: TopMembersData } = useTopMembersQuery(undefined);
+  const { data: trendData } = useActivityTrendQuery(7);
 
   const stats = useMemo(
     () => [
@@ -192,21 +233,6 @@ const DashboardHome = () => {
     );
   }
 
-  const ActivityTrendCard = () => (
-    <div className="bg-white p-6 rounded-2xl shadow-lg h-96 flex flex-col">
-      <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
-        <BarChart className="w-5 h-5 mr-2 text-primary" />
-        7-Day Activity Trend
-      </h3>
-      <div className="flex-1 flex justify-center items-center bg-gray-50 rounded-lg border border-dashed border-gray-200 text-gray-400">
-        <p>
-          <br />
-          Chart Placeholder: Messaging Volume
-        </p>
-      </div>
-    </div>
-  );
-
   return (
     <div className="p-4 sm:p-6 lg:p-8 bg-gray-100 min-h-full font-sans">
       <h1 className="text-3xl font-extrabold text-gray-900 mb-6">
@@ -232,7 +258,7 @@ const DashboardHome = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <ActivityTrendCard />
+          <ActivityTrendCard trend={trendData?.data} />
         </div>
 
         <TopUsersCard TopMembersData={TopMembersData} />
