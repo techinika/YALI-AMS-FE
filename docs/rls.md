@@ -58,6 +58,9 @@ Identity comes from `auth.uid()` only — never from client-supplied user ids.
 | `is_conversation_subscribed(conv)` | True if any membership row (incl. pending) or creator | yes |
 | `get_profile_contact(user_id)` | Conditional phone/WhatsApp | yes |
 | `admin_export_members()` | Admin-only member export incl. contacts and organizations | admins only |
+| `dashboard_stats()` | Global member/message/notification counts | yes |
+| `dashboard_activity_trend(days)` | Messages per day (1–30 days) | yes |
+| `dashboard_top_members(limit)` | Most active members by message count | yes |
 | `notify_user(...)` | Insert a notification | no (service/definer only) |
 | `log_activity(...)` | Insert an activity log | no (service/definer only) |
 | `generate_profile_update_notifications()` | Hourly reminder | no (pg_cron only) |

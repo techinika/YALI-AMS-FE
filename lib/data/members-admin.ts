@@ -100,7 +100,7 @@ export async function updateMember(userId: string, fields: MemberUpdateFields, a
 }
 
 export async function reinviteMember(userId: string) {
-  return invoke<{ inviteLink: string | null }>({ action: "reinivite", userId });
+  return invoke<{ inviteLink: string | null }>({ action: "reinvite", userId });
 }
 
 export async function deleteMember(userId: string) {

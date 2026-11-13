@@ -2,16 +2,13 @@ import { getSupabaseBrowserClient } from "./client";
 
 export async function getDashboardStats() {
   const supabase = getSupabaseBrowserClient();
-  const [users, messages, unopened, sent] = await Promise.all([
-    supabase.from("profiles").select("id", { count: "exact", head: true }).neq("status", "deleted"),
-    supabase.from("messages").select("id", { count: "exact", head: true }),
-    supabase.from("notifications").select("id", { count: "exact", head: true }).eq("opened", false),
-    supabase.from("notifications").select("id", { count: "exact", head: true }),
-  ]);
+  const { data, error } = await supabase.rpc("dashboard_stats");
+  if (error) throw error;
+  const row = data?.[0];
   return {
-    users: users.count ?? 0,
-    messages: messages.count ?? 0,
-    notificationsUnopened: unopened.count ?? 0,
-    sentNotifications: sent.count ?? 0,
+    users: Number(row?.users ?? 0),
+    messages: Number(row?.messages ?? 0),
+    notificationsUnopened: Number(row?.notifications_unopened ?? 0),
+    sentNotifications: Number(row?.sent_notifications ?? 0),
   };
 }

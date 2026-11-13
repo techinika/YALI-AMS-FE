@@ -990,6 +990,32 @@ export type Database = {
           updated_at: string;
         }[];
       };
+      dashboard_activity_trend: {
+        Args: { p_days?: number };
+        Returns: {
+          day: string;
+          message_count: number;
+        }[];
+      };
+      dashboard_stats: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          users: number;
+          messages: number;
+          notifications_unopened: number;
+          sent_notifications: number;
+        }[];
+      };
+      dashboard_top_members: {
+        Args: { p_limit?: number };
+        Returns: {
+          id: string;
+          first_name: string;
+          last_name: string;
+          avatar_path: string | null;
+          message_count: number;
+        }[];
+      };
       generate_profile_update_notifications: {
         Args: Record<PropertyKey, never>;
         Returns: number;

@@ -255,7 +255,12 @@ Deno.serve(async (req) => {
       for (const column of ["gender_id", "cohort_id"]) {
         if (column in fields) patch[column] = toInt(fields[column]);
       }
-      patch.nearest_landmark = clean(fields.nearlestLandmark ?? fields.nearestLandmark ?? null);
+      if ("nearest_landmark" in fields) {
+        patch.nearest_landmark = clean(fields.nearest_landmark);
+      }
+      if ("nearlestLandmark" in fields) {
+        patch.nearest_landmark = clean(fields.nearlestLandmark);
+      }
       if (isAdmin && "status" in fields && ["invited", "active", "inactive", "deleted"].includes(String(fields.status))) {
         patch.status = fields.status;
       }
@@ -303,7 +308,7 @@ Deno.serve(async (req) => {
       return json({ user: { id: userId } });
     }
 
-    if (action === "reinivite") {
+    if (action === "reinvite") {
       const userId = clean(body.userId);
       if (!userId) return json({ error: "userId is required" }, 400);
       const { data: target, error: targetError } = await admin

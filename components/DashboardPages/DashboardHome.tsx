@@ -5,6 +5,8 @@ import { User, MessageSquare, Clock, Bell, BarChart3, Trophy } from "lucide-reac
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { getDashboardStats } from "@/lib/data/stats";
+import { listActivityTrend, listTopMembers } from "@/lib/data/activity";
+import { useCurrentUser } from "@/lib/data/use-current-user";
 import { RecentEventsCard } from "../parts/RecentEvents";
 
 type Tone = "brand" | "amber" | "green" | "rose";
@@ -48,10 +50,108 @@ const StatCard: React.FC<StatCardProps> = React.memo(({ title, value, icon, href
 });
 StatCard.displayName = "StatCard";
 
+const ActivityTrendCard = ({
+  points,
+  loading,
+}: {
+  points?: { date: string; count: number }[];
+  loading?: boolean;
+}) => {
+  const max = Math.max(1, ...(points ?? []).map((point) => point.count));
+  return (
+    <div className="flex min-h-[20rem] flex-col rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
+      <h2 className="mb-4 flex items-center text-lg font-semibold text-foreground">
+        <BarChart3 className="mr-2 h-5 w-5 text-primary" aria-hidden="true" />
+        7-day activity trend
+      </h2>
+      {loading ? (
+        <div className="flex flex-1 items-end gap-2">
+          {Array.from({ length: 7 }).map((_, i) => (
+            <div key={i} className="h-40 flex-1 animate-pulse rounded-t bg-muted" />
+          ))}
+        </div>
+      ) : (points?.length ?? 0) > 0 ? (
+        <ul className="flex flex-1 items-end gap-2" aria-label="Messages per day">
+          {points?.map((point) => (
+            <li key={point.date} className="flex flex-1 flex-col items-center gap-2">
+              <div className="flex h-40 w-full items-end" title={`${point.count} messages`}>
+                <div
+                  className="w-full rounded-t bg-primary/70 transition-[height] duration-300"
+                  style={{ height: `${Math.max(4, Math.round((point.count / max) * 100))}%` }}
+                />
+              </div>
+              <span className="text-[10px] text-muted-foreground">{point.date.slice(5)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center">
+          <p className="text-sm text-muted-foreground">No messages yet.</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const TopMembersCard = ({
+  members,
+  loading,
+}: {
+  members?: { id: string; firstName: string; lastName: string; avatarPath: string | null; messageCount: number }[];
+  loading?: boolean;
+}) => {
+  return (
+    <section aria-label="Top members" className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
+      <h2 className="mb-4 flex items-center text-lg font-semibold text-foreground">
+        <Trophy className="mr-2 h-5 w-5 text-amber-600" aria-hidden="true" />
+        Top active members
+      </h2>
+      {loading ? (
+        <ul className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <li key={i} className="h-10 animate-pulse rounded-lg bg-muted" />
+          ))}
+        </ul>
+      ) : (members?.length ?? 0) > 0 ? (
+        <ol className="space-y-3">
+          {members?.map((member, index) => (
+            <li key={member.id} className="flex items-center gap-3">
+              <span className="w-5 text-sm font-semibold text-muted-foreground">{index + 1}</span>
+              {member.avatarPath ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={member.avatarPath} alt="" className="h-9 w-9 rounded-full object-cover" />
+              ) : (
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-primary">
+                  {`${member.firstName.charAt(0)}${member.lastName.charAt(0)}`}
+                </span>
+              )}
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                {[member.firstName, member.lastName].filter(Boolean).join(" ")}
+              </span>
+              <span className="text-xs text-muted-foreground">{member.messageCount.toLocaleString()} messages</span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="text-sm text-muted-foreground">No activity yet.</p>
+      )}
+    </section>
+  );
+};
+
 export default function DashboardHome() {
+  const { role } = useCurrentUser();
   const { data: stats, isLoading } = useQuery({
     queryKey: ["dashboard", "stats"],
     queryFn: getDashboardStats,
+  });
+  const { data: trend, isLoading: trendLoading } = useQuery({
+    queryKey: ["dashboard", "trend"],
+    queryFn: () => listActivityTrend(7),
+  });
+  const { data: topMembers, isLoading: topMembersLoading } = useQuery({
+    queryKey: ["dashboard", "top-members"],
+    queryFn: () => listTopMembers(3),
   });
 
   const cards = useMemo(
@@ -79,28 +179,15 @@ export default function DashboardHome() {
         </div>
       </section>
 
-      <section aria-label="Activity and insights" className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <RecentEventsCard />
-        <div className="flex min-h-[20rem] flex-col rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-          <h2 className="mb-4 flex items-center text-lg font-semibold text-foreground">
-            <BarChart3 className="mr-2 h-5 w-5 text-primary" aria-hidden="true" />
-            Activity trend
-          </h2>
-          <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center">
-            <p className="text-sm text-muted-foreground">Activity trend will appear here after analytics migration is complete.</p>
-          </div>
-        </div>
+      <section
+        aria-label="Activity and insights"
+        className={`grid grid-cols-1 gap-6 ${role === "admin" ? "xl:grid-cols-2" : ""}`}
+      >
+        {role === "admin" && <RecentEventsCard />}
+        <ActivityTrendCard points={trend} loading={trendLoading} />
       </section>
 
-      <section aria-label="Top members" className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-        <h2 className="mb-2 flex items-center text-lg font-semibold text-foreground">
-          <Trophy className="mr-2 h-5 w-5 text-amber-600" aria-hidden="true" />
-          Top members
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Top members and chat analytics will be available after chat and message migration is complete.
-        </p>
-      </section>
+      <TopMembersCard members={topMembers} loading={topMembersLoading} />
     </div>
   );
 }
