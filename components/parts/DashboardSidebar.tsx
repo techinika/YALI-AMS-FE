@@ -1,180 +1,92 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { NAVIGATION, type NavDivider, type NavHeader, type NavItem, type NavItemType } from "../Other/Sidebar";
 import SidebarFooterAccount from "./SidebarFooter";
-import { MdKeyboardArrowRight } from "react-icons/md";
-import { NavDivider, NavHeader, NavItem, NavItemType } from "@/types/sidebar";
-import { NAVIGATION } from "../Other/Sidebar";
-import { getUser } from "@/helpers/auth";
 
 type SidebarProps = {
+  isAdmin: boolean;
   isSidebarOpen: boolean;
-  setIsSidebarOpen: (value: boolean) => void;
+  collapsed: boolean;
+  onNavigate?: () => void;
 };
 
-const NavItemComponent = ({
+function isActive(pathname: string, segment: string) {
+  return pathname === segment || (segment !== "/dashboard" && pathname.startsWith(segment + "/"));
+}
+
+const NavLink = ({
   item,
-  isSidebarOpen,
+  collapsed,
+  onNavigate,
 }: {
   item: NavItem;
-  isSidebarOpen: boolean;
+  collapsed: boolean;
+  onNavigate?: () => void;
 }) => {
   const pathname = usePathname();
-  const isCurrentPathExact = pathname === item.segment.split("#")[0];
+  const active = isActive(pathname, item.segment);
+  const Icon = item.icon;
+  const base =
+    "group relative flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+  const state = active
+    ? "bg-primary text-primary-foreground shadow-sm"
+    : "text-foreground hover:bg-accent hover:text-accent-foreground";
 
-  const [isExpanded, setIsExpanded] = React.useState(
-    item.children
-      ? item.children.some((child) =>
-          pathname.startsWith(child.segment.split("#")[0])
-        )
-      : false
-  );
-
-  const isActive = isCurrentPathExact;
-  const hasChildrenActive = item.children?.some((child) =>
-    pathname.startsWith(child.segment.split("#")[0])
-  );
-
-  const linkClasses = `flex items-center py-2 px-3 rounded-lg transition-colors ${
-    isActive
-      ? "bg-primary text-white font-semibold shadow-md"
-      : "text-gray-700 hover:bg-gray-100"
-  }`;
-
-  const parentClasses = `flex items-center py-2 px-3 rounded-lg transition-colors cursor-pointer ${
-    hasChildrenActive || isExpanded
-      ? "bg-gray-100 text-primary font-medium"
-      : "text-gray-700 hover:bg-gray-100"
-  }`;
-
-  if (!isSidebarOpen) {
-    return (
-      <div className="relative group">
-        <Link
-          href={item.segment}
-          className={`flex justify-center items-center h-10 w-10 mx-auto my-1 rounded-lg transition-colors 
-${isActive ? "bg-primary text-white" : "text-gray-500 hover:bg-gray-100"}`}
-        >
-          {item.icon}
-        </Link>
-        <span className="absolute left-full ml-4 top-1/2 -translate-y-1/2 z-20 whitespace-nowrap px-3 py-1 text-sm font-medium text-white bg-gray-700 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg">
+  return (
+    <Link
+      href={item.segment}
+      onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
+      className={`${base} ${state} ${collapsed ? "justify-center" : "gap-3"}`}
+      title={collapsed ? item.title : undefined}
+    >
+      <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+      {!collapsed && <span className="truncate">{item.title}</span>}
+      {collapsed && (
+        <span className="pointer-events-none absolute left-full ml-3 hidden whitespace-nowrap rounded-md bg-foreground px-2.5 py-1.5 text-xs font-medium text-background shadow-lg group-hover:block group-focus-visible:block">
           {item.title}
         </span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mb-1">
-      {item.children ? (
-        <div>
-          <button
-            type="button"
-            className={parentClasses}
-            aria-expanded={isExpanded}
-            onClick={() => setIsExpanded((prev) => !prev)}
-          >
-            {item.icon}
-            <span className="ml-3 flex-1">{item.title}</span>
-            <MdKeyboardArrowRight
-              className={`w-5 h-5 transition-transform ${
-                isExpanded ? "rotate-90" : "rotate-0"
-              }`}
-            />
-          </button>
-          {isExpanded && (
-            <div className="ml-4 mt-1 border-l border-gray-300 pl-3">
-              {item.children.map((child, index) => (
-                <Link
-                  key={index + 1}
-                  href={child.segment}
-                  className={`flex items-center py-1.5 px-2 text-sm rounded-lg transition-colors ${
-                    pathname.startsWith(child.segment.split("#")[0])
-                      ? "bg-blue-100 text-primary font-medium"
-                      : "text-gray-600 hover:bg-gray-100"
-                  }`}
-                >
-                  {child.title}
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
-        <Link href={item.segment} passHref className={linkClasses}>
-          {item.icon}
-          <span className="ml-3 flex-1">{item.title}</span>
-          {item.action}
-        </Link>
       )}
-    </div>
+    </Link>
   );
 };
 
-const Sidebar = ({ isSidebarOpen, setIsSidebarOpen }: SidebarProps) => {
-  const user = getUser();
+export default function Sidebar({ isAdmin, isSidebarOpen, collapsed, onNavigate }: SidebarProps) {
+  const items = NAVIGATION.filter((item) => !item.onlyAdmin || isAdmin);
+
   const renderItem = (item: NavItemType, index: number) => {
-    switch ((item as NavHeader | NavDivider).kind) {
-      case "header":
-        return (
-          <h3
-            key={index}
-            className="text-xs font-semibold uppercase text-gray-500 px-3 pt-4 pb-2 mt-4"
-          >
-            {(item as NavHeader).title}
-          </h3>
-        );
-      case "divider":
-        return <hr key={index} className="border-gray-200 my-4" />;
-      default:
-        return (
-          <NavItemComponent
-            key={index}
-            item={item as unknown as NavItem}
-            isSidebarOpen={isSidebarOpen}
-          />
-        );
+    if ((item as NavHeader).kind === "header") {
+      if (collapsed) return <div key={index} className="my-2 border-t border-sidebar-border" aria-hidden="true" />;
+      return (
+        <h3 key={index} className="px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {(item as NavHeader).title}
+        </h3>
+      );
     }
+    if ((item as NavDivider).kind === "divider") {
+      return <hr key={index} className="my-2 border-sidebar-border" />;
+    }
+    return <NavLink key={index} item={item as NavItem} collapsed={collapsed} onNavigate={onNavigate} />;
   };
 
-  const filteredItems = NAVIGATION.filter((item) => {
-    if (item.onlyAdmin) {
-      return user?.role?.name === "ADMIN";
-    }
-
-    return true;
-  });
-
   return (
-    <div
-      className={`h-full bg-white text-gray-800 flex flex-col transition-all duration-300 ease-in-out fixed left-0 top-0 z-30 shadow-xl ${
-        isSidebarOpen ? "w-64" : "w-20"
-      }`}
-    >
-      <div
-        className={`flex items-center p-4 border-b border-gray-200 h-16 ${
-          !isSidebarOpen && "justify-center"
-        }`}
-      >
-        <img
-          src="/yali.png"
-          alt="YALI AMS logo"
-          className={isSidebarOpen ? "h-8 mr-2" : "h-8"}
-        />
-        {isSidebarOpen && (
-          <span className="text-xl font-bold text-primary">YALI AMS</span>
-        )}
+    <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
+      <div className={`flex h-16 items-center border-b border-sidebar-border px-4 ${collapsed ? "justify-center" : "gap-2"}`}>
+        <Image src="/yali.png" alt="YALI AMS logo" width={32} height={32} className="h-8 w-8" priority />
+        {!collapsed && <span className="text-lg font-bold text-primary">YALI AMS</span>}
       </div>
-      <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-        {filteredItems.map(renderItem)}
+      <nav aria-label="Primary" className="flex-1 overflow-y-auto p-3">
+        <ul className="space-y-1">
+          {items.map((item, i) => (
+            <li key={i}>{renderItem(item, i)}</li>
+          ))}
+        </ul>
       </nav>
-      <div className="p-0">
-        <SidebarFooterAccount mini={!isSidebarOpen} />
-      </div>
+      <SidebarFooterAccount mini={collapsed} />
     </div>
   );
-};
-
-export default Sidebar;
+}

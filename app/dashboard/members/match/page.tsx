@@ -1,12 +1,7 @@
-import { AIInterestMatching } from "@/components/DashboardPages/AIInterestMatching";
-import React from "react";
+import { InterestMatching } from "@/components/DashboardPages/InterestMatching";
 
 function page() {
-  return (
-    <div>
-      <AIInterestMatching />
-    </div>
-  );
+  return <InterestMatching />;
 }
 
 export default page;

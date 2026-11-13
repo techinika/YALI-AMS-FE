@@ -1,6 +1,6 @@
 "use client";
 
-import { useImportUsersMutation } from "@/lib/features/userSlice";
+import { importMembers, type NewMemberInput } from "@/lib/data/members-admin";
 import { toastError, toastSuccess } from "@/lib/toast";
 import React, { useState, ChangeEvent, useMemo } from "react";
 import { MdClose, MdUpload, MdCloudUpload, MdError } from "react-icons/md";
@@ -54,13 +54,52 @@ const parseCSV = (text: string): string[][] => {
   return rows;
 };
 
+const HEADER_ALIASES: Record<string, string[]> = {
+  firstName: ["First Name", "firstName"],
+  middleName: ["Middle Name", "middleName"],
+  lastName: ["Last Name", "lastName"],
+  email: ["Email Address", "Email", "email"],
+  phoneNumber: ["Phone Number", "phoneNumber"],
+  whatsAppNumber: ["WhatsApp Number", "whatsAppNumber"],
+  linkedin: ["LinkedIn Profile", "linkedin"],
+  instagram: ["Instagram Profile", "instagram"],
+  facebook: ["Facebook Profile", "facebook"],
+  twitter: ["X (Twitter) Account", "twitter"],
+  bio: ["Biography", "bio"],
+  countryName: ["Country of Residence", "countryName"],
+  stateName: ["State/Province (If not in Rwanda)", "stateName"],
+  districtName: ["District of Residence", "districtName"],
+  sectorName: ["Sector of Residence", "sectorName"],
+  nearlestLandmark: ["Nearest Landmark", "nearlestLandmark"],
+  cohortName: ["Cohort", "cohortName"],
+  trackName: ["Track", "trackName"],
+  genderName: ["Gender", "genderName"],
+  avatarUrl: ["Profile Picture Link", "avatarUrl"],
+};
+
+function mapImportRow(row: Record<string, string>): NewMemberInput {
+  const pick = (aliases: string[]) => {
+    for (const alias of aliases) {
+      const value = row[alias];
+      if (typeof value === "string" && value.trim() !== "") return value.trim();
+    }
+    return undefined;
+  };
+
+  const result: Record<string, string | undefined> = {};
+  for (const [field, aliases] of Object.entries(HEADER_ALIASES)) {
+    result[field] = pick(aliases);
+  }
+
+  return result as unknown as NewMemberInput;
+}
+
 const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
   const [file, setFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const [importUsers] = useImportUsersMutation();
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -224,19 +263,23 @@ const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
     setUploadError(null);
 
     try {
-      const response = await importUsers({
-        data: previewData,
-      }).unwrap();
-
-      toastSuccess(
-        response?.message ||
-          "Import started in the background. You will be notified when it is done."
-      );
+      if (previewData.length > 500) {
+        toastError("Import is limited to 500 members per batch.");
+        return;
+      }
+      const rows = previewData.map(mapImportRow);
+      const result = await importMembers(rows);
+      if (result.failed.length > 0) {
+        toastError(`${result.created} imported, ${result.failed.length} failed. Check the console for details.`);
+        console.error("Import failures", result.failed);
+      } else {
+        toastSuccess(`${result.created} members imported.`);
+      }
       setFile(null);
       setPreviewData([]);
       closeModal();
-    } catch (error: any) {
-      toastError(error?.data?.message || "Import failed. Please try again.");
+    } catch (error) {
+      toastError(error instanceof Error ? error.message : "Import failed. Please try again.");
     } finally {
       setIsUploading(false);
       setUploadError(null);

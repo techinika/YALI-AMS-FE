@@ -3,12 +3,13 @@
 import { PlusCircle } from "lucide-react";
 import DisplayField from "../../ui/DisplayField";
 import { NoOrg } from "../profile/ShowOrganizations";
-import { useRemoveUserOrganizationMutation } from "@/lib/features/userSlice";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { useState } from "react";
 import ConfirmModal from "../models/confirmModal";
 import { useRouter } from "next/navigation";
 import OrganizationLinkModal from "../models/OrganizationLinkModal";
+import { removeUserOrganization } from "@/lib/data/organizations";
+import { useQueryClient } from "@tanstack/react-query";
 
 export const ShowOrganizationToUpdate = ({
   orgs,
@@ -22,6 +23,7 @@ export const ShowOrganizationToUpdate = ({
   organizations: any[];
 }) => {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const initDeleteData = {
     orgId: "",
     userId: "",
@@ -33,19 +35,20 @@ export const ShowOrganizationToUpdate = ({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [orgLinkModalOpen, setOrgLinkModalOpen] = useState(false);
 
-  const [removeUserOrganization] = useRemoveUserOrganizationMutation();
-
   const handleRemoveOrganization = async () => {
+    setDeleteLoading(true);
     try {
-      const res = await removeUserOrganization({
-        id: deleteData?.connectionId,
-        organizationId: deleteData?.orgId,
-        userId: userId,
-        relation: deleteData?.relation,
-      }).unwrap();
-      console.log(res);
+      const { error } = await removeUserOrganization(
+        deleteData?.connectionId,
+        userId,
+        deleteData?.orgId
+      );
+      if (error) throw error;
       setDeleteData(initDeleteData);
       toastSuccess("Organization removed successfully!");
+      await queryClient.invalidateQueries({ queryKey: ["user-organizations", userId] });
+      await queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      if (typeof refetch === "function") await refetch();
       router.refresh();
     } catch (error) {
       console.log(error);
@@ -53,7 +56,6 @@ export const ShowOrganizationToUpdate = ({
         "Error removing the organization, please try again or contact support."
       );
     } finally {
-      refetch();
       setDeleteLoading(false);
       setDeleteOpen(false);
     }
@@ -68,7 +70,7 @@ export const ShowOrganizationToUpdate = ({
       {deleteOpen && (
         <ConfirmModal
           title="REMOVE ORGANIZATION"
-          description="Are you sure you want to delete this organization, please not that this organization will only be removed from your profile. You can add it again later if you wish."
+          description="Are you sure you want to remove this organization from your profile? You can add it again later if you wish."
           confirmText="Remove"
           cancelText="Cancel"
           isLoading={deleteLoading}
@@ -95,7 +97,7 @@ export const ShowOrganizationToUpdate = ({
       </div>
       {orgs.map((org, index) => (
         <div
-          key={org?.id}
+          key={org?.connectId || org?.id || index}
           className="p-6 rounded-xl border border-gray-200 bg-white shadow-sm"
         >
           <div className="flex items-center justify-between mb-6">
@@ -113,7 +115,7 @@ export const ShowOrganizationToUpdate = ({
                 onClick={() => {
                   setDeleteData({
                     orgId: org?.id,
-                    userId: org?.user,
+                    userId: org?.user || org?.userId || userId,
                     connectionId: org?.connectId,
                     relation: org?.relation,
                   });

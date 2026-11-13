@@ -1,234 +1,172 @@
 "use client";
 
-import { useResetPasswordMutation } from "@/lib/features/authSlice";
+import Image from "next/image";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
-import { CustomInputError } from "../ui/input-error";
-import Header from "./Header";
-import { ErrorType } from "@/types/feedback";
+import { useRef, useState } from "react";
+import { Eye, EyeOff, LoaderCircle } from "lucide-react";
+import { z } from "zod";
+import { getSupabaseBrowserClient } from "@/lib/data/client";
+import { updatePassword } from "@/lib/data/auth";
 
-const ResetPassword = () => {
-  const { token: tokenParam } = useParams();
-  const token = typeof tokenParam === "string" ? tokenParam : "";
-
-  const [credentials, setCredentials] = useState({
-    password: "",
-    cPassword: "",
+const schema = z
+  .object({
+    password: z.string().min(8, "Password must be at least 8 characters."),
+    confirmPassword: z.string().min(1, "Please confirm your new password."),
+  })
+  .refine((d) => d.password === d.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "Passwords do not match.",
   });
 
-  const [errors, setErrors] = useState({
-    password: "",
-    cPassword: "",
-  });
+type Errors = { password?: string; confirmPassword?: string };
 
+export default function ResetPassword() {
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const confirmRef = useRef<HTMLInputElement>(null);
+  const [form, setForm] = useState({ password: "", confirmPassword: "" });
+  const [errors, setErrors] = useState<Errors>({});
   const [generalError, setGeneralError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const [success, setSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  const [resetPassword] = useResetPasswordMutation();
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setCredentials((prev) => ({ ...prev, [name]: value }));
-    setErrors((prev) => ({ ...prev, [name]: "" }));
+    setForm((p) => ({ ...p, [name]: value }));
+    setErrors((p) => ({ ...p, [name]: undefined }));
   };
 
-  const validateForm = () => {
-    let isValid = true;
-    const newErrors = { password: "", cPassword: "" };
-    const { password, cPassword } = credentials;
-
-    if (!password) {
-      newErrors.password = "New password is required";
-      isValid = false;
-    } else if (password.length < 8) {
-      newErrors.password = "Password must be at least 8 characters";
-      isValid = false;
-    }
-
-    if (!cPassword) {
-      newErrors.cPassword = "Please confirm your new password";
-      isValid = false;
-    } else if (password !== cPassword) {
-      newErrors.cPassword = "Passwords must match";
-      isValid = false;
-    }
-
-    setErrors(newErrors);
-    return isValid;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setGeneralError("");
-    setSuccessMessage("");
-
-    if (!validateForm()) {
+    const parsed = schema.safeParse(form);
+    if (!parsed.success) {
+      const fe = parsed.error.flatten().fieldErrors;
+      const next: Errors = { password: fe.password?.[0], confirmPassword: fe.confirmPassword?.[0] };
+      setErrors(next);
+      if (next.password) passwordRef.current?.focus();
+      else if (next.confirmPassword) confirmRef.current?.focus();
       return;
     }
-
     setIsLoading(true);
     try {
-      const result = await resetPassword({
-        token,
-        newPassword: credentials.password,
-      }).unwrap();
-
-      setCredentials({ password: "", cPassword: "" });
-      setSuccessMessage(result.message);
-    } catch (err) {
-      const e = err as unknown as ErrorType;
-      const errorData = e.data || {};
-      if (e?.status === 401 && errorData.error) {
-        setGeneralError(errorData.error);
-      } else {
-        setGeneralError(
-          "Reset Failed! Try again, or contact the administrator!"
-        );
+      const supabase = getSupabaseBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setGeneralError("This password reset link is invalid or has expired. Please request a new one.");
+        return;
       }
+      const { error } = await updatePassword(parsed.data.password);
+      if (error) {
+        setGeneralError("Could not update your password. The link may have expired. Please request a new one.");
+        return;
+      }
+      await supabase.auth.signOut();
+      setSuccess(true);
+    } catch {
+      setGeneralError("An unexpected error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (generalError) {
-      const timer = setTimeout(() => {
-        setGeneralError("");
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [generalError]);
-
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-4">
-      <div className="w-full max-w-md bg-white p-8 sm:p-10 rounded-3xl shadow-2xl border border-blue-200 transition duration-500 ease-in-out hover:shadow-xl">
-        <Header />
+    <main id="main-content" tabIndex={-1} className="flex min-h-screen items-center justify-center bg-background px-4 py-8 outline-none sm:px-6">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
+        <div className="mb-6 flex flex-col items-center text-center">
+          <Image src="/yali.png" alt="YALI Rwanda Chapter logo" width={120} height={120} className="h-auto w-24" priority />
+          <h1 className="mt-4 text-2xl font-bold text-foreground">Set a new password</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Choose a strong password with at least 8 characters.</p>
+        </div>
 
-        <h2 className="text-xl font-semibold text-center text-gray-700 mb-6">
-          Set a New Password
-        </h2>
+        <div aria-live="polite" aria-atomic="true">
+          {generalError && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+              {generalError}
+            </div>
+          )}
+        </div>
 
-        {successMessage ? (
-          <div className="text-center p-6 bg-green-50 rounded-xl border border-green-200 shadow-md">
-            <svg
-              className="w-12 h-12 text-green-500 mx-auto mb-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-              ></path>
-            </svg>
-            <p className="text-lg font-semibold text-green-800 mb-4">
-              {successMessage}
-            </p>
+        {success ? (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800" role="status">
+              Your password has been updated successfully. Please sign in with your new password.
+            </div>
             <Link
-              href="/"
-              className="inline-flex items-center justify-center px-6 py-2 border border-transparent text-sm font-medium rounded-xl shadow-sm text-white bg-primary hover:bg-primary transition"
+              href="/?reset=success"
+              className="inline-flex w-full items-center justify-center rounded-xl bg-primary px-4 py-3 text-base font-semibold text-primary-foreground hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              Go to Login
+              Continue to sign in
             </Link>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-6" method="POST">
-            {generalError && (
-              <div
-                className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl relative transition-all duration-300 shadow-md"
-                role="alert"
-              >
-                <span className="block sm:inline">{generalError}</span>
+          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+            <div>
+              <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-foreground">New password</label>
+              <div className="relative">
+                <input
+                  ref={passwordRef}
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  enterKeyHint="next"
+                  value={form.password}
+                  onChange={handleChange}
+                  aria-invalid={Boolean(errors.password)}
+                  aria-describedby={errors.password ? "password-error" : undefined}
+                  disabled={isLoading}
+                  className="block w-full rounded-xl border border-input bg-background px-4 py-3 pr-12 text-foreground shadow-sm placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-60"
+                  placeholder="At least 8 characters"
+                />
+                <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword}>
+                  {showPassword ? <EyeOff className="h-5 w-5" aria-hidden="true" /> : <Eye className="h-5 w-5" aria-hidden="true" />}
+                </button>
               </div>
-            )}
-
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-semibold text-gray-700 mb-1"
-              >
-                New Password (min 8 chars)
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                value={credentials.password}
-                onChange={handleInputChange}
-                disabled={isLoading}
-                className="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm transition"
-                placeholder="Enter your new password"
-              />
-              <CustomInputError error={errors.password} />
+              {errors.password && <p id="password-error" className="mt-1.5 text-sm text-red-700" role="alert">{errors.password}</p>}
             </div>
 
             <div>
-              <label
-                htmlFor="cPassword"
-                className="block text-sm font-semibold text-gray-700 mb-1"
-              >
-                Repeat Password
-              </label>
-              <input
-                id="cPassword"
-                name="cPassword"
-                type="password"
-                value={credentials.cPassword}
-                onChange={handleInputChange}
-                disabled={isLoading}
-                className="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm transition"
-                placeholder="Repeat the new password"
-              />
-              <CustomInputError error={errors.cPassword} />
+              <label htmlFor="confirmPassword" className="mb-1.5 block text-sm font-medium text-foreground">Confirm new password</label>
+              <div className="relative">
+                <input
+                  ref={confirmRef}
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type={showConfirm ? "text" : "password"}
+                  autoComplete="new-password"
+                  enterKeyHint="done"
+                  value={form.confirmPassword}
+                  onChange={handleChange}
+                  aria-invalid={Boolean(errors.confirmPassword)}
+                  aria-describedby={errors.confirmPassword ? "confirm-error" : undefined}
+                  disabled={isLoading}
+                  className="block w-full rounded-xl border border-input bg-background px-4 py-3 pr-12 text-foreground shadow-sm placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-60"
+                  placeholder="Repeat new password"
+                />
+                <button type="button" onClick={() => setShowConfirm((v) => !v)} className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground" aria-label={showConfirm ? "Hide password confirmation" : "Show password confirmation"} aria-pressed={showConfirm}>
+                  {showConfirm ? <EyeOff className="h-5 w-5" aria-hidden="true" /> : <Eye className="h-5 w-5" aria-hidden="true" />}
+                </button>
+              </div>
+              {errors.confirmPassword && <p id="confirm-error" className="mt-1.5 text-sm text-red-700" role="alert">{errors.confirmPassword}</p>}
             </div>
 
-            <div>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-lg text-lg font-bold text-white bg-primary hover:bg-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition duration-150 transform active:scale-95 ${
-                  isLoading ? "opacity-70 cursor-not-allowed bg-primary" : ""
-                }`}
-              >
-                {isLoading ? (
-                  <span className="flex items-center">
-                    <svg
-                      className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    Resetting...
-                  </span>
-                ) : (
-                  "Reset Password"
-                )}
-              </button>
+            <button
+              type="submit"
+              disabled={isLoading}
+              aria-busy={isLoading}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-base font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {isLoading ? <><LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />Updating password...</> : "Update password"}
+            </button>
+
+            <div className="text-center">
+              <Link href="/" className="text-sm font-medium text-primary hover:text-brand-800 hover:underline">Back to sign in</Link>
             </div>
           </form>
         )}
       </div>
-    </div>
+    </main>
   );
-};
-
-export default ResetPassword;
+}

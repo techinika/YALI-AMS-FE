@@ -1,6 +1,6 @@
 // InviteUserModal.tsx
 "use client";
-import { useInviteUserMutation } from "@/lib/features/userSlice";
+import { inviteMember } from "@/lib/data/members-admin";
 import { toastError, toastSuccess } from "@/lib/toast";
 import React, { useState } from "react";
 import { createPortal } from "react-dom";
@@ -22,60 +22,37 @@ const InviteUserModal: React.FC<InviteUserModalProps> = ({
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [inviteUser, { isLoading }] = useInviteUserMutation();
-
   if (!isOpen || typeof document === "undefined") {
     return null;
   }
 
-  const validateEmail = (email: string) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  };
-
-  const handleInviteUser = async (name: string, email: string) => {
-    try {
-      const response = await inviteUser({
-        firstName: name,
-        email,
-      }).unwrap();
-
-      toastSuccess(`Invitation sent to ${name}!`);
-
-      refetchUsers();
-    } catch (err: any) {
-      console.error("Invite error:", err);
-
-      if (err?.data?.error) {
-        toastError(err.data.error);
-      } else {
-        toastError("Failed to send invitation. Please try again.");
-      }
-    }
-  };
+  const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
     if (!name.trim() || !email.trim()) {
-      setError("Name and Email are required.");
+      setError("Name and email are required.");
       return;
     }
-
     if (!validateEmail(email)) {
       setError("Please enter a valid email address.");
       return;
     }
 
     setIsSubmitting(true);
-
     try {
-      await handleInviteUser(name.trim(), email.trim());
+      await inviteMember({ firstName: name.trim(), email: email.trim() });
+      toastSuccess(`Invitation created for ${name.trim()}.`);
       setName("");
       setEmail("");
+      refetchUsers();
       onClose();
-    } catch {
-      // Error already handled in handleInviteUser
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to send the invitation.";
+      setError(message);
+      toastError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -120,7 +97,7 @@ const InviteUserModal: React.FC<InviteUserModalProps> = ({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
-                disabled={isSubmitting || isLoading}
+                disabled={isSubmitting || isSubmitting}
               />
             </div>
           </div>
@@ -138,7 +115,7 @@ const InviteUserModal: React.FC<InviteUserModalProps> = ({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
-                disabled={isSubmitting || isLoading}
+                disabled={isSubmitting || isSubmitting}
               />
             </div>
           </div>
@@ -153,9 +130,9 @@ const InviteUserModal: React.FC<InviteUserModalProps> = ({
             <button
               type="submit"
               className="flex items-center bg-primary text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-primary/80 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-              disabled={isSubmitting || isLoading}
+              disabled={isSubmitting || isSubmitting}
             >
-              {isSubmitting || isLoading ? (
+              {isSubmitting || isSubmitting ? (
                 <>
                   <svg
                     className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
