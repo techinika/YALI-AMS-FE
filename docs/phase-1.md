@@ -1,13 +1,14 @@
 # Phase 1 — Supabase foundation
 
-Status: **implemented and locally validated; awaiting approval to start Phase 2.**
-Docker is not available in this environment, so `supabase start` / `supabase db
-reset` could not be run end-to-end. The SQL was applied to a local PostgreSQL 18
-cluster with the Supabase-only pieces stubbed (see “Validation” below).
+Status: **implemented and statically validated.** The SQL now lives in this
+repository (`supabase/`) and was parsed with the real PostgreSQL grammar; Docker
+is not available in this environment, so `supabase start` / `supabase db reset`
+could not be run end-to-end. The SQL was previously applied to a local
+PostgreSQL 18 cluster with the Supabase-only pieces stubbed (see “Validation”).
 
 ## What changed
 
-New repo: `YALI-AMS/`
+Repo: `YALI-AMS-FE/` (Supabase files under `supabase/`)
 
 ```
 package.json                         supabase CLI 3.1.0 dev dependency + scripts

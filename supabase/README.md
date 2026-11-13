@@ -7,8 +7,11 @@ This repository replaces the former two-codebase architecture
 (`YALI-AMS-FE` Next.js + `YALI-AMS-BE` Express/Prisma/MySQL). The Express
 backend, Redis, BullMQ, Prisma and Socket.IO are retired.
 
-> Current status: **Phase 1 — Supabase foundation.** The Next.js app is added in
-> Phase 3; see `docs/phase-1.md` for what exists today and how to verify it.
+> Current status: **Single-repo migration complete.** The Next.js app, Supabase
+> migrations, Edge Functions and the MySQL migration tooling now live in this
+> repository; the Express/MySQL backend is retired. The database has not been
+> applied to a hosted project yet, so run `npm run db:start && npm run db:reset`
+> (Docker required) before pointing the app at it.
 
 ## Requirements
 
@@ -36,13 +39,30 @@ The local stack exposes:
 Copy `.env.example` to `.env.local` and fill in the values. Client-exposed
 variables are prefixed `NEXT_PUBLIC_`; server-only secrets never are.
 
+## Edge Functions
+
+Both functions use the service-role key, verify the caller's JWT and require an
+admin `profiles.role` for privileged actions.
+
+```bash
+npx supabase functions deploy admin-members
+npx supabase functions deploy matchmaking
+npx supabase functions logs admin-members
+```
+
+They are Deno/TypeScript and are excluded from the Next.js `tsconfig`; type-check
+them with `deno check supabase/functions/*/index.ts` (requires Deno).
+
 ## Database migrations
 
 Migrations live in `supabase/migrations/` and are applied in filename order.
 
 ```bash
-supabase migration new <name>   # create a new migration
-supabase db reset               # rebuild the local DB from scratch
+npm run db:reset                # rebuild the local DB from scratch (applies migrations + seed)
+npx supabase migration new <name>  # create a new migration
+npx supabase db push            # apply migrations to the linked project
+npx supabase functions deploy admin-members
+npx supabase functions deploy matchmaking
 ```
 
 Never edit an applied migration; create a new one instead.
@@ -66,4 +86,6 @@ docs/                migration audit, RLS, cutover
 ## Documentation
 
 - `docs/migration-audit.md` — Phase 0 audit and endpoint mapping
+- `docs/phase-1.md` — foundation schema and verification steps
 - `docs/rls.md` — Row Level Security policy matrix
+- `docs/migration-rollback.md` — rollback/cutover procedure

@@ -570,7 +570,7 @@ Additional confirmations (non-blocking but useful):
 - [x] Identify env vars and risks
 - [x] Write `docs/migration-audit.md`
 - [x] Get approval / answers to blocking questions
-- [x] Proceed to Phase 1 (Supabase foundation) — see `YALI-AMS/docs/phase-1.md`
+- [x] Proceed to Phase 1 (Supabase foundation) — see `docs/phase-1.md`
 
 ---
 
@@ -580,7 +580,7 @@ The following decisions were confirmed before Phase 1:
 
 | Topic | Decision |
 |---|---|
-| Final repo location | New `YALI-AMS/` folder at the workspace root |
+| Final repo location | `YALI-AMS-FE/` (Supabase files under `supabase/`) |
 | Profile photos | Move to Supabase Storage (`avatars` bucket) |
 | SMTP | Resend for Auth + transactional email |
 | LLM (rerank/explanations) | Keep Gemini (`gemini-2.5-flash`) |

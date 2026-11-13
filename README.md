@@ -1,17 +1,28 @@
-# YALI AMS Frontend
+# YALI AMS
 
-Next.js frontend for the YALI Rwanda Chapter Alumni Management System (AMS). The app is being migrated from a separate Express/MySQL backend to a single Next.js + Supabase application (Postgres, Auth, Realtime, Storage).
+Next.js application for the YALI Rwanda Chapter Alumni Management System (AMS).
+The app now runs as a single codebase backed by Supabase (Postgres, Auth,
+Storage, Realtime, Edge Functions, pgvector). The former Express/MySQL backend,
+Redis, BullMQ, Prisma, Redux/RTK Query and Socket.IO layers are retired.
 
 ## Current Migration Status
 
-- **Phase 3 (in progress):** Supabase SSR client utilities, root middleware for session refresh/route protection, initial typed data-access layer (`lib/data/*`), Supabase-based login/sign-out/layout shell, and role-aware sidebar/admin guard using Supabase user metadata.
-- **Legacy state still present:** many dashboard/feature pages still depend on retired RTK Query/socket/Express API integrations and are backed by temporary compatibility stubs until migrated to Supabase services and queries.
+- **Complete:** every dashboard and feature page reads through `lib/data/*`;
+  authentication, sessions, chat (incl. groups and Realtime), notifications,
+  matchmaking, organizations, reference data, member administration and
+  dashboards all run on Supabase. No legacy API/RTK/socket code remains.
+- **Not yet applied to a hosted project:** migrations, seed and Edge Functions
+  have been statically validated (Postgres grammar parse, `tsc`, `eslint`,
+  Next.js build, `deno check`) but the target Supabase project credentials are
+  not configured in this workspace, so `supabase db push` and function deploys
+  still need to be run once.
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 20+
 - npm
-- Supabase project (URL + anon key)
+- Docker (local Supabase stack only)
+- A Supabase project (URL, anon key, service-role key)
 
 ## Getting Started
 
@@ -23,17 +34,20 @@ npm install
 
 ### 2. Environment variables
 
-Copy `.env.example` to `.env.local` and set values:
+Copy `.env.example` to `.env.local` and fill in the values.
 
-```env
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-```
+| Variable | Scope | Description |
+|----------|-------|-------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | client | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | client | Supabase anon/public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | server | Service-role key (Edge Functions, admin imports) |
+| `SUPABASE_DB_URL` | server | Postgres connection string (CLI/migration tooling) |
+| `SUPABASE_ACCESS_TOKEN` | server | Supabase management token (`db push`, function deploys) |
+| `EMBEDDING_*` / `LLM_*` | server | Optional AI provider settings for Edge Functions |
+| `RESEND_API_KEY` / `EMAIL_FROM` | server | Custom Auth SMTP |
+| `MIGRATION_SOURCE_ENV` / `DATABASE_URL` | server | Read-only MySQL source for `npm run migrate:mysql` |
 
-| Variable | Description |
-|----------|-------------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key |
+Never prefix a server-only variable with `NEXT_PUBLIC_`.
 
 ### 3. Run
 
@@ -51,22 +65,39 @@ Open [http://localhost:3000](http://localhost:3000).
 | `npm run build` | Production build |
 | `npm run start` | Start production server |
 | `npm run lint` | Run ESLint |
+| `npm run db:start` / `db:stop` | Start/stop the local Supabase stack (Docker) |
+| `npm run db:reset` | Apply migrations + seed to the local database |
+| `npm run db:push` | Apply migrations to the linked hosted project |
+| `npm run db:lint` / `db:diff` | Lint migrations / diff schema |
+| `npm run types` | Regenerate `supabase/types/database.ts` |
+| `npm run seed:generate` | Rebuild `supabase/seed.sql` from reference data |
+| `npm run migrate:mysql` | Dry-run/read-only import from the legacy MySQL database |
 
-## Supabase Foundation (Phase 3)
+## Architecture
 
-- `lib/supabase/{client.ts,server.ts,middleware.ts}`: browser/server/middleware Supabase clients (`@supabase/ssr`)
-- `middleware.ts`: refreshes session cookies and protects `/dashboard` routes; redirects authenticated users away from auth routes
-- `lib/data/*`: typed data-access entry points (`getSupabaseBrowserClient`, `getSupabaseServerClient`, auth helpers, `useCurrentUser`, placeholder `Database` type)
-- Auth UI shell: login via `signInWithPassword`, sign-out via Supabase, role-aware navigation/admin access checks using Supabase user metadata
+- `lib/supabase/{client,server,middleware}.ts` — browser, server and middleware
+  Supabase clients (`@supabase/ssr`).
+- `middleware.ts` — refreshes session cookies and protects `/dashboard`;
+  authenticated users are redirected away from auth routes.
+- `lib/data/*` — the only data-access layer (TanStack Query on the client,
+  typed Supabase clients on the server). `lib/data/types.ts` re-exports the
+  generated `supabase/types/database.ts`.
+- `components/DashboardPages/*` — dashboard screens; `components/parts/*` —
+  shared shell, chat and profile pieces.
+- `supabase/migrations` — schema, RLS, functions, triggers, Realtime, pg_cron.
+- `supabase/functions/{admin-members,matchmaking}` — service-role Edge
+  Functions (JWT + `profiles.role` checks).
+- `scripts/` — reference-seed generator and the read-only MySQL → Supabase
+  migration tooling.
 
-## Legacy Compatibility (temporary)
+## Supabase Notes
 
-To keep the app compiling while migrating feature modules, compatibility stubs remain for removed Redux/RTK Query/socket helpers (`lib/hooks.ts`, `lib/sockets.ts`, `lib/features/*`, `helpers/auth.ts`, `helpers/logout.ts`, `components/Other/AccessDashboard.tsx` `AuthGuard`). Pages using these stubs may render empty/non-functional data until migrated to `lib/data/*` and Supabase services.
-
-## Notes
-
-- Replace `lib/data/types.ts` with generated Supabase types when schema is available (`supabase gen types typescript`).
-- Do not commit secrets; use `.env.local` for local credentials.
+- Migrations are applied in filename order; never edit an applied migration.
+- RLS is default-deny; see `docs/rls.md` for the policy matrix.
+- Avatars and member documents live in the public `avatars` and
+  `member-documents` storage buckets.
+- Reference seed data is generated by `npm run seed:generate` and loaded by
+  `supabase db reset` via `supabase/seed.sql`.
 
 ## License
 
