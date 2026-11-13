@@ -67,8 +67,8 @@ Identity comes from `auth.uid()` only — never from client-supplied user ids.
 
 ## Verification
 
-A local SQL check was run against PostgreSQL 18 with the schema applied and
-`auth.uid()` backed by a session variable. It confirmed:
+`npm run db:test` applies the migrations to PostgreSQL 18 (PGlite) with
+`auth.uid()` backed by a session variable and confirms:
 
 - a user cannot read another user's `phone`/`whatsapp` directly (permission
   denied) and only sees them through `get_profile_contact` when opted in;

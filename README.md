@@ -12,10 +12,10 @@ Redis, BullMQ, Prisma, Redux/RTK Query and Socket.IO layers are retired.
   matchmaking, organizations, reference data, member administration and
   dashboards all run on Supabase. No legacy API/RTK/socket code remains.
 - **Not yet applied to a hosted project:** migrations, seed and Edge Functions
-  have been statically validated (Postgres grammar parse, `tsc`, `eslint`,
-  Next.js build, `deno check`) but the target Supabase project credentials are
-  not configured in this workspace, so `supabase db push` and function deploys
-  still need to be run once.
+  have been validated (Postgres grammar parse, `npm run db:test` against real
+  PostgreSQL 18 in PGlite, `tsc`, `eslint`, Next.js build, `deno check`) but the
+  target Supabase project credentials are not configured in this workspace, so
+  `supabase db push` and function deploys still need to be run once.
 
 ## Prerequisites
 
@@ -70,6 +70,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | `npm run db:push` | Apply migrations to the linked hosted project |
 | `npm run db:lint` / `db:diff` | Lint migrations / diff schema |
 | `npm run types` | Regenerate `supabase/types/database.ts` |
+| `npm run db:test` | Apply migrations + seed to in-memory Postgres and run RLS/function checks (no Docker) |
 | `npm run seed:generate` | Rebuild `supabase/seed.sql` from reference data |
 | `npm run migrate:mysql` | Dry-run/read-only import from the legacy MySQL database |
 
