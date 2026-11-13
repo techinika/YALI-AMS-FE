@@ -1,40 +1,32 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useMemo, useState } from "react";
 import { TailwindInput } from "../ui/TailInput";
 import { MultiSelectSearch } from "../ui/multi-select-search";
 import { TailwindSelect } from "../ui/tail-select";
 import { Combobox } from "../ui/combobox";
-import {
-  useAddNewOrganizationMutation,
-  useAddWStoOrgMutation,
-  useGetOrganizationsForUserQuery,
-  useUpdateOrganizationMutation,
-} from "@/lib/features/orgSlice";
-import {
-  useCountriesQuery,
-  useDistrictsQuery,
-  useSectorsByDistrictQuery,
-  useStatesByCountryQuery,
-  useWorkingSectorQuery,
-} from "@/lib/features/otherSlice";
 import { PageHeader } from "../parts/PageHeader";
-import {
-  Building2,
-  Edit,
-  Globe,
-  MapPin,
-  PlusCircle,
-  Save,
-  Search,
-} from "lucide-react";
+import { Building2, Edit, Globe, MapPin, PlusCircle, Save, Search } from "lucide-react";
 import { toastError, toastSuccess } from "@/lib/toast";
-import { getUser } from "@/helpers/auth";
-import { useAssociateOrganizationMutation } from "@/lib/features/userSlice";
-import { Organization } from "@/types/user";
 import Link from "next/link";
 import { MdCancel } from "react-icons/md";
-import { Skeleton, CardSkeleton } from "../ui/skeleton";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCurrentUser } from "@/lib/data/use-current-user";
+import {
+  associateUserToOrganization,
+  createOrganization,
+  listUserOrganizations,
+  setOrganizationWorkingSectors,
+  setUserOrganizationWorkingSectors,
+  updateOrganization,
+} from "@/lib/data/organizations";
+import {
+  listCountries,
+  listDistricts,
+  listSectorsByDistrict,
+  listStatesByCountry,
+  listWorkingSectors,
+} from "@/lib/data/reference";
 
 const OrganizationCard = React.memo(
   ({
@@ -74,13 +66,13 @@ const OrganizationCard = React.memo(
       <h3 className="font-bold text-lg mb-1">{org?.name}</h3>
       <div className="flex items-center gap-1.5 text-sm text-slate-500 mb-4">
         <MapPin size={14} />
-        {org?.country?.id}
-        {org?.districtId ? `, ${org?.districtId}` : ""}
+        {org?.country?.id || org?.countryId || ""}
+        {org?.district?.name ? `, ${org.district.name}` : org?.districtId ? `, ${org.districtId}` : ""}
       </div>
       <div className="flex flex-wrap gap-1">
-        {org.workingSectors?.map((s: any, index: number) => (
+        {(org.workingSectors || []).map((s: any, index: number) => (
           <span
-            key={index}
+            key={s?.id || index}
             className="px-2 py-0.5 bg-slate-100 text-[10px] font-bold text-slate-600 rounded uppercase tracking-tighter"
           >
             {s?.name}
@@ -91,206 +83,184 @@ const OrganizationCard = React.memo(
   )
 );
 
-function OrganizationsPage() {
-  const user = getUser();
-  const initData = {
-    name: "",
-    website: "",
-    countryId: "",
-    districtId: "",
-    sectorId: "",
-    stateId: "",
-    relation: "",
-    position: "",
-    workingSectors: [] as string[],
-  };
-  const [addNewOrganization] = useAddNewOrganizationMutation();
-  const [associateOrganization] = useAssociateOrganizationMutation();
-  const [updateOrganization] = useUpdateOrganizationMutation();
+const initData = {
+  name: "",
+  website: "",
+  countryId: "",
+  districtId: "",
+  sectorId: "",
+  stateId: "",
+  relation: "founded",
+  position: "",
+  workingSectors: [] as string[],
+};
 
-  const [addWStoOrg] = useAddWStoOrgMutation();
+function OrganizationsPage() {
+  const { user } = useCurrentUser();
+  const queryClient = useQueryClient();
   const [formData, setFormData] = useState(initData);
-  const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [editMode, setEditMode] = useState(false);
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
-  const [selectedConnectId, setSelectedConnectId] = useState("");
+  const [selectedConnectId, setSelectedConnectId] = useState<string | null>(null);
 
-  const { data: WorkingSectorsData } = useWorkingSectorQuery("");
-  const { data: CountryData } = useCountriesQuery("");
-  const { data: DistrictData } = useDistrictsQuery("");
-  const { data: orgData, refetch: orgRefetch } =
-    useGetOrganizationsForUserQuery(user?.id || "");
-
-  const [selectedCountry, setSelectedCountry] = useState(
-    formData.countryId || "",
-  );
-  const [selectedDistrict, setSelectedDistrict] = useState(
-    formData.districtId || "",
-  );
-
-  const { data: SectorsData } = useSectorsByDistrictQuery(selectedDistrict, {
-    skip: !selectedDistrict,
+  const userId = user?.id || "";
+  const { data: workingSectorsData } = useQuery({
+    queryKey: ["working-sectors"],
+    queryFn: async () => {
+      const { data, error } = await listWorkingSectors();
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const { data: countriesData } = useQuery({
+    queryKey: ["countries"],
+    queryFn: async () => {
+      const { data, error } = await listCountries();
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const { data: districtsData } = useQuery({
+    queryKey: ["districts"],
+    queryFn: async () => {
+      const { data, error } = await listDistricts();
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const { data: sectorsData } = useQuery({
+    queryKey: ["sectors", formData.districtId],
+    enabled: !!formData.districtId && formData.countryId === "RW",
+    queryFn: async () => {
+      const { data, error } = await listSectorsByDistrict(formData.districtId);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const { data: statesData } = useQuery({
+    queryKey: ["states", formData.countryId],
+    enabled: !!formData.countryId && formData.countryId !== "RW",
+    queryFn: async () => {
+      const { data, error } = await listStatesByCountry(formData.countryId);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const { data: orgData, refetch: orgRefetch } = useQuery({
+    queryKey: ["user-organizations", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data, error } = await listUserOrganizations(userId);
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
-  const { data: StatesData } = useStatesByCountryQuery(selectedCountry, {
-    skip: selectedCountry === "RW",
-  });
-
-  const organizations = useMemo(
-    () => orgData?.data || [],
-    [orgData],
-  );
-
+  const organizations = useMemo(() => orgData || [], [orgData]);
   const filteredOrgs = useMemo(() => {
     if (!searchTerm) return organizations;
-    return organizations.filter((o: any) =>
-      o?.name?.toLowerCase().includes(searchTerm.toLowerCase()),
-    );
+    return organizations.filter((o: any) => o?.name?.toLowerCase().includes(searchTerm.toLowerCase()));
   }, [organizations, searchTerm]);
 
-  const sectors = SectorsData?.data || [];
-  const states = StatesData?.data || [];
-  const districts = DistrictData?.data || [];
-  const countries = CountryData?.data || [];
-  const workingSectors = WorkingSectorsData?.data || [];
+  const countries = countriesData || [];
+  const districts = districtsData || [];
+  const sectors = sectorsData || [];
+  const states = statesData || [];
+  const workingSectors = workingSectorsData || [];
+  const wsOptions = useMemo(
+    () => workingSectors.filter((ws: any) => ws && ws.name).map((ws: any) => ({ id: ws.id, name: ws.name })),
+    [workingSectors]
+  );
 
-  const wsOptions = useMemo(() => {
-    return workingSectors
-      .filter((ws: any) => ws && ws.name)
-      .map((ws: any) => ({
-        id: ws?.id,
-        name: ws?.name,
-      }));
-  }, [workingSectors]);
-
-  const handleCreateOrganization = async () => {
-    if (!formData.name.trim()) {
-      toastError("Organization name is required.");
-      return;
-    }
-    setSaving(true);
-    try {
-      const res = await addNewOrganization({
-        name: formData?.name,
-        website: formData?.website,
-        addedById: user?.id,
-        countryId: formData?.countryId ?? undefined,
-        districtId: formData?.districtId ?? undefined,
-        sectorId: formData?.sectorId ?? undefined,
-        stateId: formData?.stateId ?? undefined,
-      }).unwrap();
-      await associateOrganization({
-        organizationId: res?.data?.id || "",
-        userId: user?.id || "",
-        relation: formData?.relation,
-        position: formData?.position,
-      }).unwrap();
-      await Promise.all(
-        formData.workingSectors.map((v) =>
-          addWStoOrg({
-            userId: user?.id || "",
-            organizationId: res?.data?.id || "",
-            wsId: v,
-          }).unwrap(),
-        ),
-      );
-
-      toastSuccess("Organization created and added Successfully!");
-      orgRefetch();
-      setFormData(initData);
-    } catch (error) {
-      console.log(error);
-      toastError(
-        "Failed to create a new organization. Try again or contact support!",
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleUpdateOrganization = async () => {
-    setSaving(true);
-
-    try {
-      if (editMode && selectedOrgId) {
-        await updateOrganization({
-          organizationId: selectedOrgId,
-          userId: user?.id || "",
-          name: formData.name,
-          website: formData.website,
-          countryId: formData.countryId || null,
-          districtId: formData.districtId || null,
-          sectorId: formData.sectorId || null,
-          stateId: formData.stateId || null,
-          relation: formData.relation,
-          position: formData.position,
-          workingSectors: formData.workingSectors,
-          connectionId: selectedConnectId,
-        }).unwrap();
-
-        toastSuccess("Organization updated successfully!");
+  const saveMutation = useMutation({
+    mutationFn: async (mode: "create" | "update") => {
+      if (!userId) throw new Error("You must be signed in.");
+      if (!formData.name.trim()) throw new Error("Organization name is required.");
+      const payload = {
+        name: formData.name.trim(),
+        website: formData.website?.trim() || null,
+        countryId: formData.countryId || null,
+        districtId: formData.countryId === "RW" ? formData.districtId || null : null,
+        sectorId: formData.countryId === "RW" ? formData.sectorId || null : null,
+        stateId: formData.countryId && formData.countryId !== "RW" ? formData.stateId || null : null,
+      };
+      if (mode === "create") {
+        const { data, error } = await createOrganization({ ...payload, addedById: userId });
+        if (error || !data) throw error || new Error("Failed to create organization.");
+        const orgId = data.id;
+        const { error: assocError } = await associateUserToOrganization({
+          userId,
+          organizationId: orgId,
+          relation: formData.relation || "founded",
+          position: formData.position || null,
+        });
+        if (assocError) throw assocError;
+        const { error: orgWsError } = await setOrganizationWorkingSectors(orgId, formData.workingSectors);
+        if (orgWsError) throw orgWsError;
+        const { error: linkWsError } = await setUserOrganizationWorkingSectors(userId, orgId, formData.workingSectors);
+        if (linkWsError) throw linkWsError;
+        return;
       }
-
-      orgRefetch();
+      if (!selectedOrgId) throw new Error("Select an organization to edit.");
+      const { error: updError } = await updateOrganization(selectedOrgId, payload);
+      if (updError) throw updError;
+      const { error: assocError } = await associateUserToOrganization({
+        userId,
+        organizationId: selectedOrgId,
+        relation: formData.relation || "founded",
+        position: formData.position || null,
+      });
+      if (assocError) throw assocError;
+      const { error: orgWsError } = await setOrganizationWorkingSectors(selectedOrgId, formData.workingSectors);
+      if (orgWsError) throw orgWsError;
+      const { error: linkWsError } = await setUserOrganizationWorkingSectors(userId, selectedOrgId, formData.workingSectors);
+      if (linkWsError) throw linkWsError;
+    },
+    onSuccess: async (_data, mode) => {
+      toastSuccess(mode === "create" ? "Organization created and added successfully!" : "Organization updated successfully!");
       setFormData(initData);
       setEditMode(false);
       setSelectedOrgId(null);
-    } catch (err) {
-      console.error(err);
-      toastError("Failed to save organization.");
-    } finally {
-      setSaving(false);
-    }
-  };
+      setSelectedConnectId(null);
+      await queryClient.invalidateQueries({ queryKey: ["user-organizations", userId] });
+      await queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      await orgRefetch();
+    },
+    onError: (error: any) => {
+      console.log(error);
+      toastError(error?.message || "Failed to save organization. Try again or contact support!");
+    },
+  });
 
   const populateFormFromOrg = (org: any) => {
     setFormData({
       name: org?.name ?? "",
       website: org?.website ?? "",
-      countryId: org?.country?.id ?? "",
-      districtId: org?.districtId ?? "",
-      sectorId: org?.sectorId ?? "",
-      stateId: org?.state?.id ?? "",
-      relation: org?.relation ?? "",
+      countryId: org?.country?.id ?? org?.countryId ?? "",
+      districtId: org?.district?.id ?? org?.districtId ?? "",
+      sectorId: org?.sector?.id ?? org?.sectorId ?? "",
+      stateId: org?.state?.id ?? org?.stateId ?? "",
+      relation: org?.relation ?? "founded",
       position: org?.position ?? "",
-      workingSectors: org?.workingSectors?.map((ws: any) => ws.id) ?? [],
+      workingSectors: (org?.workingSectors ?? []).map((ws: any) => ws.id),
     });
-
-    setSelectedCountry(org?.country?.id ?? "");
-    setSelectedDistrict(org?.district?.id ?? "");
   };
 
-  const handleCountryChange = useCallback((value: string) => {
-    setFormData((prev) => ({ ...prev, countryId: value, districtId: "", sectorId: "", stateId: "" }));
-    setSelectedCountry(value);
-    setSelectedDistrict("");
-  }, []);
-
-  const handleDistrictChange = useCallback((value: string) => {
-    setFormData((prev) => ({ ...prev, districtId: value, sectorId: "" }));
-    setSelectedDistrict(value);
-  }, []);
-
-  const handleStateChange = useCallback((value: string) => {
-    setFormData((prev) => ({ ...prev, stateId: value }));
-  }, []);
-
-  const handleSectorChange = useCallback((value: string) => {
-    setFormData((prev) => ({ ...prev, sectorId: value }));
-  }, []);
+  const saving = saveMutation.isPending;
 
   return (
     <div className="container mx-auto p-4 md:p-8">
       <PageHeader
-        title={"Organizations"}
-        description={"Manage your organizations data."}
+        title="Organizations"
+        description="Manage your organizations data."
         actionTitle={editMode ? "Cancel Update" : "Enable Update"}
         Icon={editMode ? MdCancel : Edit}
         onAction={() => {
           if (editMode) {
             setEditMode(false);
             setSelectedOrgId(null);
+            setSelectedConnectId(null);
             setFormData(initData);
           } else {
             setEditMode(true);
@@ -318,17 +288,13 @@ function OrganizationsPage() {
                 <TailwindInput
                   label="Name"
                   value={formData.name}
-                  onChange={(e: any) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
+                  onChange={(e: any) => setFormData({ ...formData, name: e.target.value })}
                   required
                 />
                 <TailwindInput
                   label="Website"
                   value={formData.website}
-                  onChange={(e: any) =>
-                    setFormData({ ...formData, website: e.target.value })
-                  }
+                  onChange={(e: any) => setFormData({ ...formData, website: e.target.value })}
                 />
               </div>
 
@@ -336,9 +302,7 @@ function OrganizationsPage() {
                 label="Working Sectors"
                 options={wsOptions}
                 value={formData.workingSectors}
-                onChange={(vals) =>
-                  setFormData({ ...formData, workingSectors: vals })
-                }
+                onChange={(vals) => setFormData({ ...formData, workingSectors: vals })}
               />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -346,7 +310,9 @@ function OrganizationsPage() {
                   label="Country"
                   options={countries}
                   value={formData?.countryId}
-                  onChange={handleCountryChange}
+                  onChange={(value: string) => {
+                    setFormData((prev) => ({ ...prev, countryId: value, districtId: "", sectorId: "", stateId: "" }));
+                  }}
                   placeholder="Select Country"
                 />
                 {formData?.countryId === "RW" ? (
@@ -355,14 +321,14 @@ function OrganizationsPage() {
                       label="District"
                       options={districts}
                       value={formData.districtId}
-                      onChange={handleDistrictChange}
+                      onChange={(value: string) => setFormData((prev) => ({ ...prev, districtId: value, sectorId: "" }))}
                       placeholder="Select District"
                     />
                     <Combobox
                       label="Sector"
                       options={sectors}
                       value={formData.sectorId}
-                      onChange={handleSectorChange}
+                      onChange={(value: string) => setFormData((prev) => ({ ...prev, sectorId: value }))}
                       placeholder="Select Sector"
                     />
                   </>
@@ -372,7 +338,7 @@ function OrganizationsPage() {
                       label="State/Province"
                       options={states}
                       value={formData.stateId}
-                      onChange={handleStateChange}
+                      onChange={(value: string) => setFormData((prev) => ({ ...prev, stateId: value }))}
                       placeholder="Select State/Province"
                     />
                   )
@@ -383,16 +349,12 @@ function OrganizationsPage() {
                 <TailwindInput
                   label="Your Position"
                   value={formData?.position}
-                  onChange={(e: any) =>
-                    setFormData({ ...formData, position: e.target.value })
-                  }
+                  onChange={(e: any) => setFormData({ ...formData, position: e.target.value })}
                 />
                 <TailwindSelect
                   label="Relationship"
                   value={formData?.relation}
-                  onChange={(e: any) =>
-                    setFormData({ ...formData, relation: e.target.value })
-                  }
+                  onChange={(e: any) => setFormData({ ...formData, relation: e.target.value })}
                   options={[
                     { id: "founded", name: "Founder" },
                     { id: "employed", name: "Employee" },
@@ -401,10 +363,8 @@ function OrganizationsPage() {
               </div>
 
               <button
-                onClick={
-                  editMode ? handleUpdateOrganization : handleCreateOrganization
-                }
-                disabled={saving}
+                onClick={() => saveMutation.mutate(editMode ? "update" : "create")}
+                disabled={saving || (editMode && !selectedOrgId)}
                 className="w-full mt-4 bg-primary text-white py-2.5 rounded-xl font-bold hover:bg-primary/80 disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
               >
                 {saving ? (
@@ -420,10 +380,7 @@ function OrganizationsPage() {
 
         <div className="xl:col-span-7 space-y-4">
           <div className="relative">
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              size={18}
-            />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input
               className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-primary/20"
               placeholder="Search organizations..."
@@ -435,13 +392,13 @@ function OrganizationsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[700px] overflow-y-auto pr-2">
             {filteredOrgs.map((org: any, index: number) => (
               <OrganizationCard
-                key={org?.id || index}
+                key={org?.connectId || org?.id || index}
                 org={org}
                 editMode={editMode}
                 selectedOrgId={selectedOrgId}
                 onSelect={() => {
                   setSelectedOrgId(org?.id);
-                  setSelectedConnectId(org?.connectId);
+                  setSelectedConnectId(org?.connectId || null);
                   populateFormFromOrg(org);
                 }}
               />
@@ -457,5 +414,7 @@ function OrganizationsPage() {
     </div>
   );
 }
+
+OrganizationCard.displayName = "OrganizationCard";
 
 export default OrganizationsPage;

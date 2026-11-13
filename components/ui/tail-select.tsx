@@ -51,3 +51,5 @@ export const TailwindSelect = React.memo(
     </div>
   )
 );
+
+TailwindSelect.displayName = "TailwindSelect";

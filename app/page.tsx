@@ -1,11 +1,18 @@
-import LoginPage from "@/components/Home/LoginPage";
+import { Suspense } from "react";
+import LoginForm from "@/components/Home/LoginForm";
 
-function page() {
+function LoginFallback() {
   return (
-    <div>
-      <LoginPage />
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" aria-label="Loading" />
     </div>
   );
 }
 
-export default page;
+export default function Page() {
+  return (
+    <Suspense fallback={<LoginFallback />}>
+      <LoginForm />
+    </Suspense>
+  );
+}

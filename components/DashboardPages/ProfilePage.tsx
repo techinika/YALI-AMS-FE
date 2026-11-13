@@ -3,181 +3,100 @@
 import { useState } from "react";
 import relativeTime from "dayjs/plugin/relativeTime";
 import dayjs from "dayjs";
-import {
-  useChangeMutation,
-  useGetOneUserQuery,
-} from "@/lib/features/userSlice";
 import Loading from "@/app/loading";
-import ConfirmModal from "../parts/models/confirmModal";
 import { Member } from "@/types/user";
-import { toastError, toastSuccess } from "@/lib/toast";
 import { PageHeader } from "../parts/PageHeader";
 import { EditIcon } from "lucide-react";
-import { getUserOrCache } from "@/helpers/auth";
 import { useRouter, useSearchParams } from "next/navigation";
 import { RoleChip } from "../ui/role-chip";
-import {
-  useGetOrganizationsForUserQuery,
-  useOrganizationsQuery,
-} from "@/lib/features/orgSlice";
 import { Personal } from "../parts/profile/ProfilePagePersonal";
 import { ShowOrganizationOnProfile } from "../parts/profile/ShowOrganizations";
-import {
-  useCountriesQuery,
-  useDistrictsQuery,
-  useWorkingSectorQuery,
-} from "@/lib/features/otherSlice";
+import { useQuery } from "@tanstack/react-query";
+import { getProfileById, getMyProfile, profileToMember } from "@/lib/data/profiles";
+import { listOrganizations, listUserOrganizations } from "@/lib/data/organizations";
+import { useCurrentUser } from "@/lib/data/use-current-user";
 
 dayjs.extend(relativeTime);
 
 function ProfilePage() {
-  const authUser: Member | null = getUserOrCache();
+  const { user: authUser, role } = useCurrentUser();
   const router = useRouter();
   const searchParams = useSearchParams();
   const userId = searchParams.get("userId");
-
   const [activeTab, setActiveTab] = useState(0);
-  const [roleModal, setRoleModal] = useState(false);
-  const [loading, setLoading] = useState(false);
 
-  const targetId = (userId ?? authUser?.id) as string;
-  const userProfile = useGetOneUserQuery(targetId, {
-    skip: !targetId,
+  const targetId = userId || authUser?.id || "";
+
+  const { data: profileRes, isLoading: userLoading, isError: userError } = useQuery({
+    queryKey: ["profile", targetId || "me"],
+    enabled: !!targetId || !userId,
+    queryFn: async () => {
+      const res = userId ? await getProfileById(userId) : await getMyProfile();
+      if (res.error) throw res.error;
+      return res.data ? profileToMember(res.data) : null;
+    },
   });
 
-  const { data: CountryData } = useCountriesQuery("");
-  const { data: DistrictData } = useDistrictsQuery("");
-  const { data: WorkingSectorsData } = useWorkingSectorQuery("");
+  const { data: userOrgsRes } = useQuery({
+    queryKey: ["user-organizations", targetId],
+    enabled: !!targetId,
+    queryFn: async () => {
+      const { data, error } = await listUserOrganizations(targetId);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
-  const { data: organizations } =
-    useGetOrganizationsForUserQuery(targetId, { skip: !targetId });
-  const { data: OrganizationsData } = useOrganizationsQuery();
+  const { data: allOrgsRes } = useQuery({
+    queryKey: ["organizations"],
+    queryFn: async () => {
+      const { data, error } = await listOrganizations();
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
-  const [change] = useChangeMutation();
-  const user: Member | undefined = userProfile?.data?.data as unknown as
-    | Member
-    | undefined;
+  const user = profileRes as Member | null;
+  const isAdmin = role === "admin";
 
-  const userLoading = userProfile.isLoading;
-  const userError = userProfile.isError;
-
-  const isAdmin = authUser?.role?.name === "ADMIN";
-
-  const districts = DistrictData?.data || [];
-  const workingSectors = WorkingSectorsData?.data || [];
-  const countries = CountryData?.data || [];
-
-  const handleTabClick = (index: number) => {
-    setActiveTab(index);
-  };
-
-  if (userError || !authUser) {
+  if (userError) {
     return (
       <div className="container mx-auto p-8 text-center">
-        <h2 className="text-xl font-bold text-gray-800 mb-2">
-          Unable to load profile
-        </h2>
-        <p className="text-gray-600">
-          The member profile could not be fetched. Please try again later.
-        </p>
+        <h2 className="text-xl font-bold text-gray-800 mb-2">Unable to load profile</h2>
+        <p className="text-gray-600">The member profile could not be fetched. Please try again later.</p>
       </div>
     );
   }
 
-  if (loading || userLoading || !user) {
-    return <Loading />;
-  }
+  if (userLoading || !user) return <Loading />;
 
-  const foundedOrganizations = organizations?.data?.filter(
-    (org: any) => org.relation === "founded"
-  ) || [];
-  const employedOrganizations = organizations?.data?.filter(
-    (org: any) => org.relation === "employed"
-  ) || [];
-  const allOrganizations = OrganizationsData?.data || [];
+  const userOrgRows = (userOrgsRes ?? []) as any[];
+  const foundedOrganizations = userOrgRows
+    .filter((r) => r.relation_type === "founded" || r.relation === "founded")
+    .map((r) => ({ ...(r.organization || {}), ...r, relation: "founded" }));
+  const employedOrganizations = userOrgRows
+    .filter((r) => r.relation_type === "employed" || r.relation === "employed")
+    .map((r) => ({ ...(r.organization || {}), ...r, relation: "employed" }));
+  const allOrganizations = (allOrgsRes ?? []) as any[];
 
   const tabs = [
-    {
-      label: "Personal Details",
-      content: <Personal user={user} />,
-    },
-    {
-      label: "Initiative / Organization",
-      content: (
-        <ShowOrganizationOnProfile
-          orgs={foundedOrganizations}
-          targetId={targetId}
-          allOrganizations={allOrganizations}
-        />
-      ),
-    },
-    {
-      label: "Employment History",
-      content: (
-        <ShowOrganizationOnProfile
-          orgs={employedOrganizations}
-          targetId={targetId}
-          allOrganizations={allOrganizations}
-        />
-      ),
-    },
+    { label: "Personal Details", content: <Personal user={user} /> },
+    { label: "Initiative / Organization", content: <ShowOrganizationOnProfile orgs={foundedOrganizations} targetId={targetId} allOrganizations={allOrganizations} /> },
+    { label: "Employment History", content: <ShowOrganizationOnProfile orgs={employedOrganizations} targetId={targetId} allOrganizations={allOrganizations} /> },
   ];
 
-  const handleChangeRole = async () => {
-    if (isAdmin) {
-      setRoleModal(true);
-    } else {
-      toastError("You can not change user's role. Contact ADMIN!");
-    }
-  };
-
-  const changeRole = async () => {
-    setLoading(true);
-    try {
-      if (!targetId) throw new Error("User ID not found for role change.");
-
-      await change(targetId).unwrap();
-
-      toastSuccess("You have changed the user's role.");
-      userProfile.refetch();
-    } catch (error: any) {
-      console.error("Change role error:", error);
-      toastError(error?.data?.message || "Failed to change user's role.");
-    } finally {
-      setLoading(false);
-      setRoleModal(false);
-    }
-  };
-
-  const fullName = `${user?.firstName || ""} ${user?.middleName || ""} ${
-    user?.lastName || ""
-  }`;
+  const fullName = `${user?.firstName || ""} ${user?.middleName || ""} ${user?.lastName || ""}`.trim();
 
   return (
     <div className="container mx-auto p-4 sm:p-8">
-      {roleModal && (
-        <ConfirmModal
-          cancelText="Cancel"
-          confirmText={loading ? "Changing..." : "Change"}
-          title="Changing a user's role"
-          description="Are you sure you want to change the user's role? Note that if the user was the ADMIN, the user will become a normal USER, and vice-versa."
-          closeModal={() => setRoleModal(false)}
-          action={changeRole}
-        />
-      )}
-
       <PageHeader
         title={userId ? "Member Profile" : "My Profile"}
-        description={
-          userId
-            ? "View member's profile."
-            : "View and manage your profile information."
-        }
+        description={userId ? "View member's profile." : "View and manage your profile information."}
         actionTitle="Update Profile"
         Icon={EditIcon}
-        onAction={() => router.push(`/dashboard/profile/update`)}
+        onAction={() => router.push(userId ? `/dashboard/profile/update?userId=${userId}` : "/dashboard/profile/update")}
         loading={false}
-        disabled={userId ? true : false}
+        disabled={!isAdmin && !!userId && userId !== authUser?.id}
       />
 
       <div className="bg-white rounded-xl shadow-2xl overflow-hidden p-6 sm:p-8">
@@ -192,26 +111,17 @@ function ProfilePage() {
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 mb-2">
-              <h2 className="font-extrabold text-4xl text-gray-900 truncate">
-                {fullName}
-              </h2>
-              <RoleChip
-                roleName={user?.role?.name || "USER"}
-                onClick={handleChangeRole}
-              />
+              <h2 className="font-extrabold text-4xl text-gray-900 truncate">{fullName}</h2>
+              <RoleChip roleName={user?.role?.name || "USER"} onClick={() => {}} />
             </div>
 
             <p className="text-gray-700 text-lg italic mb-3">
-              {user?.bio || "No biography provided. Tell us about yourself!"}
+              {user?.bio || "No biography provided."}
             </p>
 
             <div className="text-gray-500 text-xs flex flex-wrap gap-4 mt-2">
-              <p>
-                Created: <b>{dayjs(user?.createdAt).format("DD MMM YYYY")}</b>
-              </p>
-              <p>
-                Last updated: <b>{dayjs(user?.updatedAt).fromNow()}</b>
-              </p>
+              <p>Created: <b>{dayjs(user?.createdAt).format("DD MMM YYYY")}</b></p>
+              <p>Last updated: <b>{dayjs(user?.updatedAt).fromNow()}</b></p>
             </div>
           </div>
         </div>
@@ -220,16 +130,13 @@ function ProfilePage() {
           <div className="border-b border-gray-200">
             <ul className="flex flex-wrap -mb-px text-sm font-medium text-center text-gray-500">
               {tabs.map((tab, index) => (
-                <li key={index + 1} className="mr-2">
+                <li key={index} className="mr-2">
                   <button
                     type="button"
-                    onClick={() => handleTabClick(index)}
-                    className={`inline-block p-4 border-b-2 rounded-t-lg transition-colors duration-200 ease-in-out 
-                                    ${
-                                      index === activeTab
-                                        ? "text-primary border-primary font-semibold"
-                                        : "hover:text-gray-600 hover:border-gray-300"
-                                    }`}
+                    onClick={() => setActiveTab(index)}
+                    className={`inline-block p-4 border-b-2 rounded-t-lg transition-colors duration-200 ease-in-out ${
+                      index === activeTab ? "text-primary border-primary font-semibold" : "hover:text-gray-600 hover:border-gray-300"
+                    }`}
                   >
                     {tab.label}
                   </button>
@@ -237,7 +144,6 @@ function ProfilePage() {
               ))}
             </ul>
           </div>
-
           <div className="mt-6 p-6 border border-gray-200 rounded-xl bg-gray-50 shadow-inner">
             {tabs[activeTab].content}
           </div>

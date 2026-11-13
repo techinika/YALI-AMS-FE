@@ -1,31 +1,40 @@
 "use client";
 
-import { getUser } from "@/helpers/auth";
-import { logout } from "@/helpers/logout";
-import { processLogout } from "@/lib/features/auth";
-import { useAppDispatch } from "@/lib/hooks";
+import { useEffect, useState } from "react";
+import { getSupabaseBrowserClient } from "@/lib/data/client";
 import { useRouter } from "next/navigation";
-import React from "react";
-import { MdLogout, MdAccountCircle } from "react-icons/md";
+import { LogOut, CircleUserRound } from "lucide-react";
 
 const AccountPreview = ({ mini }: { mini: boolean }) => {
-  const [user, setUser] = React.useState<any>(null);
+  const [email, setEmail] = useState<string>("");
+  const [name, setName] = useState<string>("");
 
-  React.useEffect(() => {
-    setUser(getUser());
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    supabase.auth.getUser().then(({ data }) => {
+      const user = data.user;
+      setEmail(user?.email || "");
+      const n =
+        (user?.user_metadata?.full_name as string | undefined) ||
+        [user?.user_metadata?.first_name, user?.user_metadata?.last_name]
+          .filter(Boolean)
+          .join(" ") ||
+        "";
+      setName(n);
+    });
   }, []);
 
+  if (mini) return null;
+
   return (
-    <div className={`p-2 ${mini ? "hidden" : "block"}`}>
-      <div className="flex items-center space-x-3 p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">
-        <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white shrink-0">
-          <MdAccountCircle className="w-6 h-6" />
+    <div className="p-2">
+      <div className="flex items-center gap-3 rounded-lg p-2">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+          <CircleUserRound className="h-6 w-6" aria-hidden="true" />
         </div>
-        <div className="flex flex-col truncate">
-          <span className="font-semibold text-gray-900 truncate">
-            {user?.firstName} {user?.lastName}
-          </span>
-          <span className="text-xs text-gray-500 truncate">{user?.email}</span>
+        <div className="flex min-w-0 flex-col">
+          <span className="truncate text-sm font-semibold text-foreground">{name || "Account"}</span>
+          <span className="truncate text-xs text-muted-foreground">{email}</span>
         </div>
       </div>
     </div>
@@ -33,44 +42,45 @@ const AccountPreview = ({ mini }: { mini: boolean }) => {
 };
 
 export default function SidebarFooterAccount({ mini }: { mini: boolean }) {
-  const dispatch = useAppDispatch();
   const router = useRouter();
+
+  const handleLogout = async () => {
+    const supabase = getSupabaseBrowserClient();
+    await supabase.auth.signOut();
+    router.push("/");
+    router.refresh();
+  };
 
   if (mini) {
     return (
-      <div className="p-3 border-t border-gray-200">
+      <div className="border-t border-sidebar-border p-3">
         <button
-          onClick={() => logout()}
-          className="w-full flex justify-center p-2 text-gray-500 hover:text-red-600 hover:bg-gray-100 rounded-md transition-colors"
+          type="button"
+          onClick={handleLogout}
+          className="group relative flex h-10 w-full items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Sign out"
         >
-          <MdLogout className="w-6 h-6" />
+          <LogOut className="h-5 w-5" aria-hidden="true" />
+          <span className="pointer-events-none absolute left-full ml-3 hidden whitespace-nowrap rounded-md bg-foreground px-2.5 py-1.5 text-xs font-medium text-background shadow-lg group-hover:block group-focus-visible:block">
+            Sign out
+          </span>
         </button>
       </div>
     );
   }
 
-  const handleLogout = async (e: { preventDefault: () => void }) => {
-    e.preventDefault();
-    await logout();
-    dispatch(processLogout());
-    router.push("/");
-  };
-
   return (
-    <footer className="p-1 border-t border-gray-200">
+    <div className="border-t border-sidebar-border p-1">
       <AccountPreview mini={mini} />
       <div className="px-2 pb-2">
         <button
+          type="button"
           onClick={handleLogout}
-          className="w-full text-left flex items-center p-2 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 rounded-md transition-colors"
+          className="flex w-full items-center gap-3 rounded-md p-2 text-sm text-foreground transition-colors hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <MdLogout className="w-5 h-5 mr-3" /> Sign Out
+          <LogOut className="h-5 w-5" aria-hidden="true" /> Sign out
         </button>
       </div>
-    </footer>
+    </div>
   );
-}
-
-export function ToolbarAccountOverride() {
-  return null;
 }

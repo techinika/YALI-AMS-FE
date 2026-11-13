@@ -5,160 +5,113 @@ import { Bell, Inbox } from "lucide-react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useRouter } from "next/navigation";
-import { useAppSelector } from "@/lib/hooks";
-import {
-  useUnopenedNotificationsQuery,
-  useOpenNotificationMutation,
-} from "@/lib/features/notificationSlice";
-import { NotificationItem } from "@/types/api";
-import { getSocket } from "@/lib/sockets";
-import { toastWarning } from "@/lib/toast";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { listMyNotifications, markNotificationOpened } from "@/lib/data/notifications";
 
 dayjs.extend(relativeTime);
 
+type Noti = { id: string; title: string; message: string; created_at: string; opened: boolean };
+
 const NotificationBell = React.memo(() => {
-  const user = useAppSelector((state) => state.auth.user);
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const qc = useQueryClient();
 
-  const { data, refetch } = useUnopenedNotificationsQuery(user?.id, {
-    skip: !user?.id,
-    pollingInterval: 30000,
+  const { data } = useQuery({
+    queryKey: ["notifications", "me"],
+    queryFn: async () => {
+      const { data, error } = await listMyNotifications();
+      if (error) throw error;
+      return (data ?? []) as Noti[];
+    },
+    refetchInterval: 30000,
   });
 
-  const [openNotification] = useOpenNotificationMutation();
+  const openMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await markNotificationOpened(id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications", "me"] }),
+  });
 
-  const notifications = useMemo(
-    () =>
-      [...(data?.notifications ?? [])].sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      ),
-    [data]
-  );
-
-  const unreadCount = notifications.length;
+  const unread = useMemo(() => (data ?? []).filter((n) => !n.opened), [data]);
+  const unreadCount = unread.length;
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false);
-      }
+    const onDoc = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
   }, []);
 
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const socket = getSocket();
-    const refresh = () => refetch();
-
-    socket.on("new-message", refresh);
-    socket.on("new-group-message", refresh);
-    socket.on("notification:new", (payload: NotificationItem) => {
-      refetch();
-      if (payload?.id && payload?.title) toastWarning(payload.title);
-    });
-
-    return () => {
-      socket.off("new-message", refresh);
-      socket.off("new-group-message", refresh);
-      socket.off("notification:new");
-    };
-  }, [user?.id, refetch]);
-
-  const handleOpenNotification = useCallback(
+  const handleOpen = useCallback(
     async (id: string) => {
       setOpen(false);
-      try {
-        await openNotification({ id }).unwrap();
-      } catch {
-        // ignore open errors; navigation still proceeds
-      }
-      refetch();
+      openMutation.mutate(id);
       router.push("/dashboard/notifications");
     },
-    [openNotification, refetch, router]
+    [openMutation, router]
   );
 
   return (
     <div className="relative" ref={containerRef}>
       <button
         type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        className="relative p-2 rounded-full text-gray-600 hover:bg-gray-100 hover:text-primary transition-colors"
-        aria-label="Notifications"
+        onClick={() => setOpen((v) => !v)}
+        className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : "Notifications"}
+        aria-expanded={open}
+        aria-haspopup="dialog"
       >
-        <Bell className="w-5 h-5" />
+        <Bell className="h-5 w-5" aria-hidden="true" />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+          <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground" aria-hidden="true">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl border border-gray-200 shadow-xl z-30 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
-            <h3 className="text-sm font-bold text-gray-800 flex items-center">
-              <Bell className="w-4 h-4 mr-2 text-primary" />
-              Notifications
+        <div role="dialog" aria-label="Notifications" className="absolute right-0 z-40 mt-2 w-80 overflow-hidden rounded-2xl border border-border bg-card shadow-xl sm:w-96">
+          <div className="flex items-center justify-between border-b border-border bg-muted/50 px-4 py-3">
+            <h3 className="flex items-center text-sm font-bold text-foreground">
+              <Bell className="mr-2 h-4 w-4 text-primary" aria-hidden="true" /> Notifications
             </h3>
-            {unreadCount > 0 && (
-              <span className="text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">
-                {unreadCount} unread
-              </span>
-            )}
+            {unreadCount > 0 && <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive">{unreadCount} unread</span>}
           </div>
-
           <div className="max-h-80 overflow-y-auto">
-            {notifications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center text-center py-10 text-gray-400">
-                <Inbox className="w-8 h-8 mb-2 opacity-60" />
+            {unread.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground">
+                <Inbox className="mb-2 h-8 w-8 opacity-60" aria-hidden="true" />
                 <p className="text-sm">You are all caught up!</p>
               </div>
             ) : (
-              notifications.map((noti) => (
-                <button
-                  key={noti.id}
-                  type="button"
-                  onClick={() => handleOpenNotification(noti.id)}
-                  className="w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-blue-50 transition-colors"
-                >
-                  <div className="flex items-start space-x-3">
-                    <span className="mt-1.5 w-2 h-2 rounded-full bg-primary shrink-0" />
+              unread.slice(0, 20).map((noti) => (
+                <button key={noti.id} type="button" onClick={() => handleOpen(noti.id)} className="w-full border-b border-border px-4 py-3 text-left transition-colors hover:bg-accent">
+                  <div className="flex items-start gap-3">
+                    <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-bold text-gray-800 truncate">
-                        {noti.title}
-                      </p>
-                      <p className="text-[11px] text-gray-500 line-clamp-2 mt-0.5">
-                        {noti.message}
-                      </p>
-                      <p className="text-[10px] text-gray-400 mt-1">
-                        {dayjs(noti.createdAt).fromNow()}
-                      </p>
+                      <p className="truncate text-xs font-bold text-foreground">{noti.title}</p>
+                      <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">{noti.message}</p>
+                      <p className="mt-1 text-[10px] text-muted-foreground">{dayjs(noti.created_at).fromNow()}</p>
                     </div>
                   </div>
                 </button>
               ))
             )}
           </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              router.push("/dashboard/notifications");
-            }}
-            className="w-full py-2.5 text-center text-xs font-bold text-primary bg-blue-50 hover:bg-blue-100 transition-colors"
-          >
-            View All Notifications
+          <button type="button" onClick={() => { setOpen(false); router.push("/dashboard/notifications"); }} className="w-full bg-accent py-2.5 text-center text-xs font-bold text-accent-foreground transition-colors hover:bg-accent/80">
+            View all notifications
           </button>
         </div>
       )}
@@ -167,5 +120,4 @@ const NotificationBell = React.memo(() => {
 });
 
 NotificationBell.displayName = "NotificationBell";
-
 export default NotificationBell;

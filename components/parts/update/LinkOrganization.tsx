@@ -2,7 +2,6 @@
 
 import { TailwindInput } from "@/components/ui/TailInput";
 import { TailwindSelect } from "@/components/ui/tail-select";
-import { useState } from "react";
 import { MdSearch } from "react-icons/md";
 
 export function LinkOrganization({
@@ -36,14 +35,14 @@ export function LinkOrganization({
           {filtered.map((org) => (
             <div
               key={org.id}
-              onClick={(e: any) =>
+              onClick={() =>
                 setFormData((prev: any) => ({
                   ...prev,
-                  orgId: +org?.id,
+                  orgId: String(org?.id),
                 }))
               }
-              className={`flex justify-between items-center px-2 ${
-                formData?.orgId === +org?.id ? "bg-gray-100" : ""
+              className={`flex justify-between items-center px-2 cursor-pointer ${
+                String(formData?.orgId) === String(org?.id) ? "bg-gray-100" : ""
               }`}
             >
               <button
@@ -61,7 +60,7 @@ export function LinkOrganization({
         </div>
       )}
 
-      {formData.orgId !== 0 && (
+      {formData.orgId && (
         <div className="border-t pt-4 flex flex-col gap-3">
           <label className="block text-sm font-medium mb-1">
             Add Additional Data

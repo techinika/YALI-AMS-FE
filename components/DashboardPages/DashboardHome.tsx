@@ -1,274 +1,106 @@
 "use client";
 
 import React, { useMemo } from "react";
-import {
-  User,
-  MessageSquare,
-  Clock,
-  Bell,
-  BarChart,
-  Trophy,
-} from "lucide-react";
-import { useStatsQuery, useActivityTrendQuery } from "@/lib/features/statsSlice";
+import { User, MessageSquare, Clock, Bell, BarChart3, Trophy } from "lucide-react";
 import Link from "next/link";
-import { useTopMembersQuery } from "@/lib/features/chatSlice";
-import { Member } from "@/types/user";
-import { StatsCardSkeleton } from "../ui/skeleton";
+import { useQuery } from "@tanstack/react-query";
+import { getDashboardStats } from "@/lib/data/stats";
 import { RecentEventsCard } from "../parts/RecentEvents";
+
+type Tone = "brand" | "amber" | "green" | "rose";
 
 interface StatCardProps {
   title: string;
-  numbers: number;
+  value: number;
   icon: React.ReactNode;
-  link: string;
-  color: "blue" | "amber" | "green" | "red";
+  href: string;
+  tone: Tone;
+  loading?: boolean;
 }
 
-const statColorMap = {
-  blue: {
-    border: "border-blue-500",
-    bg: "bg-blue-100",
-    text: "text-blue-600",
-  },
-  amber: {
-    border: "border-amber-500",
-    bg: "bg-amber-100",
-    text: "text-amber-600",
-  },
-  green: {
-    border: "border-green-500",
-    bg: "bg-green-100",
-    text: "text-green-600",
-  },
-  red: {
-    border: "border-red-500",
-    bg: "bg-red-100",
-    text: "text-red-600",
-  },
-} as const;
+const tones: Record<Tone, { border: string; iconBg: string; icon: string }> = {
+  brand: { border: "border-l-primary", iconBg: "bg-brand-100", icon: "text-primary" },
+  amber: { border: "border-l-amber-600", iconBg: "bg-amber-100", icon: "text-amber-700" },
+  green: { border: "border-l-green-600", iconBg: "bg-green-100", icon: "text-green-700" },
+  rose: { border: "border-l-rose-600", iconBg: "bg-rose-100", icon: "text-rose-700" },
+};
 
-const StatCard: React.FC<StatCardProps> = React.memo(
-  ({ title, numbers, icon, link, color }) => {
-    const colors = statColorMap[color];
-    return (
-      <Link
-        href={link}
-        className="block shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-0.5 rounded-2xl"
-      >
-        <div
-          className={`bg-white border-l-4 ${colors.border} p-6 flex items-center space-x-4 h-full rounded-2xl overflow-hidden`}
-        >
-          <div
-            className={`p-3 rounded-full ${colors.bg} ${colors.text} shrink-0`}
-          >
-            {icon}
-          </div>
-          <div className="grow">
-            <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
-              {title}
-            </p>
-            <h1 className="font-extrabold text-3xl text-gray-800 mt-1">
-              {numbers.toLocaleString()}
-            </h1>
-          </div>
-        </div>
-      </Link>
-    );
-  },
-);
-
-const TopUsersCard: React.FC<{
-  TopMembersData?: { data: { user: Member; messageCount: number }[] };
-}> = React.memo(({ TopMembersData }) => (
-  <div className="bg-white p-6 rounded-2xl shadow-lg h-96 flex flex-col">
-    <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
-      <Trophy className="w-5 h-5 mr-2 text-yellow-500" fill="currentColor" />
-      Top 3 Active Members
-    </h3>
-    {TopMembersData?.data && TopMembersData.data.length > 0 ? (
-      <ul className="space-y-3">
-        {TopMembersData.data.map((item, index) => (
-          <li
-            key={index}
-            className="flex justify-between items-center p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition"
-          >
-            <div className="flex items-center space-x-3">
-              <span
-                className={`font-bold text-lg w-6 text-center ${
-                  index === 0 ? "text-yellow-500" : "text-gray-400"
-                }`}
-              >
-                #{index + 1}
-              </span>
-              <span className="font-medium text-gray-700">
-                {item?.user?.firstName + " " + item?.user?.lastName}
-              </span>
-            </div>
-            <span className="text-sm font-semibold text-primary">
-              {item?.messageCount.toLocaleString()} Messages
-            </span>
-          </li>
-        ))}
-      </ul>
-    ) : (
-      <div className="text-center m-2">
-        No active members data available yet.
-      </div>
-    )}
-
-    <div className="mt-auto pt-4 border-t border-gray-100">
-      <Link
-        href="/dashboard/members"
-        className="text-sm font-medium text-primary hover:text-primary/80 flex items-center"
-      >
-        View full leaderboard
-      </Link>
-    </div>
-  </div>
-));
-
-const ActivityTrendCard: React.FC<{ trend?: { date: string; count: number }[] }> = React.memo(
-  ({ trend }) => {
-    const data = trend || [];
-    const maxCount = Math.max(...data.map((d) => d.count), 1);
-
-    return (
-      <div className="bg-white p-6 rounded-2xl shadow-lg h-96 flex flex-col">
-        <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
-          <BarChart className="w-5 h-5 mr-2 text-primary" />
-          7-Day Activity Trend
-        </h3>
-        <div className="flex-1 flex items-end gap-2 px-2 pb-6 pt-2">
-          {data.length > 0 ? (
-            data.map((day) => {
-              const height = Math.max((day.count / maxCount) * 100, 2);
-              const dayLabel = new Date(day.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" });
-              return (
-                <div key={day.date} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-xs font-semibold text-gray-600">{day.count}</span>
-                  <div className="w-full flex items-end" style={{ height: "200px" }}>
-                    <div
-                      className="w-full bg-primary rounded-t-lg transition-all duration-500 hover:bg-primary/80"
-                      style={{ height: `${height}%` }}
-                      title={`${day.count} messages on ${day.date}`}
-                    />
-                  </div>
-                  <span className="text-xs text-gray-400 mt-1">{dayLabel}</span>
-                </div>
-              );
-            })
+const StatCard: React.FC<StatCardProps> = React.memo(({ title, value, icon, href, tone, loading }) => {
+  const t = tones[tone];
+  return (
+    <Link
+      href={href}
+      className={`group block rounded-2xl border border-border border-l-4 ${t.border} bg-card p-5 shadow-sm transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
+    >
+      <div className="flex items-start gap-4">
+        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${t.iconBg} ${t.icon}`}>{icon}</div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          {loading ? (
+            <div className="mt-2 h-8 w-20 animate-pulse rounded bg-muted" aria-hidden="true" />
           ) : (
-            <div className="flex-1 flex justify-center items-center text-gray-400">
-              <p>No activity data available yet.</p>
-            </div>
+            <p className="mt-1 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{value.toLocaleString()}</p>
           )}
         </div>
       </div>
-    );
-  },
-);
-
-const DashboardHome = () => {
-  const { data: StatsData, isLoading } = useStatsQuery(undefined);
-  const { data: TopMembersData } = useTopMembersQuery(undefined);
-  const { data: trendData } = useActivityTrendQuery(7);
-
-  const stats = useMemo(
-    () => [
-      {
-        id: 1,
-        icon: <User size={24} />,
-        number: StatsData?.users || 0,
-        title: "Total Members",
-        link: "/dashboard/members",
-        color: "blue",
-      },
-      {
-        id: 2,
-        icon: <MessageSquare size={24} />,
-        number: StatsData?.messages || 0,
-        title: "Total Messages",
-        link: "/dashboard/chat",
-        color: "blue",
-      },
-      {
-        id: 3,
-        icon: <Clock size={24} />,
-        number: StatsData?.notificationsUnopened || 0,
-        title: "Unresolved Tasks",
-        link: "#",
-        color: "amber" as const,
-      },
-      {
-        id: 4,
-        icon: <Bell size={24} />,
-        number: StatsData?.sentNotifications || 0,
-        title: "Notifications Sent",
-        link: "/dashboard/notifications",
-        color: "green",
-      },
-    ] as const,
-    [StatsData],
+    </Link>
   );
+});
+StatCard.displayName = "StatCard";
 
-  if (isLoading) {
-    return (
-      <div className="p-4 sm:p-6 lg:p-8 bg-gray-100 min-h-full font-sans">
-        <div className="mb-6">
-          <div className="h-10 w-64 bg-gray-200 animate-pulse rounded mb-4" />
-          <div className="h-6 w-96 bg-gray-200 animate-pulse rounded" />
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <StatsCardSkeleton key={i} />
-          ))}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <div className="bg-white p-6 rounded-2xl shadow-lg h-96" />
-          </div>
-          <div className="bg-white p-6 rounded-2xl shadow-lg h-96" />
-        </div>
-      </div>
-    );
-  }
+export default function DashboardHome() {
+  const { data: stats, isLoading } = useQuery({
+    queryKey: ["dashboard", "stats"],
+    queryFn: getDashboardStats,
+  });
+
+  const cards = useMemo(
+    () => [
+      { title: "Total members", value: stats?.users || 0, icon: <User className="h-5 w-5" aria-hidden="true" />, href: "/dashboard/members", tone: "brand" as const },
+      { title: "Total messages", value: stats?.messages || 0, icon: <MessageSquare className="h-5 w-5" aria-hidden="true" />, href: "/dashboard/chat", tone: "brand" as const },
+      { title: "Unopened notifications", value: stats?.notificationsUnopened || 0, icon: <Clock className="h-5 w-5" aria-hidden="true" />, href: "/dashboard/notifications", tone: "amber" as const },
+      { title: "Notifications sent", value: stats?.sentNotifications || 0, icon: <Bell className="h-5 w-5" aria-hidden="true" />, href: "/dashboard/notifications", tone: "green" as const },
+    ],
+    [stats]
+  );
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 bg-gray-100 min-h-full font-sans">
-      <h1 className="text-3xl font-extrabold text-gray-900 mb-6">
-        Dashboard Overview
-      </h1>
-      <p className="text-gray-600 mb-8">
-        Welcome back! Here's a summary of your system's performance and
-        activity.
-      </p>
+    <div className="space-y-6 sm:space-y-8">
+      <header>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Dashboard overview</h1>
+        <p className="mt-1 text-sm text-muted-foreground sm:text-base">A quick glance at key community metrics and recent activity.</p>
+      </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-        {stats.map((stat, index) => (
-          <StatCard
-            link={stat.link}
-            icon={stat.icon}
-            title={stat.title}
-            numbers={stat.number}
-            color={stat.color}
-            key={stat.id + index}
-          />
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <ActivityTrendCard trend={trendData?.data} />
+      <section aria-label="Key metrics">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {cards.map((card) => (
+            <StatCard key={card.title} {...card} loading={isLoading} />
+          ))}
         </div>
+      </section>
 
-        <TopUsersCard TopMembersData={TopMembersData} />
-      </div>
-
-      <div className="mt-6">
+      <section aria-label="Activity and insights" className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <RecentEventsCard />
-      </div>
+        <div className="flex min-h-[20rem] flex-col rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
+          <h2 className="mb-4 flex items-center text-lg font-semibold text-foreground">
+            <BarChart3 className="mr-2 h-5 w-5 text-primary" aria-hidden="true" />
+            Activity trend
+          </h2>
+          <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center">
+            <p className="text-sm text-muted-foreground">Activity trend will appear here after analytics migration is complete.</p>
+          </div>
+        </div>
+      </section>
+
+      <section aria-label="Top members" className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
+        <h2 className="mb-2 flex items-center text-lg font-semibold text-foreground">
+          <Trophy className="mr-2 h-5 w-5 text-amber-600" aria-hidden="true" />
+          Top members
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Top members and chat analytics will be available after chat and message migration is complete.
+        </p>
+      </section>
     </div>
   );
-};
-
-export default DashboardHome;
+}

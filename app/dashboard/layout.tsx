@@ -1,17 +1,9 @@
-import { AuthGuard } from "@/components/Other/AccessDashboard";
-import Layout from "@/components/Other/Layout";
-import React from "react";
+import DashboardShell from "@/components/Other/DashboardShell";
 
-export default async function DashboardLayout({
+export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <div>
-      <AuthGuard>
-        <Layout>{children}</Layout>
-      </AuthGuard>
-    </div>
-  );
+  return <DashboardShell>{children}</DashboardShell>;
 }

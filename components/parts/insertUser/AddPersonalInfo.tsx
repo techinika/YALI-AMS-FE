@@ -8,18 +8,15 @@ import {
   ResidentSector,
   State,
 } from "@/types/user";
+import { useQuery } from "@tanstack/react-query";
 import {
-  useCohortsQuery,
-  useGenderQuery,
-  useSectorsByDistrictQuery,
-  useStatesByCountryQuery,
-  useTracksQuery,
-} from "@/lib/features/otherSlice";
-import {
-  useCreateUserProfileMutation,
-  useUploadPictureMutation,
-} from "@/lib/features/userSlice";
-import { getUser } from "@/helpers/auth";
+  listCohorts,
+  listGenders,
+  listSectorsByDistrict,
+  listStatesByCountry,
+  listTracks,
+} from "@/lib/data/reference";
+import { createMember, fileToAvatar } from "@/lib/data/members-admin";
 import { Track } from "@/types/track";
 import { Cohort } from "@/types/cohort";
 import { TailwindInput } from "@/components/ui/TailInput";
@@ -66,7 +63,6 @@ interface FormValues {
   trackId: string;
   cohortId: string;
   stateId: string;
-  profileImageId: string;
 }
 
 interface FormErrors {
@@ -93,7 +89,6 @@ const initialValues: FormValues = {
   trackId: "",
   cohortId: "",
   stateId: "",
-  profileImageId: "",
 };
 
 const validate = (values: FormValues) => {
@@ -164,36 +159,37 @@ const validate = (values: FormValues) => {
   return errors;
 };
 
-const genderToOption = (g: Gender) => ({ id: g.id, name: g.name });
-const countryToOption = (c: Country) => ({ id: c.id, name: c.name });
-const stateToOption = (s: State) => ({ id: s.id, name: s.name });
-const districtToOption = (d: ResidentDistrict) => ({ id: d.id, name: d.name });
-const sectorToOption = (s: ResidentSector) => ({ id: s.id, name: s.name });
-const trackToOption = (t: Track) => ({ id: t.id, name: t.name });
-const cohortToOption = (c: Cohort) => ({ id: c.id, name: c.name });
+type Option = { id: string; name: string };
+const toOption = (row: { id: string | number; name?: string | null }): Option => ({
+  id: String(row.id),
+  name: row.name ?? "",
+});
+const genderToOption = toOption;
+const countryToOption = toOption;
+const stateToOption = toOption;
+const districtToOption = toOption;
+const sectorToOption = toOption;
+const trackToOption = toOption;
+const cohortToOption = toOption;
 
 function AddPersonalInfo({
   districts,
   countries,
   onSuccess,
   onError,
-  newId,
   setUserId,
 }: {
   districts: ResidentDistrict[];
   countries: Country[];
   onSuccess: () => void;
   onError: () => void;
-  newId: string;
   setUserId: (v: string) => void;
 }) {
-  const user = getUser();
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageData, setImageData] = useState<any>(null);
-  const [uploadSuccess, setUploadSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const [formValues, setFormValues] = useState<FormValues>(initialValues);
@@ -203,24 +199,28 @@ function AddPersonalInfo({
   const countryId = formValues.countryId;
   const districtId = formValues.districtId;
 
-  const { data: GenderData } = useGenderQuery("");
-  const { data: StatesData } = useStatesByCountryQuery(countryId, {
-    skip: !countryId,
+  const { data: genders = [] } = useQuery({
+    queryKey: ["ref", "genders"],
+    queryFn: async () => (await listGenders()).data ?? [],
   });
-  const { data: CohortsData } = useCohortsQuery("");
-  const { data: SectorsData } = useSectorsByDistrictQuery(districtId, {
-    skip: !districtId || countryId !== "RW",
+  const { data: cohorts = [] } = useQuery({
+    queryKey: ["ref", "cohorts"],
+    queryFn: async () => (await listCohorts()).data ?? [],
   });
-  const { data: TracksData } = useTracksQuery("");
-
-  const [createUserProfile] = useCreateUserProfileMutation();
-  const [uploadPicture] = useUploadPictureMutation();
-
-  const genders = GenderData?.data || [];
-  const states = StatesData?.data || [];
-  const cohorts = CohortsData?.data || [];
-  const sectors = SectorsData?.data || [];
-  const tracks = TracksData?.data || [];
+  const { data: tracks = [] } = useQuery({
+    queryKey: ["ref", "tracks"],
+    queryFn: async () => (await listTracks()).data ?? [],
+  });
+  const { data: states = [] } = useQuery({
+    queryKey: ["ref", "states", countryId],
+    enabled: Boolean(countryId) && countryId !== "RW",
+    queryFn: async () => (await listStatesByCountry(countryId)).data ?? [],
+  });
+  const { data: sectors = [] } = useQuery({
+    queryKey: ["ref", "sectors", districtId],
+    enabled: Boolean(districtId) && countryId === "RW",
+    queryFn: async () => (await listSectorsByDistrict(districtId)).data ?? [],
+  });
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -300,32 +300,6 @@ function AddPersonalInfo({
         setImagePreview(reader.result as string);
       };
       reader.readAsDataURL(file);
-      setUploadSuccess(false);
-    }
-  };
-
-  const handleFileUpload = async () => {
-    if (imageData) {
-      setLoading(true);
-      setError("");
-      setSuccess("");
-      try {
-        const formData = new FormData();
-        formData.append("profileImage", imageData);
-        formData.append("userId", user?.id || "");
-
-        const data = await uploadPicture(formData).unwrap();
-
-        if (data?.image) {
-          setSuccess("Image uploaded successfully!");
-          setFormValues((prev) => ({ ...prev, profileImageId: data.image.id }));
-          setUploadSuccess(true);
-        }
-      } catch (error: any) {
-        setError(error?.error || "Image upload failed!");
-      } finally {
-        setLoading(false);
-      }
     }
   };
 
@@ -351,51 +325,37 @@ function AddPersonalInfo({
     const values = formValues;
 
     try {
-      const selectedGender = genders.find((g) => g.id === values.genderId);
+      const avatar = imageData ? await fileToAvatar(imageData as File) : undefined;
 
-      const res = await createUserProfile({
-        user: {
-          id: newId,
-          firstName: values.firstName,
-          middleName: values.middleName,
-          lastName: values.lastName,
-          email: values.email,
-          linkedin: values.linkedin,
-          instagram: values.instagram,
-          twitter: values.twitter,
-          facebook: values.facebook,
-          bio: values.bio,
-          phoneNumber: values.phoneNumber,
-          whatsappNumber: values.whatsAppNumber,
-          genderName: selectedGender?.name,
-          nearestLandmark: values.nearlestLandmark,
-          cohortId: values.cohortId,
-          trackId: values.trackId,
-          residentCountryId: values?.countryId,
-          residentDistrictId:
-            values.countryId === "RW" ? values.districtId : undefined,
-          residentSectorId:
-            values.countryId === "RW" ? values.sectorId : undefined,
-          stateId: values.countryId === "RW" ? undefined : values.stateId,
-          countryId: values.countryId,
-          profileImageId: values.profileImageId,
-        },
-      }).unwrap();
+      const res = await createMember({
+        firstName: values.firstName,
+        middleName: values.middleName,
+        lastName: values.lastName,
+        email: values.email,
+        bio: values.bio,
+        linkedin: values.linkedin,
+        instagram: values.instagram,
+        twitter: values.twitter,
+        facebook: values.facebook,
+        phoneNumber: values.phoneNumber,
+        whatsAppNumber: values.whatsAppNumber,
+        nearlestLandmark: values.nearlestLandmark,
+        genderId: values.genderId,
+        cohortId: values.cohortId,
+        trackId: values.trackId,
+        countryId: values.countryId,
+        districtId: values.countryId === "RW" ? values.districtId : undefined,
+        sectorId: values.countryId === "RW" ? values.sectorId : undefined,
+        stateId: values.countryId === "RW" ? undefined : values.stateId,
+        avatar,
+      });
 
-      setUserId(res?.user?.id);
-
-      if (res.message) {
-        setSuccess("Member profile updated successfully!");
-        onSuccess();
-      }
-    } catch (error: any) {
-      if (error?.status === 409) {
-        setError(error?.data?.error);
-      } else {
-        setError(
-          "Updating profile failed! Try again, or contact the administrator!"
-        );
-      }
+      setUserId(res.user.id);
+      setSuccess("Member profile created successfully!");
+      onSuccess();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Could not create the member.");
+      onError();
     } finally {
       setLoading(false);
     }
@@ -452,33 +412,21 @@ function AddPersonalInfo({
                   alt="Image Preview"
                   className="mt-4 h-40 rounded-md w-40 object-cover border border-gray-300 shadow-md"
                 />
-                <div className="flex gap-2 items-center my-2">
-                  {!uploadSuccess && (
-                    <Button
-                      size="sm"
-                      onClick={handleFileUpload}
-                      className="bg-green-500 hover:bg-green-600 px-3 py-1 text-sm"
-                      disabled={loading}
-                    >
-                      {loading ? "Uploading..." : "Upload"}
-                    </Button>
-                  )}
+                <div className="my-2 flex items-center gap-2">
                   <Button
                     size="sm"
                     variant="danger"
                     onClick={() => {
                       setImagePreview(null);
                       setImageData(null);
-                      setUploadSuccess(false);
-                      setFormValues((prev) => ({
-                        ...prev,
-                        profileImageId: "",
-                      }));
                     }}
-                    className="bg-red-500 hover:bg-red-600 px-3 py-1 text-sm"
+                    className="bg-red-500 px-3 py-1 text-sm hover:bg-red-600"
                   >
                     Clear
                   </Button>
+                  <span className="text-xs text-muted-foreground">
+                    The picture is saved when you submit.
+                  </span>
                 </div>
               </>
             )}
