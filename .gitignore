@@ -36,3 +36,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .vscode
+
+# supabase local
+supabase/.branches/
+supabase/.temp/
+supabase/.env
+scripts/migrate-from-mysql/reports/
