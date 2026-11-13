@@ -15,7 +15,7 @@ import { USER_STATUSES } from "@/helpers/data";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listProfiles, profileToMember } from "@/lib/data/profiles";
-import { deleteMember, reinviteMember } from "@/lib/data/members-admin";
+import { deleteMember, exportMembers, reinviteMember } from "@/lib/data/members-admin";
 import { getOrCreateDirectConversation } from "@/lib/data/chat";
 import { listCohorts, listTracks } from "@/lib/data/reference";
 import { useCurrentUser } from "@/lib/data/use-current-user";
@@ -167,29 +167,24 @@ const MembersPage = () => {
 
   const exportToExcel = async () => {
     try {
-      const rows: any[] = [];
-      let page = 1;
-      // listProfiles caps a page at 100 rows.
-      for (;;) {
-        const res = await listProfiles({ page, limit: 100 });
-        if (res.error) throw res.error;
-        const batch = res.data ?? [];
-        rows.push(...batch);
-        if (batch.length < 100 || rows.length >= (res.count ?? 0)) break;
-        page += 1;
-      }
+      const rows = await exportMembers();
 
       const header = [
         "First name", "Middle name", "Last name", "Email", "Phone", "WhatsApp",
         "Gender", "Country", "Province/State", "District", "Sector", "Track",
-        "Cohort", "Status",
+        "Cohort", "Nearest Landmark", "Organizations", "Relation", "Position",
+        "Status", "Created At", "Updated At",
       ];
       const lines = rows.map((row) => [
-        row.first_name, row.middle_name, row.last_name, row.email,
-        row.phone ?? "", row.whatsapp ?? "", row.gender?.name ?? "",
-        row.resident_country?.name ?? "", row.resident_state?.name ?? "",
-        row.resident_district?.name ?? "", row.resident_sector?.name ?? "",
-        row.track?.name ?? "", row.cohort?.name ?? "", row.status ?? "",
+        row.first_name, row.middle_name ?? "", row.last_name, row.email,
+        row.phone ?? "", row.whatsapp ?? "", row.gender_name ?? "",
+        row.country_name ?? "", row.state_name ?? "",
+        row.district_name ?? "", row.sector_name ?? "",
+        row.track_name ?? "", row.cohort_name ?? "", row.nearest_landmark ?? "",
+        row.organization_names, row.organization_relations, row.organization_positions,
+        row.status,
+        row.created_at ? new Date(row.created_at).toLocaleString() : "",
+        row.updated_at ? new Date(row.updated_at).toLocaleString() : "",
       ]);
 
       const csv = [header, ...lines].map((line) => line.map(csvCell).join(",")).join("\n");

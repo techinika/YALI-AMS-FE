@@ -57,6 +57,7 @@ Identity comes from `auth.uid()` only — never from client-supplied user ids.
 | `is_conversation_admin(conv)` | True if approved group admin | yes |
 | `is_conversation_subscribed(conv)` | True if any membership row (incl. pending) or creator | yes |
 | `get_profile_contact(user_id)` | Conditional phone/WhatsApp | yes |
+| `admin_export_members()` | Admin-only member export incl. contacts and organizations | admins only |
 | `notify_user(...)` | Insert a notification | no (service/definer only) |
 | `log_activity(...)` | Insert an activity log | no (service/definer only) |
 | `generate_profile_update_notifications()` | Hourly reminder | no (pg_cron only) |

@@ -8,6 +8,7 @@ import { PageHeader } from "../parts/PageHeader";
 import { CgPassword } from "react-icons/cg";
 import { Button } from "../ui/Button";
 import { getSupabaseBrowserClient } from "@/lib/data/client";
+import { PROFILE_LIST_SELECT } from "@/lib/data/profiles";
 import { toastSuccess, toastError } from "@/lib/toast";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -109,10 +110,11 @@ const DataPrivacy = () => {
       let profile = null;
       let organizations: unknown[] = [];
       let notifications: unknown[] = [];
+      let contact: unknown = null;
 
       if (userId) {
-        const [profileRes, orgsRes, notificationsRes] = await Promise.all([
-          supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
+        const [profileRes, orgsRes, notificationsRes, contactRes] = await Promise.all([
+          supabase.from("profiles").select(PROFILE_LIST_SELECT).eq("id", userId).maybeSingle(),
           supabase
             .from("user_organizations")
             .select("id, relation, position, created_at, organization:organizations(id, name, sector)")
@@ -122,10 +124,12 @@ const DataPrivacy = () => {
             .select("id, title, message, link, opened, created_at")
             .eq("receiver_id", userId)
             .order("created_at", { ascending: false }),
+          supabase.rpc("get_profile_contact", { p_user_id: userId }),
         ]);
         profile = profileRes.data ?? null;
         organizations = orgsRes.data ?? [];
         notifications = notificationsRes.data ?? [];
+        contact = contactRes.data?.[0] ?? null;
       }
 
       const blob = new Blob(
@@ -135,6 +139,7 @@ const DataPrivacy = () => {
               exportedAt: new Date().toISOString(),
               auth: data.user ? { id: data.user.id, email: data.user.email } : null,
               profile,
+              contact,
               organizations,
               notifications,
             },

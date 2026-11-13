@@ -114,6 +114,36 @@ export async function importMembers(rows: NewMemberInput[]) {
   });
 }
 
+export async function exportMembers() {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase.rpc("admin_export_members");
+  if (error) throw error;
+  return (data ?? []) as {
+    id: string;
+    first_name: string;
+    middle_name: string | null;
+    last_name: string;
+    email: string;
+    phone: string | null;
+    whatsapp: string | null;
+    bio: string | null;
+    gender_name: string | null;
+    country_name: string | null;
+    state_name: string | null;
+    district_name: string | null;
+    sector_name: string | null;
+    cohort_name: string | null;
+    track_name: string | null;
+    nearest_landmark: string | null;
+    organization_names: string;
+    organization_relations: string;
+    organization_positions: string;
+    status: string;
+    created_at: string;
+    updated_at: string;
+  }[];
+}
+
 export async function fileToAvatar(file: File): Promise<MemberAvatar> {
   const data = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();

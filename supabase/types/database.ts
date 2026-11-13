@@ -963,6 +963,33 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      admin_export_members: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          id: string;
+          first_name: string;
+          middle_name: string | null;
+          last_name: string;
+          email: string;
+          phone: string | null;
+          whatsapp: string | null;
+          bio: string | null;
+          gender_name: string | null;
+          country_name: string | null;
+          state_name: string | null;
+          district_name: string | null;
+          sector_name: string | null;
+          cohort_name: string | null;
+          track_name: string | null;
+          nearest_landmark: string | null;
+          organization_names: string;
+          organization_relations: string;
+          organization_positions: string;
+          status: "invited" | "active" | "inactive" | "deleted";
+          created_at: string;
+          updated_at: string;
+        }[];
+      };
       generate_profile_update_notifications: {
         Args: Record<PropertyKey, never>;
         Returns: number;

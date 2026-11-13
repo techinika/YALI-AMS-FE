@@ -3,7 +3,7 @@ import type { Tables } from "./types";
 
 export type Profile = Tables<"profiles">;
 
-const PROFILE_LIST_SELECT = `
+export const PROFILE_LIST_SELECT = `
   id, first_name, middle_name, last_name, email, bio, linkedin, instagram, facebook, twitter,
   gender_id, is_rwandan, country_id, state_id, district_id, sector_id, nearest_landmark,
   cohort_id, track_id, avatar_path, role, status, phone_visible, whatsapp_visible, created_at, updated_at,
@@ -20,12 +20,34 @@ export async function getMyProfile() {
   const supabase = getSupabaseBrowserClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return { data: null, error: new Error("Not authenticated") };
-  return supabase.from("profiles").select(PROFILE_LIST_SELECT).eq("id", auth.user.id).maybeSingle();
+  const [profileRes, contactRes] = await Promise.all([
+    supabase.from("profiles").select(PROFILE_LIST_SELECT).eq("id", auth.user.id).maybeSingle(),
+    supabase.rpc("get_profile_contact", { p_user_id: auth.user.id }),
+  ]);
+  if (profileRes.error) return profileRes;
+  const contact = contactRes.data?.[0] as { phone?: string | null; whatsapp?: string | null } | undefined;
+  return {
+    ...profileRes,
+    data: profileRes.data
+      ? { ...profileRes.data, phone: contact?.phone ?? null, whatsapp: contact?.whatsapp ?? null }
+      : null,
+  };
 }
 
 export async function getProfileById(id: string) {
   const supabase = getSupabaseBrowserClient();
-  return supabase.from("profiles").select(PROFILE_LIST_SELECT).eq("id", id).maybeSingle();
+  const [profileRes, contactRes] = await Promise.all([
+    supabase.from("profiles").select(PROFILE_LIST_SELECT).eq("id", id).maybeSingle(),
+    supabase.rpc("get_profile_contact", { p_user_id: id }),
+  ]);
+  if (profileRes.error) return profileRes;
+  const contact = contactRes.data?.[0] as { phone?: string | null; whatsapp?: string | null } | undefined;
+  return {
+    ...profileRes,
+    data: profileRes.data
+      ? { ...profileRes.data, phone: contact?.phone ?? null, whatsapp: contact?.whatsapp ?? null }
+      : null,
+  };
 }
 
 export async function listProfiles(opts?: { page?: number; limit?: number; search?: string }) {
