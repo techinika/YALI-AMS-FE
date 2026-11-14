@@ -225,6 +225,17 @@ await check("activity logs stay admin-only", async () => {
   if (rows[0].n !== 0) throw new Error("non-admin read activity logs");
 });
 
+await check("client-supplied role metadata cannot create an admin", async () => {
+  const mallory = randomUUID();
+  await db.exec(`
+    insert into auth.users (id, email, raw_user_meta_data, email_confirmed_at)
+    values ('${mallory}', 'mallory@example.com', '{"role":"admin","first_name":"Mallory","last_name":"M"}', now());
+  `);
+  const { rows } = await db.query("select role from public.profiles where id = $1", [mallory]);
+  await db.exec(`delete from auth.users where id = '${mallory}'`);
+  if (rows[0]?.role !== "user") throw new Error(`role escalated to ${rows[0]?.role}`);
+});
+
 console.log(`\n${passed} checks passed, ${failures} failure(s)`);
 await db.close();
 if (failures > 0) process.exitCode = 1;

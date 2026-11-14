@@ -11,15 +11,18 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { RoleChip } from "../ui/role-chip";
 import { Personal } from "../parts/profile/ProfilePagePersonal";
 import { ShowOrganizationOnProfile } from "../parts/profile/ShowOrganizations";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getProfileById, getMyProfile, profileToMember } from "@/lib/data/profiles";
 import { listOrganizations, listUserOrganizations } from "@/lib/data/organizations";
+import { setMemberRole } from "@/lib/data/members-admin";
 import { useCurrentUser } from "@/lib/data/use-current-user";
+import { toastError, toastSuccess } from "@/lib/toast";
 
 dayjs.extend(relativeTime);
 
 function ProfilePage() {
   const { user: authUser, role } = useCurrentUser();
+  const qc = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
   const userId = searchParams.get("userId");
@@ -56,6 +59,17 @@ function ProfilePage() {
     },
   });
 
+  const roleMutation = useMutation({
+    mutationFn: ({ userId, nextRole }: { userId: string; nextRole: "admin" | "user" }) =>
+      setMemberRole(userId, nextRole),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["profile"] });
+      qc.invalidateQueries({ queryKey: ["profiles"] });
+      toastSuccess("Member role updated.");
+    },
+    onError: (error: Error) => toastError(error.message || "Could not update the member role."),
+  });
+
   const user = profileRes as Member | null;
   const isAdmin = role === "admin";
 
@@ -69,6 +83,17 @@ function ProfilePage() {
   }
 
   if (userLoading || !user) return <Loading />;
+
+  const currentRole = (user.role?.name || "USER").toUpperCase();
+  const canChangeRole = isAdmin && user.id !== authUser?.id && !roleMutation.isPending;
+
+  const handleRoleChange = () => {
+    if (!canChangeRole) return;
+    const nextRole = currentRole === "ADMIN" ? "user" : "admin";
+    const label = nextRole === "admin" ? "administrator" : "regular member";
+    if (!window.confirm(`Change ${user.firstName}'s role to ${label}?`)) return;
+    roleMutation.mutate({ userId: user.id, nextRole });
+  };
 
   const userOrgRows = (userOrgsRes ?? []) as any[];
   const foundedOrganizations = userOrgRows
@@ -112,7 +137,7 @@ function ProfilePage() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 mb-2">
               <h2 className="font-extrabold text-4xl text-gray-900 truncate">{fullName}</h2>
-              <RoleChip roleName={user?.role?.name || "USER"} onClick={() => {}} />
+              <RoleChip roleName={currentRole} onClick={handleRoleChange} />
             </div>
 
             <p className="text-gray-700 text-lg italic mb-3">

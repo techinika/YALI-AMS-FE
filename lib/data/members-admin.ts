@@ -35,6 +35,29 @@ export type NewMemberInput = {
 
 type FunctionResult<T> = T & { error?: string };
 
+export type InvitationResult = {
+  user: { id: string; email: string };
+  inviteLink: string | null;
+  emailSent: boolean;
+  emailError: string | null;
+};
+
+export type ReinviteResult = {
+  inviteLink: string | null;
+  emailSent: boolean;
+  emailError: string | null;
+};
+
+export type ImportResult = {
+  created: number;
+  failed: { row: number; error: string }[];
+  results: { row: number; userId: string; email: string }[];
+  emailsRequested: boolean;
+  emailsSent: number;
+  emailFailures: { email: string; error: string }[];
+  emailConfigured: boolean;
+};
+
 async function invoke<T>(body: Record<string, unknown>): Promise<FunctionResult<T>> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase.functions.invoke("admin-members", { body });
@@ -60,14 +83,14 @@ async function invoke<T>(body: Record<string, unknown>): Promise<FunctionResult<
 }
 
 export async function inviteMember(input: { firstName: string; email: string }) {
-  return invoke<{ user: { id: string; email: string }; inviteLink: string | null }>({
+  return invoke<InvitationResult>({
     action: "invite",
     ...input,
   });
 }
 
 export async function createMember(input: NewMemberInput) {
-  return invoke<{ user: { id: string; email: string }; inviteLink: string | null }>({
+  return invoke<InvitationResult>({
     action: "create",
     ...input,
   });
@@ -99,18 +122,23 @@ export async function updateMember(userId: string, fields: MemberUpdateFields, a
   return invoke<{ user: { id: string } }>({ action: "update", userId, fields, avatar });
 }
 
+export async function setMemberRole(userId: string, role: "admin" | "user") {
+  return invoke<{ user: { id: string; role: string } }>({ action: "set-role", userId, role });
+}
+
 export async function reinviteMember(userId: string) {
-  return invoke<{ inviteLink: string | null }>({ action: "reinvite", userId });
+  return invoke<ReinviteResult>({ action: "reinvite", userId });
 }
 
 export async function deleteMember(userId: string) {
   return invoke<{ user: { id: string } }>({ action: "delete", userId });
 }
 
-export async function importMembers(rows: NewMemberInput[]) {
-  return invoke<{ created: number; failed: { row: number; error: string }[] }>({
+export async function importMembers(rows: NewMemberInput[], options?: { sendEmails?: boolean }) {
+  return invoke<ImportResult>({
     action: "import",
     rows,
+    sendEmails: options?.sendEmails ?? true,
   });
 }
 

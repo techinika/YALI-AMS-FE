@@ -7,6 +7,7 @@ import { useMemo, useRef, useState } from "react";
 import { Eye, EyeOff, LoaderCircle } from "lucide-react";
 import { z } from "zod";
 import { signInWithPassword } from "@/lib/data/auth";
+import { getMyProfile } from "@/lib/data/profiles";
 import { getMessages } from "@/lib/i18n";
 
 const t = getMessages("en");
@@ -25,6 +26,21 @@ type FieldErrors = { email?: string; password?: string };
 function safeNextPath(next: string | null): string | null {
   if (!next || !next.startsWith("/") || next.startsWith("//")) return null;
   return next;
+}
+
+function authErrorMessage(message?: string): string {
+  const text = (message ?? "").toLowerCase();
+  if (!text) return t.auth.invalidCredentials;
+  if (text.includes("email not confirmed")) {
+    return "Your email is not confirmed yet. Check your inbox, or ask an administrator to confirm your account.";
+  }
+  if (text.includes("invalid login credentials")) {
+    return t.auth.invalidCredentials;
+  }
+  if (text.includes("too many") || text.includes("rate limit")) {
+    return "Too many sign-in attempts. Please wait a minute and try again.";
+  }
+  return message || t.auth.invalidCredentials;
 }
 
 export default function LoginForm() {
@@ -76,13 +92,12 @@ export default function LoginForm() {
         parsed.data.password
       );
       if (error || !data.user) {
-        setGeneralError(t.auth.invalidCredentials);
+        setGeneralError(authErrorMessage(error?.message));
         passwordRef.current?.focus();
         return;
       }
-      const role =
-        (data.user?.user_metadata?.role as string | undefined)?.toLowerCase() ||
-        (data.user?.app_metadata?.role as string | undefined)?.toLowerCase();
+      const profile = await getMyProfile().catch(() => null);
+      const role = (profile?.data?.role as string | undefined)?.toLowerCase();
       const nextPath = safeNextPath(searchParams.get("next"));
       const fallback = role === "admin" ? "/dashboard" : "/dashboard/profile";
       router.push(nextPath || fallback);

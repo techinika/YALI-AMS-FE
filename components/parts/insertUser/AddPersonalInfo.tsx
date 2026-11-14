@@ -181,7 +181,12 @@ function AddPersonalInfo({
 }: {
   districts: ResidentDistrict[];
   countries: Country[];
-  onSuccess: () => void;
+  onSuccess: (result: {
+    inviteLink: string | null;
+    emailSent: boolean;
+    emailError: string | null;
+    email: string;
+  }) => void;
   onError: () => void;
   setUserId: (v: string) => void;
 }) {
@@ -352,7 +357,12 @@ function AddPersonalInfo({
 
       setUserId(res.user.id);
       setSuccess("Member profile created successfully!");
-      onSuccess();
+      onSuccess({
+        inviteLink: res.inviteLink ?? null,
+        emailSent: res.emailSent,
+        emailError: res.emailError,
+        email: res.user.email,
+      });
     } catch (error) {
       setError(error instanceof Error ? error.message : "Could not create the member.");
       onError();

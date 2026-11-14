@@ -98,6 +98,7 @@ const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
   const [file, setFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [sendEmails, setSendEmails] = useState(true);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
 
@@ -268,12 +269,24 @@ const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
         return;
       }
       const rows = previewData.map(mapImportRow);
-      const result = await importMembers(rows);
-      if (result.failed.length > 0) {
-        toastError(`${result.created} imported, ${result.failed.length} failed. Check the console for details.`);
+      const result = await importMembers(rows, { sendEmails });
+      const summary = [
+        `${result.created} imported`,
+        result.emailsSent > 0 ? `${result.emailsSent} invitation emails sent` : null,
+        result.failed.length > 0 ? `${result.failed.length} rows failed` : null,
+        result.emailFailures.length > 0 ? `${result.emailFailures.length} emails failed` : null,
+      ].filter(Boolean).join(", ");
+
+      if (result.failed.length > 0 || result.emailFailures.length > 0) {
+        toastError(`${summary}. Check the console for details.`);
         console.error("Import failures", result.failed);
+        console.error("Email failures", result.emailFailures);
+      } else if (sendEmails && result.emailsSent === 0) {
+        toastSuccess(`${result.created} members imported as invited. Invitation emails are not configured.`);
+      } else if (result.emailsSent > 0) {
+        toastSuccess(`${summary}.`);
       } else {
-        toastSuccess(`${result.created} members imported.`);
+        toastSuccess(`${result.created} members imported as invited. Send their set-password links from the Members page.`);
       }
       setFile(null);
       setPreviewData([]);
@@ -319,6 +332,27 @@ const ImportUsersModal: React.FC<ImportUsersModalProps> = ({ closeModal }) => {
 
         {/* Body */}
         <div className="p-6 space-y-6">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Imported members are created as <strong>invited</strong> with no known password.
+            {sendEmails
+              ? " Each member will receive a set-password email once the import finishes."
+              : " After importing, use the re-invite button on the Members page to copy each member's set-password link."}
+          </div>
+          <label className="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800">
+            <input
+              type="checkbox"
+              checked={sendEmails}
+              onChange={(event) => setSendEmails(event.target.checked)}
+              disabled={isUploading}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            <span>
+              <span className="font-medium">Send invitation emails</span>
+              <span className="block text-xs text-gray-500">
+                Sends one set-password email per member through Resend. Uncheck to import silently and share links manually.
+              </span>
+            </span>
+          </label>
           {/* File Upload Area */}
           <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center bg-gray-50 hover:bg-gray-100 transition-colors">
             <input

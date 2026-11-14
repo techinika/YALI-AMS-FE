@@ -39,7 +39,6 @@ export function useCurrentUser(): CurrentUser {
       const nextRole =
         (data?.role as string | undefined) ??
         (nextUser.app_metadata?.role as string | undefined) ??
-        (nextUser.user_metadata?.role as string | undefined) ??
         null;
       setRole(nextRole ? nextRole.toLowerCase() : null);
       setLoading(false);

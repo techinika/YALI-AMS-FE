@@ -50,6 +50,19 @@ npx supabase functions deploy matchmaking
 npx supabase functions logs admin-members
 ```
 
+`admin-members` sends invitation emails through Resend, so set the function
+secrets before deploying:
+
+```bash
+npx supabase secrets set \
+  RESEND_API_KEY=re_... \
+  EMAIL_FROM="YALI AMS <no-reply@yalirwandachapter.org>" \
+  APP_URL="https://your-app.example"
+```
+
+See the root `README.md` for the full Resend invitation setup. Supabase Auth
+continues to use its default mailer.
+
 They are Deno/TypeScript and are excluded from the Next.js `tsconfig`; type-check
 them with `deno check supabase/functions/*/index.ts` (requires Deno).
 

@@ -76,7 +76,7 @@ export default function Sidebar({ isAdmin, isSidebarOpen, collapsed, onNavigate 
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       <div className={`flex h-16 items-center border-b border-sidebar-border px-4 ${collapsed ? "justify-center" : "gap-2"}`}>
-        <Image src="/yali.png" alt="YALI AMS logo" width={32} height={32} className="h-8 w-8" priority />
+        <Image src="/yali.png" alt="YALI AMS logo" width={96} height={96} className="max-h-8 w-auto" priority />
         {!collapsed && <span className="text-lg font-bold text-primary">YALI AMS</span>}
       </div>
       <nav aria-label="Primary" className="flex-1 overflow-y-auto p-3">

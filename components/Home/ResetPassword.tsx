@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Eye, EyeOff, LoaderCircle } from "lucide-react";
 import { z } from "zod";
 import { getSupabaseBrowserClient } from "@/lib/data/client";
@@ -23,6 +23,7 @@ type Errors = { password?: string; confirmPassword?: string };
 export default function ResetPassword() {
   const passwordRef = useRef<HTMLInputElement>(null);
   const confirmRef = useRef<HTMLInputElement>(null);
+  const verifyRef = useRef<Promise<string | null> | null>(null);
   const [form, setForm] = useState({ password: "", confirmPassword: "" });
   const [errors, setErrors] = useState<Errors>({});
   const [generalError, setGeneralError] = useState("");
@@ -30,6 +31,55 @@ export default function ResetPassword() {
   const [success, setSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const supabase = getSupabaseBrowserClient();
+    const search = new URLSearchParams(window.location.search);
+    const tokenHash = search.get("token_hash");
+    const otpType = search.get("type");
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const accessToken = hash.get("access_token");
+    const refreshToken = hash.get("refresh_token");
+
+    const clearUrl = () => {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("token_hash");
+      url.searchParams.delete("type");
+      url.hash = "";
+      window.history.replaceState({}, "", url.toString());
+    };
+
+    // Admin-generated invites use a token hash so the PKCE browser client can
+    // verify them (the default implicit-flow action link is rejected).
+    if (tokenHash && otpType === "recovery") {
+      verifyRef.current = supabase.auth
+        .verifyOtp({ token_hash: tokenHash, type: "recovery" })
+        .then(({ error }) => {
+          clearUrl();
+          return error ? "This password reset link is invalid or has expired. Please request a new one." : null;
+        })
+        .catch(() => {
+          clearUrl();
+          return "This password reset link is invalid or has expired. Please request a new one.";
+        });
+      return;
+    }
+
+    // Fallback for older implicit-flow recovery links.
+    if (accessToken && refreshToken) {
+      verifyRef.current = supabase.auth
+        .setSession({ access_token: accessToken, refresh_token: refreshToken })
+        .then(({ error }) => {
+          clearUrl();
+          return error ? "This password reset link is invalid or has expired. Please request a new one." : null;
+        })
+        .catch(() => {
+          clearUrl();
+          return "This password reset link is invalid or has expired. Please request a new one.";
+        });
+    }
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -51,6 +101,13 @@ export default function ResetPassword() {
     }
     setIsLoading(true);
     try {
+      if (verifyRef.current) {
+        const verifyError = await verifyRef.current;
+        if (verifyError) {
+          setGeneralError(verifyError);
+          return;
+        }
+      }
       const supabase = getSupabaseBrowserClient();
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {

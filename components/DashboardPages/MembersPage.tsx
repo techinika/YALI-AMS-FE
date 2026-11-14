@@ -119,10 +119,18 @@ const MembersPage = () => {
   const reinviteMutation = useMutation({
     mutationFn: (id: string) => reinviteMember(id),
     onSuccess: async (result) => {
+      if (result.emailSent) {
+        toastSuccess("Invitation email sent.");
+        return;
+      }
       if (result.inviteLink) {
         try {
           await navigator.clipboard.writeText(result.inviteLink);
-          toastSuccess("Invitation link copied to your clipboard.");
+          toastSuccess(
+            result.emailError
+              ? `Email not sent (${result.emailError}). Invitation link copied instead.`
+              : "Invitation link copied to your clipboard."
+          );
           return;
         } catch {
           // clipboard unavailable (insecure context); fall through

@@ -43,8 +43,14 @@ const InviteUserModal: React.FC<InviteUserModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      await inviteMember({ firstName: name.trim(), email: email.trim() });
-      toastSuccess(`Invitation created for ${name.trim()}.`);
+      const result = await inviteMember({ firstName: name.trim(), email: email.trim() });
+      if (result.emailSent) {
+        toastSuccess(`Invitation email sent to ${email.trim()}.`);
+      } else {
+        toastSuccess(
+          `Invitation created for ${name.trim()}. Email was not sent; copy the link from the Members page.`
+        );
+      }
       setName("");
       setEmail("");
       refetchUsers();
