@@ -1,151 +1,178 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { MdCheck } from "react-icons/md";
+import { Upload } from "lucide-react";
 import ImportUsersModal from "../parts/models/ImportMembersModal";
 import { PageHeader } from "../parts/PageHeader";
-import { Upload } from "lucide-react";
-import { Country, ResidentDistrict } from "@/types/user";
-import {
-  useCountriesQuery,
-  useDistrictsQuery,
-} from "@/lib/features/otherSlice";
 import SectionWrapper from "../parts/SessionWrapper";
 import AddPersonalInfo from "../parts/insertUser/AddPersonalInfo";
+import { listCountries, listDistricts } from "@/lib/data/reference";
+import { toastError, toastSuccess } from "@/lib/toast";
 
-const SECTIONS = [
-  {
-    id: 1,
-    title: "Personal & Contact Information",
-    component: AddPersonalInfo,
-    mandatory: true,
-    canRevisit: true,
-    skip: false,
-    props: (districts: ResidentDistrict[], countries: Country[]) => ({
-      districts,
-      countries,
-    }),
-  },
-];
+const SECTIONS = [{ id: 1, title: "Personal & Contact Information", mandatory: true }];
 
 function NewProfile() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const [submissionStatus, setSubmissionStatus] = useState<
-    "idle" | "success" | "error"
-  >("idle");
-  const [districts, setDistricts] = useState<ResidentDistrict[]>([]);
-  const [countries, setCountries] = useState<Country[]>([]);
-  const [activeSection, setActiveSection] = useState<number>(1);
-  const [sectionFeedback, setSectionFeedback] = useState<{
-    [key: number]: "idle" | "success" | "error" | "skipped";
-  }>({});
-  const [userId, setUserId] = useState("");
+  const [submissionStatus, setSubmissionStatus] = useState<"idle" | "success" | "error">("idle");
+  const [sectionFeedback, setSectionFeedback] = useState<Record<number, "idle" | "success" | "error" | "skipped">>({});
+  const [inviteResult, setInviteResult] = useState<{
+    inviteLink: string | null;
+    emailSent: boolean;
+    emailError: string | null;
+    email: string;
+  } | null>(null);
+  const [, setUserId] = useState("");
 
-  const newUserId = `AMS-MEM-${Date.now()}`;
+  const { data: countries = [] } = useQuery({
+    queryKey: ["ref", "countries"],
+    queryFn: async () => (await listCountries()).data ?? [],
+  });
+  const { data: districts = [] } = useQuery({
+    queryKey: ["ref", "districts"],
+    queryFn: async () => (await listDistricts()).data ?? [],
+  });
 
-  const { data: CountryData } = useCountriesQuery("");
-  const { data: DistrictData } = useDistrictsQuery("");
-
-  useEffect(() => {
-    if (DistrictData?.data) {
-      setDistricts(DistrictData.data);
-    }
-    if (CountryData?.data) {
-      setCountries(CountryData.data);
-    }
-  }, [DistrictData, CountryData]);
-  const isProfileComplete = useMemo(() => {
-    return SECTIONS.every((section) =>
-      ["success", "skipped"].includes(sectionFeedback[section.id]),
-    );
-  }, [sectionFeedback]);
+  const isProfileComplete = useMemo(
+    () => SECTIONS.every((section) => ["success", "skipped"].includes(sectionFeedback[section.id] ?? "idle")),
+    [sectionFeedback]
+  );
 
   const handleResetProfile = useCallback(() => {
-    setActiveSection(1);
     setSectionFeedback({});
     setSubmissionStatus("idle");
+    setInviteResult(null);
   }, []);
 
-  const handleSectionSuccess = useCallback((sectionId: number) => {
-    setSectionFeedback((prev) => ({ ...prev, [sectionId]: "success" }));
-    const nextSection = sectionId + 1;
-    if (nextSection <= SECTIONS.length) {
-      setActiveSection(nextSection);
-    } else {
-      setSubmissionStatus("success");
-    }
-  }, []);
+  const handleSectionSuccess = useCallback(
+    (
+      sectionId: number,
+      result?: {
+        inviteLink: string | null;
+        emailSent: boolean;
+        emailError: string | null;
+        email: string;
+      }
+    ) => {
+      const nextFeedback = { ...sectionFeedback, [sectionId]: "success" as const };
+      setSectionFeedback(nextFeedback);
+      if (result) setInviteResult(result);
+      if (SECTIONS.every((section) => ["success", "skipped"].includes(nextFeedback[section.id] ?? "idle"))) {
+        setSubmissionStatus("success");
+      }
+    },
+    [sectionFeedback]
+  );
 
   const handleSectionError = useCallback((sectionId: number) => {
     setSectionFeedback((prev) => ({ ...prev, [sectionId]: "error" }));
-    setActiveSection(sectionId);
   }, []);
 
   if (submissionStatus === "success") {
     return (
-      <div className="mt-8 p-8 bg-green-50 rounded-xl shadow-lg border border-green-200 text-center max-w-lg mx-auto">
-        <MdCheck className="w-12 h-12 text-green-600 mx-auto mb-4" />
-        <p className="text-xl font-bold text-green-700 mb-2">
-          Success! Member Profile Saved.
+      <div className="mx-auto mt-8 max-w-lg rounded-2xl border border-green-200 bg-green-50 p-8 text-center shadow-sm">
+        <MdCheck className="mx-auto mb-4 h-12 w-12 text-green-600" aria-hidden="true" />
+        <p className="mb-2 text-xl font-bold text-green-700">Member profile saved</p>
+        <p className="mb-4 text-sm text-green-800">
+          {inviteResult?.emailSent
+            ? <>An invitation email was sent to <strong>{inviteResult.email}</strong>.</>
+            : inviteResult && !inviteResult.inviteLink
+              ? "The new member has been created, but the set-password link could not be generated."
+              : "The new member has been created. Send them the link below so they can set a password."}
         </p>
-        <p className="text-gray-700 mb-6">
-          The new member has been successfully created.
-        </p>
+        {inviteResult && !inviteResult.emailSent && inviteResult.emailError && (
+          <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm text-amber-900">
+            The email could not be sent: {inviteResult.emailError}
+          </p>
+        )}
+        {inviteResult?.inviteLink && (
+          <div className="mb-6 text-left">
+            <label htmlFor="invite-link" className="mb-1 block text-sm font-medium text-green-900">
+              Set-password link
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="invite-link"
+                readOnly
+                value={inviteResult.inviteLink}
+                onFocus={(event) => event.currentTarget.select()}
+                className="min-w-0 flex-1 rounded-lg border border-green-300 bg-white px-3 py-2 text-xs text-gray-700"
+              />
+              <button
+                type="button"
+                onClick={async () => {
+                  const link = inviteResult?.inviteLink;
+                  if (!link) return;
+                  try {
+                    await navigator.clipboard.writeText(link);
+                    toastSuccess("Set-password link copied.");
+                  } catch {
+                    toastError("Could not copy the link. Select it and copy manually.");
+                  }
+                }}
+                className="rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
+              >
+                Copy
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-green-800">
+              The member uses this link to choose a password. If it expires, use the re-invite button on the Members page.
+            </p>
+          </div>
+        )}
         <button
+          type="button"
           onClick={handleResetProfile}
-          className="px-6 py-3 text-white font-medium bg-primary rounded-xl hover:bg-primary/80 transition duration-150 shadow-md"
+          className="rounded-xl bg-primary px-6 py-3 font-medium text-primary-foreground transition hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          Start New Member Profile
+          Add another member
         </button>
       </div>
     );
   }
 
   return (
-    <div className="p-4 sm:p-8 container mx-auto">
+    <div className="mx-auto max-w-7xl p-4 sm:p-8">
       <PageHeader
-        title="Add New Member"
-        description="Create a new member profile by filling out the sections below."
-        actionTitle={"Import Members"}
+        title="Add new member"
+        description="Create a member profile and invite them to set their password."
+        actionTitle="Import members"
         Icon={Upload}
         onAction={() => setIsImportModalOpen(true)}
         loading={false}
         disabled={false}
       />
+
       <div className="space-y-8">
-        {SECTIONS.map((section, index) => (
-          <SectionWrapper
-            key={section.id + index}
-            id={section.id}
-            title={section.title}
-            mandatory={section.mandatory}
-          >
+        {SECTIONS.map((section) => (
+          <SectionWrapper key={section.id} id={section.id} title={section.title} mandatory={section.mandatory}>
             {section.id === 1 && (
               <AddPersonalInfo
                 countries={countries}
                 districts={districts}
-                onSuccess={() => handleSectionSuccess(1)}
+                onSuccess={(result) => handleSectionSuccess(1, result)}
                 onError={() => handleSectionError(1)}
-                newId={newUserId}
                 setUserId={setUserId}
               />
             )}
           </SectionWrapper>
         ))}
+
         {sectionFeedback[1] === "success" && isProfileComplete && (
-          <div className="text-center pt-4">
+          <div className="pt-4 text-center">
             <button
+              type="button"
               onClick={handleResetProfile}
-              className="px-8 py-3 text-white font-semibold bg-green-600 rounded-xl hover:bg-green-700 transition duration-150 shadow-lg"
+              className="rounded-xl bg-green-600 px-8 py-3 font-semibold text-white shadow-sm transition hover:bg-green-700"
             >
-              Finish User, Add New Member Profile
+              Add another member
             </button>
           </div>
         )}
       </div>
-      {isImportModalOpen && (
-        <ImportUsersModal closeModal={() => setIsImportModalOpen(false)} />
-      )}
+
+      {isImportModalOpen && <ImportUsersModal closeModal={() => setIsImportModalOpen(false)} />}
     </div>
   );
 }

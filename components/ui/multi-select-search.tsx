@@ -143,3 +143,5 @@ export const MultiSelectSearch: React.FC<Props> = React.memo(
     );
   }
 );
+
+MultiSelectSearch.displayName = "MultiSelectSearch";

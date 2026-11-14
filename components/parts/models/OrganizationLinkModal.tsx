@@ -1,13 +1,14 @@
 "use client";
 
 import { ModalButton } from "@/components/ui/modal-button";
-import { useAssociateOrganizationMutation } from "@/lib/features/userSlice";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import { MdClose } from "react-icons/md";
 import LinkOrganization from "../update/LinkOrganization";
+import { associateUserToOrganization } from "@/lib/data/organizations";
+import { useQueryClient } from "@tanstack/react-query";
 
 type Organization = {
   id: string;
@@ -26,13 +27,13 @@ export default function OrganizationLinkModal({
   userId,
 }: OrganizationLinkModalProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const initData = {
     orgId: "",
     relation: "",
     position: "",
   };
   const [formData, setFormData] = useState(initData);
-  const [associateOrganization] = useAssociateOrganizationMutation();
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState("");
 
@@ -43,22 +44,29 @@ export default function OrganizationLinkModal({
   }, [organizations, query]);
 
   const handleOrgLink = async () => {
+    if (!formData.orgId) {
+      toastError("Please select an organization.");
+      return;
+    }
     setSaving(true);
     try {
-      await associateOrganization({
-        organizationId: formData?.orgId,
+      const { error } = await associateUserToOrganization({
+        organizationId: formData.orgId,
         userId,
-        relation: formData?.relation,
-        position: formData?.position,
-      }).unwrap();
+        relation: formData.relation || "founded",
+        position: formData.position || null,
+      });
+      if (error) throw error;
 
-      toastSuccess("Organization Linked Successfully!");
+      toastSuccess("Organization linked successfully!");
+      await queryClient.invalidateQueries({ queryKey: ["user-organizations", userId] });
+      await queryClient.invalidateQueries({ queryKey: ["organizations"] });
       router.refresh();
+      closeModal();
     } catch (error) {
       console.log(error);
       toastError("Failed to add/link an organization.");
     } finally {
-      closeModal();
       setSaving(false);
     }
   };
@@ -116,7 +124,7 @@ export default function OrganizationLinkModal({
             Cancel
           </ModalButton>
 
-          <ModalButton variant="confirm" onClick={handleOrgLink}>
+          <ModalButton variant="confirm" onClick={handleOrgLink} disabled={saving}>
             {saving ? "Saving..." : "Save"}
           </ModalButton>
         </div>

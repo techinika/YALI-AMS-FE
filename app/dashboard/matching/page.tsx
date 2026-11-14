@@ -1,11 +1,5 @@
-import React from 'react';
+import { redirect } from "next/navigation";
 
-function page() {
-    return (
-        <div>
-            <p>AI Matching</p>
-        </div>
-    );
+export default function MatchingPage() {
+  redirect("/dashboard/members/match");
 }
-
-export default page;

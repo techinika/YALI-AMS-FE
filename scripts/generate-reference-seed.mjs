@@ -1,0 +1,234 @@
+#!/usr/bin/env node
+/**
+ * Generates `supabase/seed.sql` from the legacy Prisma seeders' data packages.
+ *
+ * The reference data (countries, Rwanda provinces/districts/sectors, cohorts,
+ * genders, tracks, working sectors, notification templates) is static and is
+ * committed as SQL so `supabase db reset` never needs a Node runtime or network.
+ *
+ * Usage:
+ *   node scripts/generate-reference-seed.mjs [path-to-legacy-package.json]
+ *
+ * Default legacy path: ../YALI-AMS-BE/package.json (the former backend repo).
+ */
+import { createRequire } from 'node:module';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(here, '..');
+const legacyPackage = path.resolve(
+  process.argv[2] ?? path.join(root, '..', 'YALI-AMS-BE', 'package.json'),
+);
+
+const require = createRequire(legacyPackage);
+const rwanda = require('rwanda');
+const cscModule = require('countries-states-cities');
+const csc = cscModule.default ?? cscModule;
+
+const q = (value) => {
+  if (value === null || value === undefined) return 'null';
+  return `'${String(value).replaceAll("'", "''")}'`;
+};
+
+const rows = (items, render) =>
+  items.map((item) => `  (${render(item)})`).join(',\n');
+
+const countries = csc
+  .getAllCountries()
+  .filter((c) => c && c.iso2 && c.name)
+  .map((c) => ({ id: c.iso2, name: c.name, c_id: c.id }));
+
+const provinces = rwanda.Provinces() ?? [];
+const districts = [];
+const sectors = [];
+
+// The `rwanda` package's Sectors({province, district}) helper returns the whole
+// province rather than the district's own sectors (upstream bug). Derive the
+// correct mapping with Cells(): a sector belongs to a district when it returns
+// at least one cell. This yields exactly Rwanda's 416 sectors.
+const allSectorNames = [...new Set(rwanda.Sectors() ?? [])];
+
+for (const province of provinces) {
+  const provinceDistricts = rwanda.Districts({ provinces: province }) ?? [];
+  for (const [k, district] of provinceDistricts.entries()) {
+    const districtId = `${province}-${k + 1}`;
+    districts.push({ id: districtId, name: district, province });
+
+    let sectorIndex = 0;
+    for (const sector of allSectorNames) {
+      const cells = rwanda.Cells({ province, district, sector });
+      if (!Array.isArray(cells) || cells.length === 0) continue;
+      sectorIndex += 1;
+      sectors.push({
+        id: `${districtId}-${sectorIndex}`,
+        name: sector,
+        district_id: districtId,
+      });
+    }
+  }
+}
+
+districts.push({ id: 'unspecified', name: 'Not Specified', province: null });
+sectors.push({
+  id: 'unspecified',
+  name: 'Not Specified',
+  district_id: 'unspecified',
+});
+
+const genders = [
+  { id: 1, name: 'Not Specified' },
+  { id: 2, name: 'Male' },
+  { id: 3, name: 'Female' },
+  { id: 4, name: 'Other' },
+];
+
+const tracks = [
+  { id: 'unspecified', name: 'Not Specified' },
+  { id: 'pm', name: 'Project Management' },
+  { id: 'cl', name: 'Community Leadership' },
+  { id: 'be', name: 'Business & Entrepreneurship' },
+];
+
+const workingSectors = [
+  ['climate', 'Climate Change & Environmental Sustainability'],
+  ['comm', 'Communication & Media'],
+  ['civic', 'Civic Engagement & Community Building'],
+  ['sport', 'Sport for Development'],
+  ['agri', 'Agriculture & Food Security'],
+  ['fin', 'Finance, Investment & Financial Literacy'],
+  ['eship', 'Entrepreneurship & Business Development'],
+  ['sexed', 'Sexual & Reproductive Health'],
+  ['tourism', 'Tourism & Hospitality'],
+  ['waste', 'Waste Management & Recycling'],
+  ['bustrade', 'Business & Trade'],
+  ['health', 'Healthcare & Mental Wellbeing'],
+  ['ed', 'Education'],
+  ['env', 'Environmental Conservation'],
+  ['human', 'Human Rights Advocates'],
+  ['economy', 'Economic Development'],
+  ['art', 'Art & Culture'],
+  ['community', 'Community Development'],
+  ['gender', 'Gender Equality'],
+  ['tech', 'Technology & Digital Inclusion'],
+  ['eng', 'Engineering'],
+  ['youth', 'Youth & Child Development'],
+  ['governance', 'Governmance'],
+  ['water', 'Water & Sanitation'],
+  ['unspecified', 'Not Specified'],
+];
+
+const notificationTemplates = [
+  {
+    usage: 'signup',
+    message:
+      '<p>Hi [name],</p><p>Welcome to YALI! Please update your profile by clicking the link below.</p><p>Best,<br/>YALI Team</p>',
+    link: 'signup',
+  },
+  {
+    usage: 'update',
+    message:
+      '<p>Hi [name],</p><p>Please update your profile to reflect any changes in your education, career, or contact information by clicking the link below.</p><p>Best,<br/>YALI Team</p>',
+    link: 'update',
+  },
+  {
+    usage: 'updated',
+    message:
+      '<p>Hi [name],</p><p>Your profile has been successfully updated. You will receive another notification in the next 3 months.</p><p>Best,<br/>YALI Team</p>',
+    link: 'updated',
+  },
+];
+
+const lines = [];
+lines.push('-- Generated by scripts/generate-reference-seed.mjs. Do not edit by hand.');
+lines.push('-- Regenerate after changing the legacy seed data or this script.');
+lines.push('');
+lines.push('-- Genders');
+lines.push(
+  `insert into public.genders (id, name) values\n${rows(genders, (g) => `${g.id}, ${q(g.name)}`)}\non conflict (id) do nothing;`,
+);
+lines.push('');
+lines.push('-- Cohorts');
+lines.push(
+  `insert into public.cohorts (id, name) values\n${rows(
+    [{ id: 1, name: 'Not Specified' }, ...Array.from({ length: 55 }, (_, i) => ({ id: i + 2, name: `Cohort ${i + 2}` }))],
+    (c) => `${c.id}, ${q(c.name)}`,
+  )}\non conflict (id) do nothing;`,
+);
+lines.push('');
+lines.push('-- Tracks');
+lines.push(
+  `insert into public.tracks (id, name) values\n${rows(tracks, (t) => `${q(t.id)}, ${q(t.name)}`)}\non conflict (id) do nothing;`,
+);
+lines.push('');
+lines.push('-- Working sectors');
+lines.push(
+  `insert into public.working_sectors (id, name) values\n${rows(
+    workingSectors.map(([id, name]) => ({ id, name })),
+    (s) => `${q(s.id)}, ${q(s.name)}`,
+  )}\non conflict (id) do nothing;`,
+);
+lines.push('');
+lines.push('-- Countries');
+lines.push(
+  `insert into public.countries (id, name, c_id) values\n${rows(
+    countries,
+    (c) => `${q(c.id)}, ${q(c.name)}, ${c.c_id}`,
+  )}\non conflict (id) do nothing;`,
+);
+lines.push('');
+lines.push('-- Not-specified country / state / district / sector');
+lines.push(
+  `insert into public.countries (id, name, c_id) values ('unspecified', 'Not specified', 1000000)\non conflict (id) do nothing;`,
+);
+lines.push(
+  `insert into public.states (id, name, country_code) values ('unspecified', 'Not specified', 'unspecified')\non conflict (id) do nothing;`,
+);
+lines.push('');
+lines.push('-- Rwanda provinces (states)');
+lines.push(
+  `insert into public.states (id, name, country_code) values\n${rows(
+    provinces.map((p) => ({ id: `RW-${p.toLowerCase()}`, name: p })),
+    (s) => `${q(s.id)}, ${q(s.name)}, 'RW'`,
+  )}\non conflict (id) do nothing;`,
+);
+lines.push('');
+lines.push('-- Rwanda districts');
+lines.push(
+  `insert into public.districts (id, name, province) values\n${rows(
+    districts,
+    (d) => `${q(d.id)}, ${q(d.name)}, ${q(d.province)}`,
+  )}\non conflict (id) do nothing;`,
+);
+lines.push('');
+lines.push('-- Rwanda sectors');
+lines.push(
+  `insert into public.sectors (id, name, district_id) values\n${rows(
+    sectors,
+    (s) => `${q(s.id)}, ${q(s.name)}, ${q(s.district_id)}`,
+  )}\non conflict (id) do nothing;`,
+);
+lines.push('');
+lines.push('-- Notification templates');
+lines.push(
+  `insert into public.notification_templates (usage, message, link) values\n${rows(
+    notificationTemplates,
+    (t) => `${q(t.usage)}, ${q(t.message)}, ${q(t.link)}`,
+  )}\non conflict (usage) do nothing;`,
+);
+lines.push('');
+lines.push('-- Singleton community conversation');
+lines.push(
+  `insert into public.conversations (id, type, name, description, interests, created_by)
+values ('00000000-0000-0000-0000-000000000001', 'community', 'Community', 'Public community chat for all YALI alumni', '{}', null)
+on conflict (id) do nothing;`,
+);
+lines.push('');
+
+await mkdir(path.join(root, 'supabase'), { recursive: true });
+await writeFile(path.join(root, 'supabase', 'seed.sql'), lines.join('\n'), 'utf8');
+
+console.log(
+  `seed.sql written: ${countries.length} countries, ${provinces.length} provinces, ${districts.length} districts, ${sectors.length} sectors`,
+);

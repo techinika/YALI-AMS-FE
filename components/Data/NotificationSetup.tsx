@@ -1,238 +1,168 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import {
-  useNotSetupsQuery,
-  useUpdateSetupMutation,
-} from "@/lib/features/notificationSlice";
 import { Button } from "../ui/Button";
 import { toastError, toastSuccess, toastWarning } from "@/lib/toast";
 import RichTextEditor from "../ui/rich-text-editor";
-import { NotificationSetup as NotificationSetupData } from "@/types/api";
+import {
+  listNotificationTemplates,
+  updateNotificationTemplate,
+  type NotificationTemplateRow,
+} from "@/lib/data/reference-admin";
 
-export const notificationTypes = {
-  SIGNUP: "signup",
-  UPDATE: "updated",
-  UPDATED: "updated",
-};
+dayjs.extend(relativeTime);
 
 export const actionOptions = [
-  {
-    id: "confirm",
-    action: "Confirm to update",
-  },
+  { id: "confirm", action: "Confirm to update" },
   { id: "decline", action: "Decline to update" },
   { id: "login", action: "Login" },
 ];
 
-function NotificationSetup() {
-  dayjs.extend(relativeTime);
-  const [notifications, setNotifications] = useState<NotificationSetupData[]>([]);
-  const [currentNotificationId, setCurrentNotificationId] = useState<
-    string | undefined
-  >();
-  const [selectedNotification, setSelectedNotification] = useState<NotificationSetupData | undefined>();
-
+export default function NotificationSetup() {
+  const qc = useQueryClient();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
-  const [usage, setUsage] = useState("");
-  const [selectedActionIds, setSelectedActionIds] = useState<string[]>([]);
+  const [linkIds, setLinkIds] = useState<string[]>([]);
 
-  const { data: SetupData, refetch: AllRefetch } = useNotSetupsQuery("");
-  const [updateSetup, { isLoading }] = useUpdateSetupMutation();
+  const { data: templates = [], isLoading, isError } = useQuery({
+    queryKey: ["admin", "notification_templates"],
+    queryFn: async () => {
+      const { data, error } = await listNotificationTemplates();
+      if (error) throw error;
+      return (data ?? []) as NotificationTemplateRow[];
+    },
+  });
 
-  useEffect(() => {
-    if (SetupData && SetupData.data && SetupData.data.length > 0) {
-      setNotifications(SetupData.data);
-      const firstNotiId = SetupData.data[0].id;
-      setCurrentNotificationId(firstNotiId);
-      setSelectedNotification(
-        SetupData.data.find((n: any) => n.id === firstNotiId)
-      );
-    }
-  }, [SetupData]);
-
-  useEffect(() => {
-    if (selectedNotification) {
-      setMessage(selectedNotification.message || "Add the notification here");
-      setUsage(selectedNotification.usage || "");
-
-      const linkIds = selectedNotification.link
-        ? selectedNotification.link.split("+")
-        : [];
-      setSelectedActionIds(linkIds);
-    }
-  }, [selectedNotification]);
+  const selected = useMemo(
+    () => templates.find((t) => t.id === selectedId) ?? null,
+    [templates, selectedId]
+  );
 
   useEffect(() => {
-    if (currentNotificationId && notifications.length > 0) {
-      const noti = notifications.find(
-        (noti: any) => noti.id === currentNotificationId
-      );
-      setSelectedNotification(noti);
-    }
-  }, [currentNotificationId, notifications]);
+    if (selectedId && templates.some((t) => t.id === selectedId)) return;
+    const first = templates[0] ?? null;
+    setSelectedId(first?.id ?? null);
+  }, [templates, selectedId]);
 
-  const handleOpenNotification = (id: string) => {
-    setCurrentNotificationId(id);
+  useEffect(() => {
+    if (!selected) return;
+    setMessage(selected.message || "Add the notification here");
+    setLinkIds(selected.link ? selected.link.split("+").filter(Boolean) : []);
+  }, [selected]);
+
+  const update = useMutation({
+    mutationFn: (input: { id: string; message: string; link: string }) =>
+      updateNotificationTemplate(input.id, { message: input.message, link: input.link }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["admin", "notification_templates"] });
+      toastSuccess("Notification updated successfully!");
+    },
+    onError: (error: Error) => toastError(error.message || "An error occurred while updating."),
+  });
+
+  const onActionChange = (e: React.ChangeEvent<HTMLInputElement>, actionId: string) => {
+    setLinkIds((prev) =>
+      e.target.checked ? (prev.includes(actionId) ? prev : [...prev, actionId]) : prev.filter((id) => id !== actionId)
+    );
   };
 
-  // Custom Action Change Handler
-  const OnActionChange = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    actionId: string
-  ) => {
-    setSelectedActionIds((prevActions) => {
-      let newActions = [...prevActions];
-
-      if (e.target.checked) {
-        if (!newActions.includes(actionId)) {
-          newActions.push(actionId);
-        }
-      } else {
-        newActions = newActions.filter((id) => id !== actionId);
-      }
-      return newActions;
-    });
-  };
-
-  const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleSubmit = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
-    if (!currentNotificationId) {
+    if (!selectedId) {
       toastWarning("Please select a notification to update.");
       return;
     }
-
-    try {
-      const res = await updateSetup({
-        id: currentNotificationId,
-        message: message,
-        usage: usage,
-        link: selectedActionIds.join("+"),
-      }).unwrap();
-
-      if (res) {
-        AllRefetch();
-        toastSuccess("Notification updated successfully!");
-      }
-    } catch (error: any) {
-      console.error("Update error:", error);
-      toastError(error?.data?.message || "An error occurred while updating.");
-    }
+    update.mutate({ id: selectedId, message, link: linkIds.join("+") });
   };
 
-  const currentNotiHeader = selectedNotification
-    ? selectedNotification.usage
-    : "No notification selected!";
-
   return (
-    <div className="p-4 sm:p-6 bg-gray-50 h-screen overflow-scroll">
-      <div className="flex flex-col lg:flex-row gap-6 h-[85vh]">
-        <div className="lg:w-1/3 bg-white rounded-xl shadow-lg border border-gray-100 overflow-y-auto shrink-0">
-          <h1 className="sticky top-0 bg-white p-4 text-xl font-bold text-gray-800 border-b z-10">
-            Notification Type
-          </h1>
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-6">
+      <div className="flex h-[70vh] min-h-[28rem] flex-col gap-6 lg:flex-row">
+        <section aria-labelledby="notification-types" className="shrink-0 overflow-y-auto rounded-xl border border-border bg-background lg:w-1/3">
+          <h2 id="notification-types" className="sticky top-0 z-10 border-b border-border bg-background p-4 text-lg font-semibold text-foreground">
+            Notification type
+          </h2>
           <ul className="flex flex-col">
-            {notifications.length > 0 ? (
-              notifications.map((noti: any, index: number) => (
-                <li
-                  key={noti.id || index + 1}
-                  className={`border-b border-gray-100 p-3 px-4 cursor-pointer transition duration-150 ${
-                    currentNotificationId === noti.id
-                      ? "bg-blue-100 border-l-4 border-primary font-semibold"
-                      : "hover:bg-gray-50"
-                  }`}
-                  onClick={() => handleOpenNotification(noti.id)}
-                >
-                  <div>
-                    <p className="text-xs text-primary mb-1">
-                      {dayjs(noti?.updatedAt).fromNow()}
-                    </p>
-                    <p className="text-sm text-gray-700">{noti.usage}</p>
-                  </div>
-                </li>
-              ))
-            ) : (
-              <p className="py-4 px-2 text-center text-sm text-gray-500 italic">
-                No Notifications for Now! Check back later!
-              </p>
+            {isLoading && <li className="px-4 py-6 text-center text-sm text-muted-foreground">Loading templates...</li>}
+            {isError && <li className="px-4 py-6 text-center text-sm text-red-600">Failed to load templates.</li>}
+            {!isLoading && !isError && templates.length === 0 && (
+              <li className="px-4 py-6 text-center text-sm italic text-muted-foreground">No notification templates found.</li>
             )}
+            {!isLoading &&
+              !isError &&
+              templates.map((template) => {
+                const active = template.id === selectedId;
+                return (
+                  <li key={template.id}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId(template.id)}
+                      aria-current={active ? "true" : undefined}
+                      className={`w-full border-b border-l-4 border-border px-4 py-3 text-left transition last:border-b-0 ${
+                        active ? "border-l-primary bg-brand-50 font-semibold" : "hover:bg-muted/50"
+                      }`}
+                    >
+                      <span className="mb-1 block text-xs text-primary">
+                        {template.updated_at ? dayjs(template.updated_at).fromNow() : "Never updated"}
+                      </span>
+                      <span className="block text-sm capitalize text-foreground">{template.usage}</span>
+                    </button>
+                  </li>
+                );
+              })}
           </ul>
-        </div>
+        </section>
 
-        <div className="lg:w-2/3 bg-white rounded-xl shadow-lg border border-gray-100 flex flex-col">
-          <div className="sticky top-0 bg-white p-4 border-b z-10">
-            <div className="flex justify-between items-center w-full">
-              <h2 className="text-xl font-bold text-gray-800">
-                {currentNotiHeader}
-              </h2>
-              <Button
-                size="md"
-                onClick={handleSubmit}
-                disabled={isLoading || !currentNotificationId}
-              >
-                {isLoading ? "Saving..." : "Save"}
-              </Button>
-            </div>
+        <section aria-labelledby="notification-editor" className="flex flex-col rounded-xl border border-border bg-background lg:w-2/3">
+          <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-background p-4">
+            <h2 id="notification-editor" className="text-lg font-semibold capitalize text-foreground">
+              {selected?.usage ?? "No notification selected"}
+            </h2>
+            <Button size="md" onClick={handleSubmit} disabled={update.isPending || !selected}>
+              {update.isPending ? "Saving..." : "Save"}
+            </Button>
           </div>
 
-          {selectedNotification ? (
-            <div className="p-5 overflow-y-auto">
-              {/* Message Editor */}
+          {selected ? (
+            <div className="flex-1 overflow-y-auto p-5">
               <div className="mb-6">
-                <label
-                  htmlFor="message"
-                  className="block text-sm font-bold text-gray-700 mb-2"
-                >
-                  Message:
+                <label htmlFor="notification-message" className="mb-2 block text-sm font-semibold text-foreground">
+                  Message
                 </label>
                 <RichTextEditor message={message} setMessage={setMessage} />
               </div>
-
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">
-                  Actions:
-                </label>
-                <div className="flex flex-wrap gap-4 p-3 border border-gray-200 rounded-lg bg-gray-50">
-                  {actionOptions.length > 0 ? (
-                    actionOptions.map((action: any) => (
-                      <div key={action.id} className="flex items-center">
-                        <input
-                          type="checkbox"
-                          id={action.id}
-                          name={action.id}
-                          value={action.id} // Use ID for value in refactored logic
-                          onChange={(e) => OnActionChange(e, action.id)}
-                          checked={selectedActionIds.includes(action.id)}
-                          className="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
-                        />
-                        <label
-                          htmlFor={action.id}
-                          className="ml-2 text-sm text-gray-700"
-                        >
-                          {action.action}
-                        </label>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500 italic">
-                      No actions available.
-                    </p>
-                  )}
+              <fieldset>
+                <legend className="mb-2 block text-sm font-semibold text-foreground">Actions</legend>
+                <div className="flex flex-wrap gap-4 rounded-lg border border-border bg-muted/40 p-3">
+                  {actionOptions.map((action) => (
+                    <div key={action.id} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id={`action-${action.id}`}
+                        name={action.id}
+                        value={action.id}
+                        checked={linkIds.includes(action.id)}
+                        onChange={(e) => onActionChange(e, action.id)}
+                        className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
+                      />
+                      <label htmlFor={`action-${action.id}`} className="ml-2 text-sm text-foreground">
+                        {action.action}
+                      </label>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              </fieldset>
             </div>
           ) : (
-            <div className="flex items-center justify-center flex-grow p-10 text-gray-500 italic">
-              Select a notification type from the list to begin editing its
-              content and actions.
+            <div className="flex flex-1 items-center justify-center p-10 text-center text-sm italic text-muted-foreground">
+              Select a notification type to edit its content and actions.
             </div>
           )}
-        </div>
+        </section>
       </div>
     </div>
   );
 }
-
-export default NotificationSetup;

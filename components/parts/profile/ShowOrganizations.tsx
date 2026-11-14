@@ -4,7 +4,7 @@ import { Building2, PlusCircle } from "lucide-react";
 import DisplayField from "../../ui/DisplayField";
 import { useState } from "react";
 import OrganizationLinkModal from "../models/OrganizationLinkModal";
-import { getUser } from "@/helpers/auth";
+import { useCurrentUser } from "@/lib/data/use-current-user";
 
 export const NoOrg = ({
   organizations,
@@ -13,7 +13,7 @@ export const NoOrg = ({
   organizations: any[];
   targetId: string;
 }) => {
-  const user = getUser();
+  const { user } = useCurrentUser();
   const [orgLinkModalOpen, setOrgLinkModalOpen] = useState(false);
   return (
     <div className="flex flex-col items-center justify-center text-center p-8 border border-dashed border-gray-300 rounded-xl bg-gray-50">

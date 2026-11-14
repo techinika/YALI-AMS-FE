@@ -1,624 +1,508 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import dayjs from "dayjs";
 import {
-  Plus,
-  Search,
-  Send,
-  MessageSquare,
-  ChevronRight,
   Hash,
   Info,
-  UserPlus,
-  MoreVertical,
   MessageCircle,
+  MessageSquare,
+  Plus,
+  Search,
+  UserPlus,
+  Users,
+  X,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { PageHeader } from "../parts/PageHeader";
 import CreateGroupChat from "../parts/models/CreateGroupChat";
-import { getUser } from "@/helpers/auth";
-import { useUsersQuery } from "@/lib/features/userSlice";
-import {
-  useAcceptGroupInvitationMutation,
-  useAddNewGroupMemberMutation,
-  useApproveGroupJoinRequestMutation,
-  useDeclineGroupInvitationMutation,
-  useGetAllGroupMessagesQuery,
-  useGetMyGroupsQuery,
-  useGetUsersToInviteQuery,
-  useRejectJoinRequestMutation,
-  useSendGroupMessageMutation,
-} from "@/lib/features/chatSlice";
-import Loading from "@/app/loading";
-import {
-  Group,
-  GROUP_STATUS_UI,
-  groupJoinStatusTypes,
-  GroupMessage,
-} from "@/types/message";
-import { useRouter } from "next/navigation";
 import Modal from "../parts/models/Modal";
-import { Member } from "@/types/user";
+import { useCurrentUser } from "@/lib/data/use-current-user";
+import { listProfiles } from "@/lib/data/profiles";
+import {
+  inviteGroupMember,
+  listConversationMessages,
+  listGroupMembers,
+  listMyConversations,
+  requestToJoinGroup,
+  respondToGroupInvitation,
+  reviewGroupMember,
+  sendMessage,
+  subscribeToConversation,
+  type ChatMessage,
+  type ConversationSummary,
+  type GroupMember,
+} from "@/lib/data/chat";
 import { toastError, toastSuccess } from "@/lib/toast";
-import { getSocket } from "@/lib/sockets";
+
+const statusLabel: Record<string, string> = {
+  admin_approval_pending: "Awaiting approval",
+  member_joining_pending: "Invitation pending",
+  approved: "Member",
+  admin_rejected: "Request declined",
+  member_rejected: "Invitation declined",
+  member_left: "Left",
+};
+
+function memberName(profile?: GroupMember["profile"] | ChatMessage["sender"]) {
+  if (!profile) return "Member";
+  return [profile.first_name, profile.last_name].filter(Boolean).join(" ") || "Member";
+}
 
 export const GroupChatsPage = () => {
-  const user = getUser();
   const router = useRouter();
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [activeGroup, setActiveGroup] = useState<Group | null>(null);
-  const [messages, setMessages] = useState<GroupMessage[]>([]);
-  const [newMessage, setNewMessage] = useState("");
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [members, setMembers] = useState<Member[]>([]);
-  const [pendingGroup, setPendingGroup] = useState<Group | null>(null);
-  const [showGroupStatusModal, setShowGroupStatusModal] = useState(false);
-  const [showManageMembersModal, setShowManageMembersModal] = useState(false);
+  const qc = useQueryClient();
+  const { user } = useCurrentUser();
+
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const [search, setSearch] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+  const [pendingGroup, setPendingGroup] = useState<ConversationSummary | null>(null);
+  const [showManage, setShowManage] = useState(false);
   const [inviteSearch, setInviteSearch] = useState("");
-  const [membersInvite, setMembersInvite] = useState<Member[]>([]);
+  const endRef = useRef<HTMLDivElement>(null);
+  const lastMessageId = useRef<string | null>(null);
 
-  const [sendGroupMessage] = useSendGroupMessageMutation();
-  const [declineGroupInvitation] = useDeclineGroupInvitationMutation();
-  const [acceptGroupInvitation] = useAcceptGroupInvitationMutation();
-  const [approveGroupJoinRequest] = useApproveGroupJoinRequestMutation();
-  const [rejectJoinRequest] = useRejectJoinRequestMutation();
-  const [addNewGroupMember] = useAddNewGroupMemberMutation();
+  const { data: conversations = [], isLoading } = useQuery({
+    queryKey: ["chat", "conversations"],
+    queryFn: listMyConversations,
+  });
 
-  const { data: membersData, isLoading: usersLoading } = useUsersQuery();
-  const { data: membersToInviteData } = useGetUsersToInviteQuery(
-    { currentUserId: user?.id || "", activeGroupId: activeGroup?.id || "" },
-    {
-      skip: !activeGroup,
-    }
+  const groups = useMemo(
+    () =>
+      conversations
+        .filter((c) => c.type === "group")
+        .filter((c) => (c.name ?? "").toLowerCase().includes(search.trim().toLowerCase())),
+    [conversations, search]
   );
 
+  const activeGroup = conversations.find((c) => c.id === activeId) ?? null;
+
+  const { data: messages = [], isLoading: loadingMessages } = useQuery({
+    queryKey: ["chat", "messages", activeId],
+    enabled: Boolean(activeId),
+    queryFn: () => listConversationMessages(activeId!),
+  });
+
+  const { data: groupMembers = [] } = useQuery({
+    queryKey: ["chat", "group-members", activeId],
+    enabled: Boolean(activeId),
+    queryFn: () => listGroupMembers(activeId!),
+  });
+
+  const { data: inviteCandidates = [] } = useQuery({
+    queryKey: ["chat", "directory", "invite", inviteSearch],
+    enabled: showManage && inviteSearch.trim().length > 0,
+    queryFn: async () => {
+      const { data } = await listProfiles({ search: inviteSearch.trim(), limit: 8 });
+      return data ?? [];
+    },
+  });
+
+  const send = useMutation({
+    mutationFn: (content: string) => sendMessage(activeId!, content),
+    onSuccess: (message) => {
+      qc.setQueryData<ChatMessage[]>(["chat", "messages", activeId], (prev) => {
+        const list = prev ?? [];
+        return list.some((m) => m.id === message.id) ? list : [...list, message];
+      });
+      setDraft("");
+    },
+    onError: () => toastError("Failed to send message."),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["chat", "messages"] }),
+  });
+
   useEffect(() => {
-    if (membersToInviteData?.data) {
-      setMembersInvite(membersToInviteData?.data);
-    }
-  }, [activeGroup, membersToInviteData]);
-
-  const groupUserIds = new Set(activeGroup?.members?.map((m) => m.id));
-
-  const inviteCandidates = membersInvite
-    .filter((u) => !groupUserIds.has(u.id))
-    .filter((u: Member) =>
-      `${u.firstName} ${u.lastName}`
-        .toLowerCase()
-        .includes(inviteSearch.toLowerCase())
-    );
-
-  const joinRequests =
-    activeGroup?.members?.filter(
-      (m) => m.status === groupJoinStatusTypes.ADMIN_APPROVAL_PENDING
-    ) ?? [];
-
-  const {
-    data: groupsData,
-    isLoading: groupsLoading,
-    refetch: groupRefetching,
-  } = useGetMyGroupsQuery(user?.id || "");
-
-  const { data: groupsMessagesData, isLoading: groupsMessagesLoading } =
-    useGetAllGroupMessagesQuery(
-      { groupId: activeGroup?.id || "", userId: user?.id || "" },
-      {
-        skip: !activeGroup?.id,
-      }
-    );
-
-  useEffect(() => {
-    if (!user?.id) return;
-    const socket = getSocket();
-
-    socket.on("new-group-message", (message: GroupMessage) => {
-      if (activeGroup && message.groupId === activeGroup.id) {
-        setMessages((prev) => {
-          const exists = prev.some((m) => m.id === message.id);
-          if (exists) return prev;
-          return [...prev, message];
-        });
-      }
+    if (!activeId) return;
+    const unsubscribe = subscribeToConversation(activeId, (incoming) => {
+      qc.setQueryData<ChatMessage[]>(["chat", "messages", activeId], (prev) => {
+        const list = prev ?? [];
+        if (list.some((m) => m.id === incoming.id)) return list;
+        return [...list, incoming];
+      });
+      qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
     });
-
-    return () => {
-      socket.off("new-group-message");
-    };
-  }, [activeGroup?.id, user?.id]);
+    return unsubscribe;
+  }, [activeId, qc]);
 
   useEffect(() => {
-    if (!user?.id || !activeGroup?.id) return;
-    getSocket().emit("join-group", { groupId: activeGroup.id });
-  }, [activeGroup?.id, user?.id]);
+    const last = messages.at(-1);
+    if (!last || last.id === lastMessageId.current) return;
+    lastMessageId.current = last.id;
+    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages]);
 
-  useEffect(() => {
-    if (membersData?.data) {
-      setMembers(membersData?.data);
+  const requestJoin = useMutation({
+    mutationFn: (conversationId: string) => requestToJoinGroup(conversationId),
+    onSuccess: async () => {
+      toastSuccess("Join request sent.");
+      setPendingGroup(null);
+      await qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
+    },
+    onError: (error: Error) => toastError(error.message || "Could not send the request."),
+  });
+
+  const respond = useMutation({
+    mutationFn: ({ conversationId, accept }: { conversationId: string; accept: boolean }) =>
+      respondToGroupInvitation(conversationId, accept),
+    onSuccess: async (_data, variables) => {
+      toastSuccess(variables.accept ? "Invitation accepted." : "Invitation declined.");
+      setPendingGroup(null);
+      await qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
+    },
+    onError: (error: Error) => toastError(error.message || "Could not update the invitation."),
+  });
+
+  const review = useMutation({
+    mutationFn: ({ userId, approve }: { userId: string; approve: boolean }) =>
+      reviewGroupMember(activeId!, userId, approve),
+    onSuccess: async () => {
+      toastSuccess("Membership updated.");
+      await qc.invalidateQueries({ queryKey: ["chat", "group-members"] });
+      await qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
+    },
+    onError: (error: Error) => toastError(error.message || "Could not update membership."),
+  });
+
+  const invite = useMutation({
+    mutationFn: (userId: string) => inviteGroupMember(activeId!, userId),
+    onSuccess: async () => {
+      toastSuccess("Invitation sent.");
+      await qc.invalidateQueries({ queryKey: ["chat", "group-members"] });
+    },
+    onError: (error: Error) => toastError(error.message || "Could not invite the member."),
+  });
+
+  const joinRequests = groupMembers.filter((m) => m.status === "admin_approval_pending");
+  const memberIds = new Set(groupMembers.map((m) => m.user_id));
+  const canChat = activeGroup ? activeGroup.my_status === "approved" || !activeGroup.my_status : false;
+
+  const openGroup = (group: ConversationSummary) => {
+    if (group.my_status === "approved") {
+      setActiveId(group.id);
+      return;
     }
-  }, [membersData]);
-
-  useEffect(() => {
-    if (groupsData?.data) {
-      setGroups(groupsData?.data);
-    }
-  }, [groupsData, groupRefetching]);
-
-  useEffect(() => {
-    if (groupsMessagesData?.data) {
-      setMessages(groupsMessagesData?.data);
-    }
-  }, [groupsMessagesData]);
-
-  const scrollRef = useRef(null);
-
-  const handleSendMessage = async (e: any) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !activeGroup || !user) return;
-
-    try {
-      const result = await sendGroupMessage({
-        groupId: activeGroup?.id,
-        userId: user?.id,
-        senderId: user.id,
-        content: newMessage,
-      }).unwrap();
-
-      const created = result?.data as GroupMessage | undefined;
-      if (created) {
-        setMessages((prev) => {
-          const exists = prev.some((m) => m.id === created.id);
-          if (exists) return prev;
-          return [...prev, created];
-        });
-      }
-
-      setNewMessage("");
-    } catch (err) {
-      console.error("Send Error:", err);
-    }
+    setPendingGroup(group);
   };
 
-  const myMembership = pendingGroup?.members?.find(
-    (m: any) => m?.user?.id === user?.id
-  );
-
-  const canAcceptInvite =
-    myMembership?.status === groupJoinStatusTypes.MEMBER_JOINING_PENDING;
-
-  if (usersLoading || groupsLoading) return <Loading />;
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const body = draft.trim();
+    if (!body || !activeId) return;
+    send.mutate(body);
+  };
 
   return (
-    <div className="container mx-auto min-h-screen p-4 sm:p-8">
+    <div className="mx-auto flex max-w-7xl flex-col gap-4">
       <PageHeader
-        title="Group Chats & Communities"
-        description="Join Communities and Start Chatting with like-minded members."
-        actionTitle={"Single Chats"}
+        title="Group chats"
+        description="Join communities and collaborate with like-minded members."
+        actionTitle="Single chats"
         Icon={MessageCircle}
         onAction={() => router.push("/dashboard/chat")}
         loading={false}
         disabled={false}
       />
 
-      <div className="flex h-screen overflow-hidden rounded">
-        <aside className="w-80 bg-white border-r border-gray-200 flex flex-col shrink-0">
-          <div className="p-6 border-b border-gray-100">
-            <div className="flex items-center justify-between mb-6">
-              <h1 className="text-xl font-bold tracking-tight">Communities</h1>
+      <div className="flex min-h-[75vh] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm lg:flex-row">
+        <aside
+          aria-label="Groups"
+          className={`w-full shrink-0 flex-col border-b border-border lg:flex lg:w-80 lg:border-b-0 lg:border-r ${activeId ? "hidden md:flex" : "flex"}`}
+        >
+          <div className="border-b border-border p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-foreground">Communities</h2>
               <button
-                onClick={() => setShowCreateModal(true)}
-                className="p-2 bg-blue-50 text-primary rounded-lg hover:bg-blue-100 transition-colors"
+                type="button"
+                onClick={() => setShowCreate(true)}
+                className="rounded-lg bg-brand-100 p-2 text-primary transition hover:bg-brand-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Create group"
               >
-                <Plus className="w-5 h-5" />
+                <Plus className="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
             <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
               <input
-                type="text"
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 placeholder="Explore groups..."
-                className="w-full pl-10 pr-4 py-2 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                aria-label="Search groups"
+                className="w-full rounded-xl border border-input bg-background py-2 pl-10 pr-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-3 space-y-1">
-            {groups
-              .filter((g) =>
-                g.name.toLowerCase().includes(searchQuery.toLowerCase())
-              )
-              .map((group) => {
-                const membersCount = group.members.length || 0;
-                const myStatus: any = group?.myMembership?.status ?? "approved";
-                const statusUI =
-                  GROUP_STATUS_UI[
-                    String(myStatus) as keyof typeof GROUP_STATUS_UI
-                  ];
-
-                return (
+          <ul className="flex-1 overflow-y-auto p-2">
+            {isLoading && <li className="p-4 text-center text-sm text-muted-foreground">Loading groups...</li>}
+            {!isLoading && groups.length === 0 && (
+              <li className="p-6 text-center text-sm italic text-muted-foreground">No groups yet. Create one to get started.</li>
+            )}
+            {groups.map((group) => {
+              const active = group.id === activeId;
+              const status = group.my_status;
+              return (
+                <li key={group.id}>
                   <button
-                    key={group.id}
-                    onClick={() => {
-                      if (statusUI?.clickable) {
-                        setActiveGroup(group);
-                      } else {
-                        setPendingGroup(group);
-                        setShowGroupStatusModal(true);
-                      }
-                    }}
-                    className={`w-full flex items-center p-3 rounded-xl transition-all ${
-                      activeGroup?.id === group.id
-                        ? "bg-blue-50 text-primary/80 shadow-sm border border-blue-100"
-                        : "hover:bg-gray-50 text-gray-600"
+                    type="button"
+                    onClick={() => openGroup(group)}
+                    aria-current={active ? "true" : undefined}
+                    className={`flex w-full items-center gap-3 rounded-xl border-l-4 p-3 text-left transition ${
+                      active ? "border-l-primary bg-brand-50" : "border-l-transparent hover:bg-accent"
                     }`}
                   >
-                    <div
-                      className={`w-10 h-10 rounded-lg flex items-center justify-center mr-3 font-bold ${
-                        activeGroup?.id === group.id
-                          ? "bg-primary text-white"
-                          : "bg-gray-100 text-gray-400"
-                      }`}
-                    >
-                      <Hash className="w-5 h-5" />
-                    </div>
-                    <div className="text-left flex-1 min-w-0">
-                      <p className="text-sm font-bold truncate">{group.name}</p>
-                      <p className="text-[11px] opacity-70 truncate font-medium">
-                        {membersCount} Members •{" "}
-                        {group.lastMessage || "No messages"}
-                      </p>
-                    </div>
-                    {activeGroup?.id === group.id && (
-                      <ChevronRight className="w-4 h-4" />
-                    )}
-                    <div className="flex items-center gap-2 mt-1">
-                      {statusUI && (
-                        <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${statusUI.color}`}
-                        >
-                          {statusUI.label}
+                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                      <Hash className="h-5 w-5" aria-hidden="true" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-bold text-foreground">{group.name}</span>
+                      <span className="block truncate text-[11px] text-muted-foreground">
+                        {group.member_count} members · {group.last_message?.content ?? "No messages"}
+                      </span>
+                      {status !== "approved" && (
+                        <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                          {status ? statusLabel[status] ?? status : "Not joined"}
                         </span>
                       )}
-                    </div>
+                    </span>
                   </button>
-                );
-              })}
-            {groups.length === 0 && (
-              <div className="text-center py-12 px-6">
-                <p className="text-sm text-gray-400 italic">
-                  No groups found. Create one to get started!
-                </p>
-              </div>
-            )}
-          </div>
+                </li>
+              );
+            })}
+          </ul>
         </aside>
 
-        <main className="flex-1 flex flex-col bg-white">
+        <main aria-label="Group messages" className={`min-w-0 flex-1 flex-col ${activeId ? "flex" : "hidden md:flex"}`}>
           {activeGroup ? (
             <>
-              <header className="h-20 border-b border-gray-100 px-8 flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className="p-2.5 bg-blue-50 rounded-xl">
-                    <MessageSquare className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-900">
-                      {activeGroup.name}
-                    </h2>
-                    <div className="flex items-center text-[11px] font-semibold text-green-600">
-                      <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5 animate-pulse"></span>
-                      Live Activity
-                    </div>
+              <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border p-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setActiveId(null)}
+                    className="rounded-md p-1 text-primary transition hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+                    aria-label="Back to groups"
+                  >
+                    <X className="h-5 w-5" aria-hidden="true" />
+                  </button>
+                  <div className="min-w-0">
+                    <h2 className="truncate text-lg font-bold text-foreground">{activeGroup.name}</h2>
+                    <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                      {activeGroup.member_count} members
+                    </p>
                   </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  {activeGroup?.createdBy?.id === user?.id && (
-                    <button
-                      onClick={() => setShowManageMembersModal(true)}
-                      className="p-2 hover:bg-gray-50 rounded-lg text-gray-400 transition-colors"
-                    >
-                      <UserPlus className="w-5 h-5" />
-                    </button>
-                  )}
-                  <button className="p-2 hover:bg-gray-50 rounded-lg text-gray-400 transition-colors">
-                    <Info className="w-5 h-5" />
+                {activeGroup.my_role === "admin" && (
+                  <button
+                    type="button"
+                    onClick={() => setShowManage(true)}
+                    className="rounded-lg p-2 text-muted-foreground transition hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    aria-label="Manage members"
+                  >
+                    <UserPlus className="h-5 w-5" aria-hidden="true" />
                   </button>
-                  <button className="p-2 hover:bg-gray-50 rounded-lg text-gray-400 transition-colors">
-                    <MoreVertical className="w-5 h-5" />
-                  </button>
-                </div>
+                )}
+                {activeGroup.description && (
+                  <span className="hidden rounded-lg p-2 text-muted-foreground sm:block" title={activeGroup.description}>
+                    <Info className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                )}
               </header>
 
-              <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-[#FDFDFF]">
-                {messages &&
-                  !groupsMessagesLoading &&
-                  messages.map((msg, i) => {
-                    const isMe = msg.senderId === user?.id;
+              <div className="flex-1 space-y-5 overflow-y-auto bg-muted/30 p-4 sm:p-6">
+                {loadingMessages && <p className="py-10 text-center text-sm text-muted-foreground">Loading messages...</p>}
+                {!loadingMessages && messages.length === 0 && (
+                  <div className="flex h-full flex-col items-center justify-center gap-3 p-10 text-center text-muted-foreground">
+                    <MessageSquare className="h-10 w-10 text-primary/40" aria-hidden="true" />
+                    <p className="text-sm">{canChat ? "No messages yet. Start the conversation." : "You cannot post in this group yet."}</p>
+                  </div>
+                )}
+                {!loadingMessages &&
+                  messages.map((message) => {
+                    const mine = message.sender_id === user?.id;
                     return (
-                      <div
-                        key={msg.id || i + 1}
-                        className={`flex ${
-                          isMe ? "justify-end" : "justify-start"
-                        } group animate-in fade-in slide-in-from-bottom-2`}
-                      >
-                        <div className={`max-w-[70%] ${isMe ? "order-2" : ""}`}>
-                          {!isMe && (
-                            <p className="text-[10px] font-bold text-gray-400 mb-1.5 ml-1 uppercase tracking-wider">
-                              {msg.sender?.firstName} {msg.sender?.lastName}
-                            </p>
-                          )}
-                          <div
-                            className={`px-5 py-3 rounded-2xl text-sm shadow-sm ${
-                              isMe
-                                ? "bg-primary text-white rounded-tr-none"
-                                : "bg-white border border-gray-100 text-gray-700 rounded-tl-none"
-                            }`}
-                          >
-                            {msg.content}
-                          </div>
-                          <p
-                            className={`text-[9px] mt-1.5 text-gray-400 ${
-                              isMe ? "text-right mr-1" : "ml-1"
-                            }`}
-                          >
-                            {new Date(
-                              msg.createdAt ?? new Date()
-                            ).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            }) || "Sending..."}
+                      <article key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                        <div className={`max-w-[85%] sm:max-w-[70%] ${mine ? "text-right" : ""}`}>
+                          {!mine && <p className="mb-1 ml-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{memberName(message.sender)}</p>}
+                          <p className={`inline-block whitespace-pre-wrap break-words rounded-2xl px-4 py-2 text-left text-sm shadow-sm ${mine ? "rounded-tr-none bg-primary text-primary-foreground" : "rounded-tl-none border border-border bg-card text-foreground"}`}>
+                            {message.content}
+                          </p>
+                          <p className="mt-1 text-[10px] text-muted-foreground">
+                            <time dateTime={message.created_at}>{dayjs(message.created_at).format("HH:mm")}</time>
                           </p>
                         </div>
-                      </div>
+                      </article>
                     );
                   })}
-                <div ref={scrollRef} />
+                <div ref={endRef} />
               </div>
 
-              <footer className="p-6 border-t border-gray-100">
-                <form
-                  onSubmit={handleSendMessage}
-                  className="flex items-center space-x-4 bg-gray-50 p-2 rounded-2xl border border-gray-100 focus-within:border-blue-300 transition-all"
+              <form onSubmit={handleSubmit} className="flex shrink-0 items-center gap-3 border-t border-border p-4">
+                <label htmlFor="group-draft" className="sr-only">Message</label>
+                <input
+                  id="group-draft"
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  disabled={!canChat}
+                  placeholder={canChat ? `Message ${activeGroup.name}...` : "You are not a member of this group"}
+                  className="flex-1 rounded-xl border border-input bg-background p-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+                />
+                <button
+                  type="submit"
+                  disabled={!draft.trim() || send.isPending || !canChat}
+                  className="rounded-xl bg-primary p-3 text-primary-foreground shadow-sm transition hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-label="Send message"
                 >
-                  <input
-                    type="text"
-                    placeholder={`Message in #${activeGroup.name.toLowerCase()}...`}
-                    className="flex-1 bg-transparent border-none outline-none text-sm px-4 py-2"
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                  />
-                  <button
-                    type="submit"
-                    disabled={!newMessage.trim()}
-                    className="p-3 bg-primary text-white rounded-xl shadow-lg shadow-blue-100 hover:bg-primary/80 disabled:opacity-50 disabled:shadow-none transition-all"
-                  >
-                    <Send className="w-4 h-4" />
-                  </button>
-                </form>
-              </footer>
+                  <MessageSquare className="h-5 w-5" aria-hidden="true" />
+                </button>
+              </form>
             </>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-center p-12 bg-gray-50/30">
-              <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center mb-6">
-                <MessageSquare className="w-10 h-10 text-primary" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">
-                Select a community
-              </h3>
-              <p className="text-gray-500 max-w-sm">
-                Explore your active group chats on the left or create a new one
-                to start collaborating.
-              </p>
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-muted/20 p-12 text-center">
+              <MessageSquare className="h-10 w-10 text-primary/40" aria-hidden="true" />
+              <h2 className="text-lg font-semibold text-foreground">Select a group</h2>
+              <p className="max-w-sm text-sm text-muted-foreground">Pick a community on the left, request to join a new one, or create your own.</p>
             </div>
           )}
         </main>
+      </div>
 
-        {showCreateModal && (
-          <CreateGroupChat
-            setShowCreateModal={setShowCreateModal}
-            user={user}
-            members={members || []}
-            source="chat"
-            groupRefetching={groupRefetching}
-          />
-        )}
+      {showCreate && (
+        <CreateGroupChat
+          setShowCreateModal={setShowCreate}
+          onCreated={(id) => {
+            setActiveId(id);
+            qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
+          }}
+        />
+      )}
 
-        {showGroupStatusModal && pendingGroup && (
-          <Modal onClose={() => setShowGroupStatusModal(false)}>
-            {pendingGroup.members[0].status ===
-              groupJoinStatusTypes.ADMIN_APPROVAL_PENDING && (
-              <>
-                <h3 className="text-lg font-bold">Approval pending</h3>
-                <p className="text-sm text-gray-600 mt-2">
-                  Your request to join <b>{pendingGroup.name}</b> is waiting for
-                  admin approval.
-                </p>
-              </>
-            )}
+      {pendingGroup && (
+        <Modal onClose={() => setPendingGroup(null)} title={pendingGroup.name ?? "Group"}>
+          {(pendingGroup.my_status === null ||
+            pendingGroup.my_status === "member_rejected" ||
+            pendingGroup.my_status === "admin_rejected" ||
+            pendingGroup.my_status === "member_left") && (
+            <>
+              <h3 className="text-lg font-bold text-foreground">Join {pendingGroup.name}</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {pendingGroup.my_status === null
+                  ? "You are not a member yet. Send a request and a group admin will review it."
+                  : "You are not currently a member. Send a new request to rejoin."}
+              </p>
+              <button
+                type="button"
+                onClick={() => requestJoin.mutate(pendingGroup.id)}
+                disabled={requestJoin.isPending}
+                className="mt-5 rounded-xl bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-brand-800 disabled:opacity-60"
+              >
+                {requestJoin.isPending ? "Sending..." : "Request to join"}
+              </button>
+            </>
+          )}
 
-            {canAcceptInvite && (
-              <>
-                <h3 className="text-lg font-bold">Group invitation</h3>
-                <p className="text-sm text-gray-600 mt-2">
-                  You’ve been invited to join <b>{pendingGroup.name}</b>.
-                </p>
+          {pendingGroup.my_status === "admin_approval_pending" && (
+            <>
+              <h3 className="text-lg font-bold text-foreground">Approval pending</h3>
+              <p className="mt-2 text-sm text-muted-foreground">Your request to join <strong>{pendingGroup.name}</strong> is waiting for an admin.</p>
+            </>
+          )}
 
-                <div className="flex gap-3 mt-6">
-                  <button
-                    onClick={async () => {
-                      try {
-                        await acceptGroupInvitation({
-                          groupId: pendingGroup.id,
-                          userId: user?.id || "",
-                        }).unwrap();
-                        groupRefetching();
-                        setShowGroupStatusModal(false);
-                      } catch (error) {
-                        console.error(error);
-                        toastError("Failed to accept invitation. Try again.");
-                      }
-                    }}
-                    className="bg-primary py-2 px-6 rounded-full text-white hover:bg-primary/80"
-                  >
-                    Accept
-                  </button>
-                  <button
-                    onClick={async () => {
-                      try {
-                        await declineGroupInvitation({
-                          groupId: pendingGroup.id,
-                          userId: user?.id || "",
-                        }).unwrap();
-                        groupRefetching();
-                        setShowGroupStatusModal(false);
-                      } catch (error) {
-                        console.error(error);
-                        toastError("Failed to decline invitation. Try again.");
-                      }
-                    }}
-                    className="bg-white py-2 px-6 rounded-full text-primary hover:bg-primary hover:text-white border-2 border-primary"
-                  >
-                    Decline
-                  </button>
-                </div>
-              </>
-            )}
-          </Modal>
-        )}
-
-        {showManageMembersModal && activeGroup && (
-          <Modal onClose={() => setShowManageMembersModal(false)}>
-            <h3 className="text-lg font-bold mb-4">Manage Members</h3>
-
-            <div>
-              <h4 className="text-sm font-semibold text-gray-500 mb-2">
-                Join requests ({joinRequests.length})
-              </h4>
-
-              {joinRequests.length === 0 && (
-                <p className="text-sm text-gray-400 italic">
-                  No pending requests
-                </p>
-              )}
-
-              <div className="space-y-2">
-                {joinRequests.map((m: any) => (
-                  <div
-                    key={m?.user?.id}
-                    className="flex items-center justify-between p-2 rounded-lg border"
-                  >
-                    <div className="text-sm font-medium">
-                      {m?.user?.firstName} {m?.user?.lastName}
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button
-                        onClick={async () => {
-                          try {
-                            await approveGroupJoinRequest({
-                              groupId: activeGroup.id,
-                              userId: m?.user?.id,
-                            }).unwrap();
-                            toastSuccess(
-                              `You have approved ${m?.user?.firstName}'s request to join group ${activeGroup?.name}!`
-                            );
-                            groupRefetching();
-                          } catch (error) {
-                            console.log(error);
-                            toastError(
-                              "Approving join request did not work. Try again!"
-                            );
-                          }
-                        }}
-                        className="px-3 py-1 text-xs rounded-full bg-green-600 text-white hover:bg-green-700"
-                      >
-                        Approve
-                      </button>
-
-                      <button
-                        onClick={async () => {
-                          try {
-                            await rejectJoinRequest({
-                              groupId: activeGroup.id,
-                              userId: m?.user?.id,
-                            }).unwrap();
-                            toastSuccess(
-                              `You have rejected ${m?.user?.firstName}'s request to join group ${activeGroup?.name}!`
-                            );
-                            groupRefetching();
-                          } catch (error) {
-                            console.log(error);
-                            toastError(
-                              "Rejecting join request did not work. Try again!"
-                            );
-                          }
-                        }}
-                        className="px-3 py-1 text-xs rounded-full bg-red-600 text-white hover:bg-red-700"
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  </div>
-                ))}
+          {pendingGroup.my_status === "member_joining_pending" && (
+            <>
+              <h3 className="text-lg font-bold text-foreground">Group invitation</h3>
+              <p className="mt-2 text-sm text-muted-foreground">You have been invited to join <strong>{pendingGroup.name}</strong>.</p>
+              <div className="mt-5 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => respond.mutate({ conversationId: pendingGroup.id, accept: true })}
+                  disabled={respond.isPending}
+                  className="rounded-xl bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-brand-800 disabled:opacity-60"
+                >
+                  Accept
+                </button>
+                <button
+                  type="button"
+                  onClick={() => respond.mutate({ conversationId: pendingGroup.id, accept: false })}
+                  disabled={respond.isPending}
+                  className="rounded-xl border-2 border-primary px-5 py-2 text-sm font-semibold text-primary transition hover:bg-accent disabled:opacity-60"
+                >
+                  Decline
+                </button>
               </div>
-            </div>
+            </>
+          )}
+        </Modal>
+      )}
 
-            <div className="mt-6 border-t pt-4">
-              <h4 className="text-sm font-semibold text-gray-500 mb-2">
-                Invite members
-              </h4>
+      {showManage && activeGroup && (
+        <Modal onClose={() => setShowManage(false)} title="Manage members">
+          <section aria-labelledby="join-requests">
+            <h3 id="join-requests" className="text-sm font-semibold text-muted-foreground">
+              Join requests ({joinRequests.length})
+            </h3>
+            {joinRequests.length === 0 && <p className="mt-2 text-sm italic text-muted-foreground">No pending requests.</p>}
+            <ul className="mt-2 space-y-2">
+              {joinRequests.map((member) => (
+                <li key={member.user_id} className="flex items-center justify-between gap-2 rounded-lg border border-border p-2">
+                  <span className="text-sm font-medium text-foreground">{memberName(member.profile)}</span>
+                  <span className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => review.mutate({ userId: member.user_id, approve: true })}
+                      className="rounded-full bg-green-600 px-3 py-1 text-xs font-semibold text-white transition hover:bg-green-700"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => review.mutate({ userId: member.user_id, approve: false })}
+                      className="rounded-full bg-red-600 px-3 py-1 text-xs font-semibold text-white transition hover:bg-red-700"
+                    >
+                      Reject
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
 
+          <section aria-labelledby="invite-members" className="mt-6 border-t border-border pt-4">
+            <h3 id="invite-members" className="text-sm font-semibold text-muted-foreground">Invite members</h3>
+            <div className="relative mt-2">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
               <input
+                type="search"
                 value={inviteSearch}
                 onChange={(e) => setInviteSearch(e.target.value)}
-                placeholder="Search users by name..."
-                className="w-full px-3 py-2 mb-3 border rounded-lg text-sm focus:ring-2 focus:ring-primary"
+                placeholder="Search members by name..."
+                aria-label="Search members to invite"
+                className="w-full rounded-lg border border-input bg-background py-2 pl-10 pr-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring"
               />
-
-              <div className="max-h-56 overflow-y-auto space-y-2">
-                {inviteCandidates.length === 0 && (
-                  <p className="text-sm text-gray-400 italic">No users found</p>
-                )}
-
-                {inviteCandidates.map((u: any) => (
-                  <div
-                    key={u.id}
-                    className="flex items-center justify-between p-2 rounded-lg border"
-                  >
-                    <span className="text-sm">
-                      {u.firstName} {u.lastName}
-                    </span>
-
-                    <button
-                      onClick={async () => {
-                        try {
-                          await addNewGroupMember({
-                            groupId: activeGroup.id,
-                            userId: u.id,
-                          }).unwrap();
-                          toastSuccess(
-                            `You have invited ${u?.firstName} to join group ${activeGroup?.name}!`
-                          );
-                          groupRefetching();
-                        } catch (error) {
-                          console.log(error);
-                          toastError(
-                            "Inviting to join group did not work. Try again!"
-                          );
-                        }
-                      }}
-                      className="px-3 py-1 text-xs rounded-full border border-primary text-primary hover:bg-primary hover:text-white"
-                    >
-                      Invite
-                    </button>
-                  </div>
-                ))}
-              </div>
             </div>
-          </Modal>
-        )}
-      </div>
+            <ul className="mt-2 max-h-56 space-y-2 overflow-y-auto">
+              {inviteCandidates.length === 0 && <li className="text-sm italic text-muted-foreground">No members found.</li>}
+              {inviteCandidates.map((member) => (
+                <li key={member.id} className="flex items-center justify-between gap-2 rounded-lg border border-border p-2">
+                  <span className="text-sm text-foreground">{memberName(member as GroupMember["profile"])}</span>
+                  <button
+                    type="button"
+                    onClick={() => invite.mutate(member.id)}
+                    disabled={memberIds.has(member.id) || invite.isPending}
+                    className="rounded-full border border-primary px-3 py-1 text-xs font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {memberIds.has(member.id) ? "Already a member" : "Invite"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </Modal>
+      )}
     </div>
   );
 };

@@ -1,497 +1,423 @@
 "use client";
 
-import {
-  useCohortsQuery,
-  useCountriesQuery,
-  useDistrictsQuery,
-  useGenderQuery,
-  useSectorsByDistrictQuery,
-  useStatesByCountryQuery,
-  useTracksQuery,
-  useWorkingSectorQuery,
-} from "@/lib/features/otherSlice";
-import {
-  useGetOneUserQuery,
-  useUpdatedUserMutation,
-  useUploadPictureMutation,
-} from "@/lib/features/userSlice";
-import { useEffect, useState, useCallback } from "react";
-import Loading from "@/app/loading";
+import { useEffect, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
-import { getUserOrCache } from "@/helpers/auth";
 import { MdCloudUpload, MdClose, MdEdit } from "react-icons/md";
-import { Member } from "@/types/user";
-import { PageHeader } from "../parts/PageHeader";
 import { Save } from "lucide-react";
+import Loading from "@/app/loading";
+import { PageHeader } from "../parts/PageHeader";
 import { TextAreaField } from "../ui/textarea";
-import { Personal } from "../parts/update/UpdateProfilePersonal";
-import {
-  useGetOrganizationsForUserQuery,
-  useOrganizationsQuery,
-} from "@/lib/features/orgSlice";
+import { TailwindInput } from "../ui/TailInput";
+import { Combobox } from "../ui/combobox";
+import { PhoneInputTailwind } from "../ui/tail-phone";
+import { Button } from "../ui/Button";
 import { ShowOrganizationToUpdate } from "../parts/update/ShowOrganizations";
+import { useCurrentUser } from "@/lib/data/use-current-user";
+import { getProfileById } from "@/lib/data/profiles";
+import {
+  listCountries,
+  listDistricts,
+  listSectorsByDistrict,
+  listStatesByCountry,
+  listCohorts,
+  listGenders,
+  listTracks,
+} from "@/lib/data/reference";
+import { listOrganizations, listUserOrganizations } from "@/lib/data/organizations";
+import { fileToAvatar, updateMember } from "@/lib/data/members-admin";
+import { toastError, toastSuccess } from "@/lib/toast";
 
-const getInitialValues = (usr: Member | undefined) => ({
-  firstName: usr?.firstName || "",
-  middleName: usr?.middleName || "",
-  lastName: usr?.lastName || "",
-  email: usr?.email || "",
-  linkedin: usr?.linkedin || "",
-  instagram: usr?.instagram || "",
-  twitter: usr?.twitter || "",
-  facebook: usr?.facebook || "",
-  bio: usr?.bio || "",
-  gender: usr?.gender?.id || "",
-  phoneNumber: usr?.phoneNumber || "",
-  districtName: usr?.residentDistrict?.id || "",
-  sectorId: usr?.residentSector?.id || "",
-  residentCountryId: usr?.residentCountry?.id || "",
-  state: usr?.state?.id || "",
-  whatsAppNumber: usr?.whatsappNumber || "",
-  nearlestLandmark: usr?.nearestLandmark || "",
-  track: usr?.track?.id || "",
-  cohortId: usr?.cohort?.id || "",
-  profileImageId: usr?.profileImage?.id || "",
+type FormValues = {
+  firstName: string;
+  middleName: string;
+  lastName: string;
+  phoneNumber: string;
+  whatsAppNumber: string;
+  bio: string;
+  linkedin: string;
+  instagram: string;
+  twitter: string;
+  facebook: string;
+  genderId: string;
+  countryId: string;
+  stateId: string;
+  districtId: string;
+  sectorId: string;
+  cohortId: string;
+  trackId: string;
+  nearestLandmark: string;
+};
+
+const emptyValues: FormValues = {
+  firstName: "",
+  middleName: "",
+  lastName: "",
+  phoneNumber: "",
+  whatsAppNumber: "",
+  bio: "",
+  linkedin: "",
+  instagram: "",
+  twitter: "",
+  facebook: "",
+  genderId: "",
+  countryId: "",
+  stateId: "",
+  districtId: "",
+  sectorId: "",
+  cohortId: "",
+  trackId: "",
+  nearestLandmark: "",
+};
+
+const toOption = (row: { id: string | number; name?: string | null }) => ({
+  id: String(row.id),
+  name: row.name ?? "",
 });
 
-function UpdateProfilePage() {
+function valuesFromProfile(profile: any): FormValues {
+  if (!profile) return emptyValues;
+  return {
+    firstName: profile.first_name ?? "",
+    middleName: profile.middle_name ?? "",
+    lastName: profile.last_name ?? "",
+    phoneNumber: profile.phone ?? "",
+    whatsAppNumber: profile.whatsapp ?? "",
+    bio: profile.bio ?? "",
+    linkedin: profile.linkedin ?? "",
+    instagram: profile.instagram ?? "",
+    twitter: profile.twitter ?? "",
+    facebook: profile.facebook ?? "",
+    genderId: profile.gender_id != null ? String(profile.gender_id) : "",
+    countryId: profile.country_id ?? "",
+    stateId: profile.state_id ?? "",
+    districtId: profile.district_id ?? "",
+    sectorId: profile.sector_id ?? "",
+    cohortId: profile.cohort_id != null ? String(profile.cohort_id) : "",
+    trackId: profile.track_id ?? "",
+    nearestLandmark: profile.nearest_landmark ?? "",
+  };
+}
+
+export default function UpdateProfilePage() {
+  const qc = useQueryClient();
   const searchParams = useSearchParams();
-  const userId = searchParams.get("userId");
-  const user = getUserOrCache();
-  const isAdmin = user?.role?.name === "ADMIN";
-  const targetId =
-    isAdmin && typeof userId === "string" && userId.trim() !== ""
-      ? userId
-      : user?.id;
+  const { user, role, loading: authLoading } = useCurrentUser();
 
+  const requestedId = searchParams.get("userId");
+  const isAdmin = role === "admin";
+  const targetId = isAdmin && requestedId ? requestedId : user?.id ?? "";
+  const isSelf = targetId === user?.id;
+
+  const [values, setValues] = useState<FormValues>(emptyValues);
+  const [errors, setErrors] = useState<Partial<Record<keyof FormValues, string>>>({});
   const [activeTab, setActiveTab] = useState(0);
-  const [selectedDistrict, setSelectedDistrict] = useState<string>("");
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageData, setImageData] = useState<any>(null);
-  const [uploadSuccess, setUploadSuccess] = useState(false);
-  const [country, setCountry] = useState<string>("");
-  const [changeEmail, setChangeEmail] = useState(true);
-  const [foundedOrganizations, setFoundedOrganizations] = useState<any[]>([]);
-  const [employedOrganizations, setEmployedOrganizations] = useState<any[]>([]);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [updatedUser] = useUpdatedUserMutation();
-  const { data: UserData, refetch } = useGetOneUserQuery(targetId || "", {
-    skip: !targetId,
-  });
-  useEffect(() => {
-    if (targetId !== user?.id) setChangeEmail(false);
-  }, [targetId, user]);
-
-  const usr: Member | undefined = UserData?.data;
-
-  const [values, setValues] = useState<any>(getInitialValues(usr));
-  const [formErrors, setFormErrors] = useState<any>({});
-
-  const { data: GenderData } = useGenderQuery("");
-  const { data: CohortsData } = useCohortsQuery("");
-  const { data: CountryData } = useCountriesQuery("");
-  const { data: DistrictData } = useDistrictsQuery("");
-  const { data: TracksData } = useTracksQuery("");
-  const { data: AllOrganizationsData } = useOrganizationsQuery();
-  const { data: WorkingSectorsData } = useWorkingSectorQuery("");
-  const { data: userOrganizations, refetch: organizationRefetch } =
-    useGetOrganizationsForUserQuery(targetId || "", { skip: !targetId });
-  const { data: SectorsData } = useSectorsByDistrictQuery(selectedDistrict, {
-    skip: !selectedDistrict,
+  const { data: profile, isLoading: profileLoading } = useQuery({
+    queryKey: ["profile", targetId],
+    enabled: Boolean(targetId),
+    queryFn: async () => {
+      const { data, error } = await getProfileById(targetId);
+      if (error) throw error;
+      return data;
+    },
   });
 
-  const { data: StatesData } = useStatesByCountryQuery(country, {
-    skip: !country,
+  const { data: genders = [] } = useQuery({ queryKey: ["ref", "genders"], queryFn: async () => (await listGenders()).data ?? [] });
+  const { data: countries = [] } = useQuery({ queryKey: ["ref", "countries"], queryFn: async () => (await listCountries()).data ?? [] });
+  const { data: districts = [] } = useQuery({ queryKey: ["ref", "districts"], queryFn: async () => (await listDistricts()).data ?? [] });
+  const { data: cohorts = [] } = useQuery({ queryKey: ["ref", "cohorts"], queryFn: async () => (await listCohorts()).data ?? [] });
+  const { data: tracks = [] } = useQuery({ queryKey: ["ref", "tracks"], queryFn: async () => (await listTracks()).data ?? [] });
+
+  const { data: states = [] } = useQuery({
+    queryKey: ["ref", "states", values.countryId],
+    enabled: Boolean(values.countryId) && values.countryId !== "RW",
+    queryFn: async () => (await listStatesByCountry(values.countryId)).data ?? [],
+  });
+  const { data: sectors = [] } = useQuery({
+    queryKey: ["ref", "sectors", values.districtId],
+    enabled: Boolean(values.districtId) && values.countryId === "RW",
+    queryFn: async () => (await listSectorsByDistrict(values.districtId)).data ?? [],
   });
 
-  const [uploadPicture] = useUploadPictureMutation();
-
-  const genders = GenderData?.data || [];
-  const districts = DistrictData?.data || [];
-  const countries = CountryData?.data || [];
-  const tracks = TracksData?.data || [];
-  const cohorts = CohortsData?.data || [];
-  const workingSectors = WorkingSectorsData?.data || [];
-  const allOrganizations = AllOrganizationsData?.data || [];
-  const sectors = SectorsData?.data || [];
-  const states = StatesData?.data || [];
-
-  useEffect(() => {
-    if (usr) {
-      setValues(getInitialValues(usr));
-      if (usr?.residentCountry?.id) setCountry(usr.residentCountry.id);
-      if (usr?.residentDistrict?.id)
-        setSelectedDistrict(usr?.residentDistrict?.id);
-      if (usr.profileImage?.id && !imagePreview) {
-        setImagePreview(usr.profileImage.link);
-        setValues((prev: any) => ({
-          ...prev,
-          profileImageId: usr.profileImage?.id,
-        }));
-      }
-    }
-  }, [usr]);
+  const { data: userOrganizations = [] } = useQuery({
+    queryKey: ["user-organizations", targetId],
+    enabled: Boolean(targetId),
+    queryFn: async () => {
+      const { data, error } = await listUserOrganizations(targetId);
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
+  const { data: organizations = [] } = useQuery({
+    queryKey: ["organizations"],
+    queryFn: async () => {
+      const { data, error } = await listOrganizations();
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
 
   useEffect(() => {
-    if (userOrganizations?.data?.length) {
-      const foundedOrgs = userOrganizations.data.filter(
-        (org: any) => org.relation === "founded",
-      );
-      const employedOrgs = userOrganizations.data.filter(
-        (org: any) => org.relation === "employed",
-      );
-      setFoundedOrganizations(foundedOrgs);
-      setEmployedOrganizations(employedOrgs);
-    }
-  }, [userOrganizations]);
+    if (!profile) return;
+    setValues(valuesFromProfile(profile));
+    setImagePreview(profile.avatar_path ?? null);
+  }, [profile]);
 
-  const handleTabClick = (index: number) => {
-    setActiveTab(index);
+  const founded = userOrganizations.filter((org) => org.relation === "founded");
+  const employed = userOrganizations.filter((org) => org.relation === "employed");
+
+  const validate = () => {
+    const next: Partial<Record<keyof FormValues, string>> = {};
+    if (!values.firstName.trim()) next.firstName = "First name is required.";
+    if (!values.lastName.trim()) next.lastName = "Last name is required.";
+    if (!values.countryId) next.countryId = "Resident country is required.";
+    if (values.countryId === "RW") {
+      if (!values.districtId) next.districtId = "District is required.";
+      if (!values.sectorId) next.sectorId = "Sector is required.";
+    } else if (values.countryId && !values.stateId) {
+      next.stateId = "State or province is required.";
+    }
+    const url = /^(https?:\/\/)[^\s]+$/i;
+    if (values.linkedin && !url.test(values.linkedin)) next.linkedin = "Enter a valid URL.";
+    if (values.twitter && !url.test(values.twitter)) next.twitter = "Enter a valid URL.";
+    if (values.instagram && !url.test(values.instagram)) next.instagram = "Enter a valid URL.";
+    if (values.facebook && !url.test(values.facebook)) next.facebook = "Enter a valid URL.";
+    if (values.bio.length > 500) next.bio = "Bio cannot exceed 500 characters.";
+    setErrors(next);
+    return Object.keys(next).length === 0;
   };
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-  ) => {
-    const { id, value } = e.target;
-    setValues((prev: any) => ({ ...prev, [id]: value }));
-    setFormErrors((prev: any) => ({ ...prev, [id]: undefined }));
-  };
-
-  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const { id, value } = e.target;
-    let selectedValue;
-    try {
-      selectedValue = JSON.parse(value);
-    } catch (error) {
-      selectedValue = value;
-    }
-
-    setValues((prev: any) => ({ ...prev, [id]: selectedValue }));
-    setFormErrors((prev: any) => ({ ...prev, [id]: undefined }));
-
-    if (id === "residentCountryId") {
-      setValues((prev: any) => ({
-        ...prev,
-        state: "",
-        districtName: "",
-        sectorId: "",
-      }));
-      setCountry(selectedValue.id === "RW" ? "RW" : selectedValue.id);
-    } else if (id === "districtName") {
-      setValues((prev: any) => ({ ...prev, sectorId: "" }));
-    }
-  };
-
-  const validateForm = () => {
-    const errors: any = {};
-    const urlRegex = /^(ftp|http|https):\/\/[^ "]+$/;
-    const phoneRegex = /^[0-9+]+$/;
-
-    if (!values.firstName) errors.firstName = "First name is required";
-    if (!values.lastName) errors.lastName = "Last name is required";
-    if (!values.email) errors.email = "Email is required";
-    if (values.email && !values.email.includes("@"))
-      errors.email = "Invalid email address";
-    if (!values.residentCountryId)
-      errors.residentCountryId = "Resident country is required";
-    if (values.linkedin && !urlRegex.test(values.linkedin))
-      errors.linkedin = "Invalid LinkedIn URL";
-    if (values.twitter && !urlRegex.test(values.twitter))
-      errors.twitter = "Invalid X (Twitter) URL";
-    if (values.instagram && !urlRegex.test(values.instagram))
-      errors.instagram = "Invalid Instagram URL";
-    if (values.facebook && !urlRegex.test(values.facebook))
-      errors.facebook = "Invalid Facebook URL";
-    if (values.phoneNumber && !phoneRegex.test(values.phoneNumber))
-      errors.phoneNumber = "Phone number must be digits and '+' only";
-    if (values.whatsAppNumber && !phoneRegex.test(values.whatsAppNumber))
-      errors.whatsAppNumber = "WhatsApp number must be digits and '+' only";
-    if (values.bio && values.bio.length > 500)
-      errors.bio = "Bio cannot exceed 500 characters";
-    if (values.nearlestLandmark && values.nearlestLandmark.length > 255)
-      errors.nearlestLandmark = "Landmark cannot exceed 255 characters";
-
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handleSubmit = async () => {
-    if (!validateForm()) {
-      setError("Please fix the validation errors before saving.");
-      return;
-    }
-
-    if (!usr?.id) {
-      setError("User data is still loading. Please try again.");
-      return;
-    }
-
-    setIsLoading(true);
-    const formValues: any = values;
-
-    try {
-      const res = await updatedUser({
-        userId: usr.id,
-        user: {
-          firstName: formValues.firstName,
-          middleName: formValues.middleName,
-          lastName: formValues.lastName,
-          email: formValues.email,
-          linkedin: formValues.linkedin,
-          instagram: formValues.instagram,
-          twitter: formValues.twitter,
-          facebook: formValues.facebook,
-          bio: formValues.bio,
-          phoneNumber: formValues.phoneNumber,
-          whatsappNumber: formValues.whatsAppNumber,
-          genderName: formValues.gender,
-          nearestLandmark: formValues.nearlestLandmark,
-          cohortId: formValues.cohortId,
-          trackId: formValues.track,
-          residentDistrictId: formValues.districtName,
-          residentSectorId: formValues.sectorId,
-          residentCountryId: formValues.residentCountryId,
-          state: formValues.state,
-          profileImageId: formValues.profileImageId,
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!targetId) throw new Error("No member selected.");
+      if (!validate()) throw new Error("Please fix the highlighted fields.");
+      const avatar = avatarFile ? await fileToAvatar(avatarFile) : undefined;
+      const { error } = await updateMember(
+        targetId,
+        {
+          first_name: values.firstName.trim(),
+          middle_name: values.middleName.trim(),
+          last_name: values.lastName.trim(),
+          phone: values.phoneNumber.trim(),
+          whatsapp: values.whatsAppNumber.trim(),
+          bio: values.bio.trim(),
+          linkedin: values.linkedin.trim(),
+          instagram: values.instagram.trim(),
+          twitter: values.twitter.trim(),
+          facebook: values.facebook.trim(),
+          gender_id: values.genderId ? Number(values.genderId) : null,
+          cohort_id: values.cohortId ? Number(values.cohortId) : null,
+          track_id: values.trackId || null,
+          country_id: values.countryId || null,
+          state_id: values.countryId === "RW" ? null : values.stateId || null,
+          district_id: values.countryId === "RW" ? values.districtId || null : null,
+          sector_id: values.countryId === "RW" ? values.sectorId || null : null,
+          nearest_landmark: values.nearestLandmark.trim(),
         },
-      }).unwrap();
+        avatar
+      );
+      if (error) throw new Error("Could not save the profile.");
+    },
+    onSuccess: async () => {
+      setMessage({ kind: "success", text: "Profile updated successfully." });
+      setAvatarFile(null);
+      await qc.invalidateQueries({ queryKey: ["profile", targetId] });
+      await qc.invalidateQueries({ queryKey: ["profiles"] });
+    },
+    onError: (error: Error) => setMessage({ kind: "error", text: error.message }),
+  });
 
-      if (res.message) {
-        setValues(getInitialValues(usr));
-        setImagePreview(null);
-        setImageData(null);
-        setUploadSuccess(false);
-
-        if (formValues.profileImageId) {
-          setValues((prev: any) => ({ ...prev, profileImageId: "" }));
-        }
-        setSuccess("User updated successfully!");
-        refetch();
+  const update = (id: keyof FormValues) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const value = e.target.value;
+    setValues((prev) => {
+      const next = { ...prev, [id]: value };
+      if (id === "countryId") {
+        next.stateId = "";
+        next.districtId = "";
+        next.sectorId = "";
       }
-    } catch (apiError: any) {
-      console.error(apiError);
-      let errorMessage =
-        "Updating user Failed! Try again, or contact the administrator!";
-      if (apiError?.status === 409) {
-        errorMessage = apiError?.data?.error;
+      if (id === "districtId") next.sectorId = "";
+      return next;
+    });
+    setErrors((prev) => ({ ...prev, [id]: undefined }));
+  };
+
+  const select = (id: keyof FormValues) => (value: string) => {
+    setValues((prev) => {
+      const next = { ...prev, [id]: value };
+      if (id === "countryId") {
+        next.stateId = "";
+        next.districtId = "";
+        next.sectorId = "";
       }
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
+      if (id === "districtId") next.sectorId = "";
+      return next;
+    });
+    setErrors((prev) => ({ ...prev, [id]: undefined }));
   };
 
-  const handlePreview = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageData(file);
-      setUploadSuccess(false);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleFileUpload = async () => {
-    if (imageData && usr?.id) {
-      setIsLoading(true);
-      try {
-        const formData = new FormData();
-        formData.append("profileImage", imageData);
-        formData.append("userId", usr.id);
-
-        const data = await uploadPicture(formData).unwrap();
-
-        if (data?.image) {
-          setSuccess("Image uploaded successfully!");
-          setValues((prev: any) => ({
-            ...prev,
-            profileImageId: data?.image?.id,
-          }));
-          setUploadSuccess(true);
-          refetch();
-        }
-      } catch (apiError: any) {
-        setError(apiError?.error || "Image upload failed.");
-      } finally {
-        setIsLoading(false);
-      }
-    }
-  };
-
-  const handleClearImage = () => {
-    setImagePreview(null);
-    setImageData(null);
-    setUploadSuccess(false);
-    setValues((prev: any) => ({ ...prev, profileImageId: "" }));
-  };
+  if (authLoading || (profileLoading && !profile)) return <Loading />;
+  if (!targetId) {
+    return (
+      <div className="mx-auto max-w-xl rounded-2xl border border-border bg-card p-6 text-center">
+        <h1 className="text-lg font-semibold text-foreground">Profile unavailable</h1>
+        <p className="mt-2 text-sm text-muted-foreground">Sign in again to edit your profile.</p>
+      </div>
+    );
+  }
 
   const tabs = [
     {
-      label: "Personal & Social",
+      label: "Personal & social",
       content: (
-        <Personal
-          values={values}
-          handleChange={handleChange}
-          handleSelectChange={handleSelectChange}
-          errors={formErrors}
-          sectors={sectors}
-          cohorts={cohorts}
-          districts={districts}
-          genders={genders}
-          countries={countries}
-          usr={usr as Member}
-          setSelectedDistrict={setSelectedDistrict}
-          tracks={tracks}
-          auth={false}
-          states={states}
-          setCountry={setCountry}
-          changeEmail={changeEmail}
-          setChangeEmail={setChangeEmail}
-        />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TailwindInput id="firstName" label="First name" value={values.firstName} onChange={update("firstName")} error={!!errors.firstName} helperText={errors.firstName} required />
+          <TailwindInput id="middleName" label="Middle name" value={values.middleName} onChange={update("middleName")} />
+          <TailwindInput id="lastName" label="Last name" value={values.lastName} onChange={update("lastName")} error={!!errors.lastName} helperText={errors.lastName} required />
+          <TailwindInput id="email" label="Email (managed by your account)" value={profile?.email ?? ""} onChange={() => {}} helperText="Contact an administrator to change your login email." />
+          <PhoneInputTailwind id="phoneNumber" label="Phone number" value={values.phoneNumber} onChange={update("phoneNumber")} error={!!errors.phoneNumber} helperText={errors.phoneNumber} />
+          <PhoneInputTailwind id="whatsAppNumber" label="WhatsApp number" value={values.whatsAppNumber} onChange={update("whatsAppNumber")} error={!!errors.whatsAppNumber} helperText={errors.whatsAppNumber} />
+          <Combobox label="Gender" value={values.genderId} onChange={select("genderId")} options={genders.map(toOption)} placeholder="Select gender" />
+          <Combobox label="Resident country" value={values.countryId} onChange={select("countryId")} options={countries.map(toOption)} error={errors.countryId} required />
+          {values.countryId && values.countryId !== "RW" && (
+            <Combobox label="State / province" value={values.stateId} onChange={select("stateId")} options={states.map(toOption)} error={errors.stateId} required />
+          )}
+          {values.countryId === "RW" && (
+            <>
+              <Combobox label="District" value={values.districtId} onChange={select("districtId")} options={districts.map(toOption)} error={errors.districtId} required />
+              <Combobox label="Sector" value={values.sectorId} onChange={select("sectorId")} options={sectors.map(toOption)} error={errors.sectorId} required />
+            </>
+          )}
+          <Combobox label="Cohort" value={values.cohortId} onChange={select("cohortId")} options={cohorts.map(toOption)} placeholder="Select cohort" />
+          <Combobox label="Track" value={values.trackId} onChange={select("trackId")} options={tracks.map(toOption)} placeholder="Select track" />
+          <TailwindInput id="nearestLandmark" label="Nearest landmark" value={values.nearestLandmark} onChange={update("nearestLandmark")} />
+          <TailwindInput id="linkedin" label="LinkedIn URL" value={values.linkedin} onChange={update("linkedin")} error={!!errors.linkedin} helperText={errors.linkedin} />
+          <TailwindInput id="twitter" label="X (Twitter) URL" value={values.twitter} onChange={update("twitter")} error={!!errors.twitter} helperText={errors.twitter} />
+          <TailwindInput id="instagram" label="Instagram URL" value={values.instagram} onChange={update("instagram")} error={!!errors.instagram} helperText={errors.instagram} />
+          <TailwindInput id="facebook" label="Facebook URL" value={values.facebook} onChange={update("facebook")} error={!!errors.facebook} helperText={errors.facebook} />
+        </div>
       ),
     },
     {
-      label: "Your Initiative (Founded)",
-      content: (
-        <ShowOrganizationToUpdate
-          orgs={foundedOrganizations}
-          userId={targetId || ""}
-          refetch={organizationRefetch}
-          organizations={allOrganizations}
-        />
-      ),
+      label: "Initiatives (founded)",
+      content: <ShowOrganizationToUpdate orgs={founded} userId={targetId} refetch={() => qc.invalidateQueries({ queryKey: ["user-organizations", targetId] })} organizations={organizations} />,
     },
     {
-      label: "Employment History",
-      content: (
-        <ShowOrganizationToUpdate
-          orgs={employedOrganizations}
-          userId={targetId || ""}
-          refetch={organizationRefetch}
-          organizations={allOrganizations}
-        />
-      ),
+      label: "Employment",
+      content: <ShowOrganizationToUpdate orgs={employed} userId={targetId} refetch={() => qc.invalidateQueries({ queryKey: ["user-organizations", targetId] })} organizations={organizations} />,
     },
   ];
 
-  if (usr === undefined) {
-    return <Loading />;
-  }
-
   return (
-    <div className="container mx-auto p-4 md:p-8">
+    <div className="mx-auto max-w-7xl p-4 md:p-8">
       <PageHeader
-        title="Update Profile"
-        description="Make changes to your profile information below and save to update."
-        actionTitle="Save Changes"
+        title={isSelf ? "Update my profile" : "Update member profile"}
+        description="Update the member's details, then save your changes."
+        actionTitle="Save changes"
         Icon={Save}
-        onAction={handleSubmit}
-        loading={isLoading}
+        onAction={() => save.mutate()}
+        loading={save.isPending}
         disabled={false}
-
       />
-      {(error || success) && (
+
+      {message && (
         <div
-          className={`px-4 py-3 rounded-xl relative mb-6 shadow-md transition-all duration-300 ${
-            error
-              ? "bg-red-50 border border-red-400 text-red-700"
-              : "bg-green-50 border border-green-400 text-green-700"
+          role={message.kind === "error" ? "alert" : "status"}
+          className={`mb-6 rounded-xl border px-4 py-3 text-sm shadow-sm ${
+            message.kind === "error" ? "border-red-300 bg-red-50 text-red-700" : "border-green-300 bg-green-50 text-green-700"
           }`}
-          role="alert"
         >
-          <strong className="font-bold">{error ? "Error!" : "Success!"}</strong>
-          <span className="block sm:inline ml-2">{error || success}</span>
+          {message.text}
         </div>
       )}
 
-      <div className="bg-white shadow-2xl rounded-xl p-6 sm:p-8">
-        <div className="border-b border-gray-200 pb-6 mb-8 flex flex-col lg:flex-row gap-8">
-          <div className="flex flex-col items-center lg:items-start shrink-0 w-full lg:w-1/4">
-            <h3 className="text-lg font-semibold text-gray-700 mb-4">
-              Profile Picture
-            </h3>
-            <div className="relative w-40 h-40">
-              <img
-                src={
-                  imagePreview ||
-                  usr?.profileImage?.link ||
-                  "/placeholder-avatar.png"
-                }
-                alt="Profile Preview"
-                className="w-40 h-40 rounded-full object-cover border-4 border-blue-200 shadow-lg"
-              />
-              <label
-                htmlFor="profile-image-upload"
-                className="absolute bottom-0 right-0 p-2 bg-primary rounded-full text-white cursor-pointer hover:bg-primary transition-colors shadow-lg"
-                title="Change Profile Picture"
-              >
-                <MdEdit className="w-5 h-5" />
-                <input
-                  id="profile-image-upload"
-                  type="file"
-                  className="hidden"
-                  onChange={handlePreview}
-                />
-              </label>
-            </div>
-
-            {imageData && !uploadSuccess && (
-              <div className="flex gap-2 items-center mt-4">
-                <button
-                  onClick={handleFileUpload}
-                  className="flex items-center bg-green-500 hover:bg-green-600 text-white text-sm py-2 px-4 rounded-lg transition disabled:opacity-50"
-                  disabled={isLoading}
-                >
-                  <MdCloudUpload className="w-4 h-4 mr-2" />
-                  {isLoading ? "Uploading..." : "Upload Image"}
-                </button>
-              </div>
-            )}
-            {(imagePreview || usr?.profileImage?.link) && (
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-6">
+        <div className="mb-8 flex flex-col gap-6 border-b border-border pb-6 lg:flex-row">
+          <div className="flex w-full shrink-0 flex-col items-center lg:w-1/4 lg:items-start">
+            <h2 className="mb-4 text-lg font-semibold text-foreground">Profile picture</h2>
+            <div className="relative h-40 w-40">
+              {imagePreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={imagePreview} alt="Profile preview" className="h-40 w-40 rounded-full border-4 border-brand-200 object-cover shadow-sm" />
+              ) : (
+                <div className="flex h-40 w-40 items-center justify-center rounded-full border-4 border-dashed border-border bg-muted text-sm text-muted-foreground">No picture</div>
+              )}
               <button
-                onClick={handleClearImage}
-                className="flex items-center mt-3 text-red-600 hover:text-red-700 text-sm font-medium transition"
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute bottom-0 right-0 rounded-full bg-primary p-2 text-primary-foreground shadow-sm transition hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Change profile picture"
               >
-                <MdClose className="w-4 h-4 mr-1" />
-                Clear Image
+                <MdEdit className="h-5 w-5" aria-hidden="true" />
+              </button>
+              <input
+                ref={fileInputRef}
+                id="profile-image-upload"
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setAvatarFile(file);
+                  const reader = new FileReader();
+                  reader.onloadend = () => setImagePreview(String(reader.result ?? ""));
+                  reader.readAsDataURL(file);
+                }}
+              />
+            </div>
+            {avatarFile && (
+              <button
+                type="button"
+                onClick={() => save.mutate()}
+                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700"
+              >
+                <MdCloudUpload className="h-4 w-4" aria-hidden="true" /> Save picture
+              </button>
+            )}
+            {(imagePreview || profile?.avatar_path) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setImagePreview(null);
+                  setAvatarFile(null);
+                }}
+                className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-red-600 transition hover:text-red-700"
+              >
+                <MdClose className="h-4 w-4" aria-hidden="true" /> Clear selection
               </button>
             )}
           </div>
 
           <div className="flex-1 lg:w-3/4">
             <TextAreaField
-              label="Biography (Max 500 characters)"
-              placeholder="Enter a brief biography (e.g., your mission, experience, interests)..."
+              label="Biography (max 500 characters)"
+              placeholder="A short biography: mission, experience, interests."
               value={values.bio}
-              onChange={handleChange}
+              onChange={update("bio")}
               name="bio"
             />
+            {errors.bio && <p className="mt-1 text-sm text-red-600">{errors.bio}</p>}
           </div>
         </div>
 
         <div className="mt-4">
-          <div className="border-b border-gray-200">
-            <ul className="flex flex-wrap -mb-px text-base font-medium text-center text-gray-500">
+          <div className="border-b border-border">
+            <ul className="-mb-px flex flex-wrap text-center text-sm font-medium">
               {tabs.map((tab, index) => (
-                <li key={index + 1} className="mr-4">
+                <li key={tab.label} className="mr-2">
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      handleTabClick(index);
-                    }}
-                    className={`inline-block p-4 border-b-2 rounded-t-lg transition-colors duration-150 ease-in-out 
-                      ${
-                        index === activeTab
-                          ? "text-primary border-primary font-semibold"
-                          : "border-transparent hover:text-gray-700 hover:border-gray-300"
-                      }`}
+                    onClick={() => setActiveTab(index)}
+                    aria-current={index === activeTab ? "page" : undefined}
+                    className={`inline-block rounded-t-lg border-b-2 p-3 transition ${
+                      index === activeTab ? "border-primary font-semibold text-primary" : "border-transparent text-muted-foreground hover:border-border hover:text-foreground"
+                    }`}
                   >
                     {tab.label}
                   </button>
@@ -499,11 +425,17 @@ function UpdateProfilePage() {
               ))}
             </ul>
           </div>
-          <div className="mt-8">{tabs[activeTab].content}</div>
+          <div className="mt-6">{tabs[activeTab].content}</div>
+        </div>
+
+        <div className="mt-8 flex justify-end border-t border-border pt-4">
+          <Button onClick={() => save.mutate()} disabled={save.isPending}>
+            {save.isPending ? "Saving..." : "Save changes"}
+          </Button>
         </div>
       </div>
     </div>
   );
 }
 
-export default UpdateProfilePage;
+export const dynamic = "force-dynamic";

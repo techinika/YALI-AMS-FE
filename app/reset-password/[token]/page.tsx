@@ -1,14 +1,10 @@
-"use client";
-
+import { Suspense } from "react";
 import ResetPassword from "@/components/Home/ResetPassword";
-import React from "react";
 
-function page() {
+export default function Page() {
   return (
-    <div>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-background"><div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>}>
       <ResetPassword />
-    </div>
+    </Suspense>
   );
 }
-
-export default page;

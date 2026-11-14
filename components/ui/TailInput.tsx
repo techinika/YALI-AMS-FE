@@ -75,3 +75,5 @@ export const TailwindInput = React.memo(
     </div>
   )
 );
+
+TailwindInput.displayName = "TailwindInput";

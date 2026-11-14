@@ -1,343 +1,232 @@
 "use client";
 
-import React, {
-  useEffect,
-  useState,
-  useRef,
-  useMemo,
-  useCallback,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
-  Send,
-  Users,
-  Search,
-  MessageSquare,
-  User,
   ChevronLeft,
+  Loader2,
+  MessageSquare,
+  Search,
+  Send,
   Settings,
+  User,
+  Users,
 } from "lucide-react";
 import { PageHeader } from "../parts/PageHeader";
-import { Member } from "@/types/user";
-import { useUsersQuery } from "@/lib/features/userSlice";
+import { useCurrentUser } from "@/lib/data/use-current-user";
 import {
-  useAddMessageMutation,
-  useChatsQuery,
-  usePrivateChatsQuery,
-  usePrivateMessagesQuery,
-} from "@/lib/features/chatSlice";
-import { getUser } from "@/helpers/auth";
-import { Message } from "@/types/message";
-import { useRouter, useSearchParams } from "next/navigation";
-import { getSocket } from "@/lib/sockets";
+  getOrCreateDirectConversation,
+  listConversationMessages,
+  listMyConversations,
+  sendMessage,
+  subscribeToConversation,
+  type ChatMessage,
+  type ConversationSummary,
+} from "@/lib/data/chat";
+import { listProfiles } from "@/lib/data/profiles";
+import { toastError } from "@/lib/toast";
 
 dayjs.extend(relativeTime);
 
-const CustomAvatar = ({
-  image,
-  senderName,
-}: {
-  image?: string;
-  senderName: string;
-}) => {
-  const initials = senderName
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-  return (
-    <div className="w-9 h-9 flex items-center justify-center rounded-full bg-primary text-white font-bold text-sm shrink-0 shadow-md">
-      {image ? (
-        <img
-          src={image}
-          alt={senderName}
-          className="w-full h-full object-cover rounded-full"
-        />
-      ) : (
-        initials
-      )}
-    </div>
-  );
+const COMMUNITY_FALLBACK_ID = "00000000-0000-0000-0000-000000000001";
+
+type ProfileLite = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  avatar_path: string | null;
 };
 
-const ChatInterface = () => {
-  const router = useRouter();
-  const user = getUser();
-  const searchParams = useSearchParams();
-  const oid: string = searchParams.get("rid") ?? "all";
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const isFirstLoadRef = useRef(true);
-  const lastMessageIdRef = useRef<string | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const isNearBottomRef = useRef(true);
-  const socketRef = useRef<any>(null);
-  const prevRecipientRef = useRef<string>(oid ?? "all");
+function fullName(profile?: ProfileLite | null) {
+  if (!profile) return "Unknown member";
+  return [profile.first_name, profile.last_name].filter(Boolean).join(" ") || "Unknown member";
+}
 
-  const [currentRecipientId, setCurrentRecipientId] = useState<string>(
-    oid ?? "all",
-  );
-  const [messageInput, setMessageInput] = useState("");
-  const [chatSearch, setChatSearch] = useState("");
-  const [messageSearch, setMessageSearch] = useState("");
-  const [usersSearch, setUsersSearch] = useState("");
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [members, setMembers] = useState<Member[]>([]);
-  const [recipientUser, setRecipientUser] = useState<Member | null>(null);
-  const [headerTitle, setHeaderTitle] = useState("Community Chat");
+function Avatar({ name, src }: { name: string; src?: string | null }) {
+  const initials = name
+    .split(" ")
+    .map((part) => part[0])
+    .filter(Boolean)
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
-  const { data: communityMessagesData } = useChatsQuery(undefined, {
-    skip: currentRecipientId !== "all",
-  });
-  const { data: privateMessagesData } = usePrivateMessagesQuery({
-    id: currentRecipientId,
-    oid: user?.id || "",
-  });
-
-  const { data: privateChatsData } = usePrivateChatsQuery(user?.id || "");
-
-  const [addMessage] = useAddMessageMutation();
-  const { data: allUsers } = useUsersQuery();
-
-  useEffect(() => {
-    if (allUsers) {
-      const otherMembers = allUsers?.data.filter(
-        (u: Member) => u.id !== user?.id,
-      );
-      setMembers(otherMembers);
-    }
-  }, [allUsers, user?.id]);
-
-  useEffect(() => {
-    if (currentRecipientId === "all") {
-      setRecipientUser(null);
-      setHeaderTitle("Community Chat");
-      return;
-    }
-
-    const found = members.find((m) => m.id === currentRecipientId) || null;
-    setRecipientUser(found);
-
-    setHeaderTitle(found ? `${found.firstName} ${found.lastName}` : "Unknown");
-  }, [currentRecipientId, members]);
-
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const socket = getSocket();
-    socketRef.current = socket;
-
-    socket.emit("join-room", { room: user?.id });
-
-    socket.on("connect", () => {
-      console.log("Connected to socket:", socket.id);
-    });
-
-    socket.on("disconnect", () => {
-      console.log("Socket disconnected");
-    });
-
-    return () => {
-      socket.off("connect");
-      socket.off("disconnect");
-    };
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (prevRecipientRef.current !== currentRecipientId) {
-      setMessages([]);
-      isFirstLoadRef.current = true;
-      lastMessageIdRef.current = null;
-      prevRecipientRef.current = currentRecipientId;
-    }
-  }, [currentRecipientId]);
-
-  useEffect(() => {
-    if (!socketRef.current) return;
-
-    const socket = socketRef.current;
-
-    const handleNewMessage = (message: Message) => {
-      if (
-        (currentRecipientId === "all" && message?.public) ||
-        (currentRecipientId !== "all" &&
-          !message?.public &&
-          (message.senderId === currentRecipientId ||
-            message.receiverId === currentRecipientId))
-      ) {
-        setMessages((prev) => {
-          const exists = prev.some((m) => m.id === message.id);
-          if (exists) return prev;
-          return [...prev, message];
-        });
-      }
-    };
-
-    socket.on("new-message", handleNewMessage);
-
-    return () => {
-      socket.off("new-message", handleNewMessage);
-    };
-  }, [currentRecipientId]);
-
-  const rawMessages: Message[] = useMemo(() => {
-    if (currentRecipientId === "all") {
-      return communityMessagesData?.data || [];
-    } else {
-      return privateMessagesData?.data || [];
-    }
-  }, [currentRecipientId, communityMessagesData, privateMessagesData]);
-
-  useEffect(() => {
-    if (rawMessages.length > 0) {
-      setMessages(rawMessages);
-    }
-  }, [rawMessages]);
-
-  const privateChatPartners: Member[] = useMemo(() => {
-    if (!privateChatsData?.data || !user?.id) return [];
-
-    const chatsMap = new Map<string, Message>();
-
-    [...privateChatsData.data]
-      .sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      )
-      .forEach((msg) => {
-        const otherUserId =
-          msg.senderId === user.id ? msg.receiverId : msg.senderId;
-
-        if (otherUserId && !chatsMap.has(otherUserId)) {
-          chatsMap.set(otherUserId, msg);
-        }
-      });
-
-    return Array.from(chatsMap.values())
-      .map((chat) =>
-        members.find(
-          (u: Member) =>
-            u.id ===
-            (chat.senderId === user.id ? chat.receiverId : chat.senderId),
-        ),
-      )
-      .filter((u): u is Member => Boolean(u));
-  }, [privateChatsData?.data, members, user?.id]);
-
-  const filteredChatList = useMemo(() => {
-    const list = [
-      {
-        id: "all",
-        title: "Community Chat",
-        icon: Users,
-        isCommunity: true,
-        lastMessage:
-          communityMessagesData?.data.at(-1)?.message ||
-          "Start the conversation...",
-      },
-      ...privateChatPartners.map((p) => ({
-        id: p.id,
-        title: `${p.firstName} ${p.lastName}`,
-        icon: User,
-        isCommunity: false,
-        picture: p?.profileImage?.link ?? "/placeholder.svg",
-        lastMessage:
-          messages.findLast(
-            (m: Message) =>
-              (m.senderId === user?.id && m.receiverId === p.id) ||
-              (m.senderId === p.id && m.receiverId === user?.id),
-          )?.message || "",
-      })),
-    ];
-
-    if (!chatSearch) return list;
-
-    return list.filter((chat) =>
-      chat.title.toLowerCase().includes(chatSearch.toLowerCase()),
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={src} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
     );
-  }, [communityMessagesData, privateChatPartners, chatSearch, user?.id]);
+  }
+  return (
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground" aria-hidden="true">
+      {initials || "?"}
+    </span>
+  );
+}
+
+export default function IndividualChatPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const qc = useQueryClient();
+  const { user } = useCurrentUser();
+
+  const initialRecipient = searchParams.get("rid") ?? "all";
+  const [currentId, setCurrentId] = useState(initialRecipient);
+  const [chatSearch, setChatSearch] = useState("");
+  const [userSearch, setUserSearch] = useState("");
+  const [messageSearch, setMessageSearch] = useState("");
+  const [draft, setDraft] = useState("");
+  const endRef = useRef<HTMLDivElement>(null);
+  const lastMessageId = useRef<string | null>(null);
+
+  useEffect(() => {
+    setCurrentId(searchParams.get("rid") ?? "all");
+  }, [searchParams]);
+
+  const { data: conversations = [], isLoading: loadingConversations } = useQuery({
+    queryKey: ["chat", "conversations"],
+    queryFn: listMyConversations,
+  });
+
+  const { data: directory = [], isLoading: loadingDirectory } = useQuery({
+    queryKey: ["chat", "directory", userSearch],
+    enabled: userSearch.trim().length > 0,
+    queryFn: async () => {
+      const { data } = await listProfiles({ search: userSearch.trim(), limit: 8 });
+      return (data ?? []) as unknown as ProfileLite[];
+    },
+  });
+
+  const community = conversations.find((c) => c.type === "community") ?? null;
+  const activeConversation: ConversationSummary | null =
+    currentId === "all"
+      ? community
+      : conversations.find((c) => c.id === currentId) ?? null;
+
+  const { data: messages = [], isLoading: loadingMessages } = useQuery({
+    queryKey: ["chat", "messages", activeConversation?.id ?? currentId],
+    enabled: Boolean(activeConversation?.id),
+    queryFn: () => listConversationMessages(activeConversation!.id),
+  });
+
+  const send = useMutation({
+    mutationFn: (content: string) => sendMessage(activeConversation!.id, content),
+    onMutate: async (content) => {
+      const key = ["chat", "messages", activeConversation?.id ?? currentId];
+      await qc.cancelQueries({ queryKey: key });
+      const previous = qc.getQueryData<ChatMessage[]>(key);
+      const optimistic: ChatMessage = {
+        id: `optimistic-${Date.now()}`,
+        conversation_id: activeConversation?.id ?? "",
+        sender_id: user?.id ?? "",
+        content,
+        created_at: new Date().toISOString(),
+        sender: user
+          ? {
+              id: user.id,
+              first_name: (user.user_metadata?.first_name as string) ?? null,
+              last_name: (user.user_metadata?.last_name as string) ?? null,
+              avatar_path: null,
+            }
+          : null,
+      };
+      qc.setQueryData<ChatMessage[]>(key, [...(previous ?? []), optimistic]);
+      return { previous };
+    },
+    onError: (_error, _content, context) => {
+      if (context?.previous) {
+        qc.setQueryData(["chat", "messages", activeConversation?.id ?? currentId], context.previous);
+      }
+      toastError("Failed to send message.");
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["chat", "messages"] });
+      qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
+    },
+  });
+
+  // Realtime updates for the open conversation.
+  useEffect(() => {
+    if (!activeConversation?.id) return;
+    const unsubscribe = subscribeToConversation(activeConversation.id, (incoming) => {
+      qc.setQueryData<ChatMessage[]>(["chat", "messages", activeConversation.id], (prev) => {
+        if (!prev) return [incoming];
+        if (prev.some((m) => m.id === incoming.id || m.content === incoming.content && m.sender_id === incoming.sender_id)) return prev;
+        return [...prev, incoming];
+      });
+    });
+    return unsubscribe;
+  }, [activeConversation?.id, qc]);
+
+  const directConversations = useMemo(
+    () => conversations.filter((c) => c.type === "community" || c.type === "private"),
+    [conversations]
+  );
+
+  const filteredConversations = useMemo(() => {
+    const term = chatSearch.trim().toLowerCase();
+    if (!term) return directConversations;
+    return directConversations.filter((c) => (c.name ?? "Community chat").toLowerCase().includes(term));
+  }, [directConversations, chatSearch]);
 
   const displayedMessages = useMemo(() => {
-    let sorted = [...messages].sort(
-      (a, b) =>
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-    );
-
-    if (messageSearch) {
-      sorted = sorted.filter((msg) =>
-        msg.message.toLowerCase().includes(messageSearch.toLowerCase()),
-      );
-    }
-    return sorted;
+    const sorted = [...messages].sort((a, b) => a.created_at.localeCompare(b.created_at));
+    const term = messageSearch.trim().toLowerCase();
+    if (!term) return sorted;
+    return sorted.filter((m) => m.content.toLowerCase().includes(term));
   }, [messages, messageSearch]);
 
   useEffect(() => {
-    if (!displayedMessages.length) return;
-
-    const lastMessage = displayedMessages.at(-1);
-    if (!lastMessage) return;
-
-    if (isFirstLoadRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-      isFirstLoadRef.current = false;
-      lastMessageIdRef.current = lastMessage.id;
-      return;
-    }
-
-    if (lastMessage.id !== lastMessageIdRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      lastMessageIdRef.current = lastMessage.id;
-    }
-
-    if (
-      lastMessage.id !== lastMessageIdRef.current &&
-      isNearBottomRef.current
-    ) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
+    const last = displayedMessages.at(-1);
+    if (!last) return;
+    if (last.id === lastMessageId.current) return;
+    lastMessageId.current = last.id;
+    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [displayedMessages]);
 
-  const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      const trimmedMessage = messageInput.trim();
-      if (!trimmedMessage) return;
-
-      const values = {
-        message: trimmedMessage,
-        senderId: user?.id || "",
-        receiverId: currentRecipientId === "all" ? "" : currentRecipientId,
-      };
-
+  const startDirectChat = useCallback(
+    async (otherUserId: string) => {
       try {
-        const result = await addMessage(values).unwrap();
-        const created = result?.data as Message | undefined;
-        if (created) {
-          setMessages((prev) => {
-            const exists = prev.some((m) => m.id === created.id);
-            if (exists) return prev;
-            return [...prev, created];
-          });
-        }
-        setMessageInput("");
+        const conversationId = await getOrCreateDirectConversation(otherUserId);
+        setUserSearch("");
+        setCurrentId(conversationId);
+        router.push(`${pathname}?rid=${conversationId}`);
+        await qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
       } catch (error) {
-        console.error("Error sending message:", error);
+        toastError(error instanceof Error ? error.message : "Could not start the chat.");
       }
     },
-    [messageInput, user?.id, currentRecipientId, addMessage],
+    [pathname, qc, router]
   );
 
-  const headerSubtitle =
-    currentRecipientId === "all"
-      ? `${members.length} members`
-      : "Private conversation";
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const body = draft.trim();
+    if (!body || !activeConversation) return;
+    setDraft("");
+    send.mutate(body);
+  };
+
+  const peerName = activeConversation?.peer
+    ? fullName(activeConversation.peer)
+    : activeConversation?.name || "Conversation";
+  const title = currentId === "all" ? "Community chat" : peerName;
+  const subtitle =
+    currentId === "all"
+      ? `${activeConversation?.member_count ?? 0} members`
+      : activeConversation?.type === "group"
+        ? `${activeConversation.member_count} members`
+        : "Direct message";
 
   return (
-    <div className="container mx-auto p-4 sm:p-8 ">
+    <div className="mx-auto flex max-w-7xl flex-col gap-4">
       <PageHeader
         title="Conversations"
-        description="Chat with the community and build relationships privately."
+        description="Chat with the community and message members privately."
         actionTitle="Settings"
         onAction={() => router.push("/dashboard/settings")}
         loading={false}
@@ -345,276 +234,202 @@ const ChatInterface = () => {
         disabled={false}
       />
 
-      <div
-        ref={containerRef}
-        onScroll={() => {
-          const el = containerRef.current;
-          if (!el) return;
-
-          isNearBottomRef.current =
-            el.scrollHeight - el.scrollTop - el.clientHeight < 100;
-        }}
-        className="rounded shadow bg-white flex flex-col lg:flex-row overflow-hidden"
-        style={{ minHeight: "80vh" }}
-      >
-        <div
-          className={`flex flex-col w-full lg:w-80 shrink-0 border-r border-gray-100 ${
-            currentRecipientId && "hidden md:flex"
+      <div className="flex min-h-[75vh] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm lg:flex-row">
+        <aside
+          aria-label="Conversations"
+          className={`w-full shrink-0 flex-col border-b border-border lg:flex lg:w-80 lg:border-b-0 lg:border-r ${
+            currentId === "all" ? "hidden lg:flex" : "hidden md:flex"
           }`}
         >
-          <div className="p-4 border-b border-gray-100 bg-primary">
-            <h2 className="text-xl font-bold text-white flex items-center">
-              <MessageSquare className="w-5 h-5 mr-2" />
+          <div className="border-b border-border bg-primary p-4">
+            <h2 className="flex items-center text-lg font-semibold text-primary-foreground">
+              <MessageSquare className="mr-2 h-5 w-5" aria-hidden="true" />
               Chats
             </h2>
           </div>
 
-          <div className="p-3 border-b border-gray-100 bg-gray-50">
-            <div className="relative mb-2">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <div className="relative space-y-2 border-b border-border bg-muted/40 p-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
               <input
-                type="text"
-                placeholder="Search chats..."
+                type="search"
                 value={chatSearch}
                 onChange={(e) => setChatSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary transition"
+                placeholder="Search chats..."
+                aria-label="Search chats"
+                className="w-full rounded-lg border border-input bg-background py-2 pl-10 pr-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
-
             <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
               <input
-                type="text"
-                placeholder="Start new chat (Search users)..."
-                value={usersSearch}
-                onChange={(e) => setUsersSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary transition"
+                type="search"
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                placeholder="Start a chat with a member..."
+                aria-label="Find a member to message"
+                className="w-full rounded-lg border border-input bg-background py-2 pl-10 pr-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring"
               />
-            </div>
-            {usersSearch && (
-              <div className="absolute z-10 w-72 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
-                {allUsers?.data.length ? (
-                  allUsers.data.map((u: Member) => (
-                    <button
-                      key={u.id}
-                      type="button"
-                      className="w-full text-left p-3 flex items-center space-x-3 cursor-pointer hover:bg-blue-50 focus:outline-none focus:bg-blue-100"
-                      onClick={() => {
-                        setCurrentRecipientId(u.id);
-                        setUsersSearch("");
-                      }}
-                    >
-                      <CustomAvatar
-                        senderName={u.firstName}
-                        image={u?.profileImage?.link}
-                      />
-                      <span className="font-medium text-sm">
-                        {u.firstName} {u.lastName}
-                      </span>
-                    </button>
-                  ))
-                ) : (
-                  <p className="p-3 text-center text-sm text-gray-500">
-                    No users found.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
-            {filteredChatList.map((chat) => (
-              <div
-                key={chat.id}
-                className={`p-3 border-b border-gray-100 cursor-pointer transition-colors flex items-start space-x-3 
-                            ${
-                              chat.id === currentRecipientId
-                                ? "bg-blue-100/70 border-blue-300 shadow-inner"
-                                : "hover:bg-gray-50"
-                            }`}
-                onClick={() => {
-                  router.push(`/dashboard/chat?rid=${chat?.id}`);
-                  setCurrentRecipientId(chat.id);
-                  if (usersSearch) setUsersSearch("");
-                }}
-              >
-                <div className="pt-1">
-                  {chat.isCommunity ? (
-                    <chat.icon className="w-5 h-5 text-primary" />
-                  ) : (
-                    <CustomAvatar senderName={chat.title} image={chat?.title} />
+              {userSearch.trim().length > 0 && (
+                <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg">
+                  {loadingDirectory && <p className="p-3 text-center text-sm text-muted-foreground">Searching...</p>}
+                  {!loadingDirectory && directory.length === 0 && (
+                    <p className="p-3 text-center text-sm text-muted-foreground">No members found.</p>
                   )}
+                  {directory.map((member) => (
+                    <button
+                      key={member.id}
+                      type="button"
+                      onClick={() => startDirectChat(member.id)}
+                      className="flex w-full items-center gap-3 p-3 text-left transition hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+                    >
+                      <Avatar name={fullName(member)} src={member.avatar_path} />
+                      <span className="truncate text-sm font-medium text-foreground">{fullName(member)}</span>
+                    </button>
+                  ))}
                 </div>
+              )}
+            </div>
+          </div>
 
-                <div className="flex-1 min-w-0">
-                  <p
-                    className={`font-semibold text-sm truncate ${
-                      chat.id === currentRecipientId
-                        ? "text-primary"
-                        : "text-gray-800"
+          <ul className="flex-1 overflow-y-auto">
+            {loadingConversations && <li className="p-4 text-center text-sm text-muted-foreground">Loading chats...</li>}
+            {!loadingConversations && filteredConversations.length === 0 && (
+              <li className="p-4 text-center text-sm text-muted-foreground">No conversations yet.</li>
+            )}
+            {filteredConversations.map((conversation) => {
+              const active = currentId === conversation.id || (currentId === "all" && conversation.type === "community");
+              const label = conversation.type === "community" ? "Community chat" : conversation.name || "Conversation";
+              return (
+                <li key={conversation.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const rid = conversation.type === "community" ? "all" : conversation.id;
+                      setCurrentId(rid);
+                      router.push(rid === "all" ? pathname : `${pathname}?rid=${rid}`);
+                    }}
+                    aria-current={active ? "true" : undefined}
+                    className={`flex w-full items-start gap-3 border-b border-l-4 border-border p-3 text-left transition last:border-b-0 ${
+                      active ? "border-l-primary bg-brand-50" : "hover:bg-accent"
                     }`}
                   >
-                    {chat.title}
-                  </p>
-                  <p className="text-xs text-gray-500 truncate">
-                    {chat.lastMessage ||
-                      (chat.isCommunity
-                        ? "Start the conversation..."
-                        : "New private chat.")}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+                    <span className="pt-1">
+                      {conversation.type === "community" ? (
+                        <Users className="h-5 w-5 text-primary" aria-hidden="true" />
+                      ) : (
+                        <Avatar name={label} src={conversation.peer?.avatar_path} />
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className={`block truncate text-sm font-semibold ${active ? "text-primary" : "text-foreground"}`}>{label}</span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {conversation.last_message?.content ?? (conversation.type === "community" ? "Start the conversation..." : "New conversation.")}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </aside>
 
-        <div
-          className={`flex flex-col flex-1 w-full ${
-            currentRecipientId ? "flex" : "hidden md:flex"
-          }`}
-        >
-          <div className="p-4 border-b border-gray-100 bg-white shadow-md flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-3">
+        <section aria-label="Messages" className={`min-w-0 flex-1 flex-col ${currentId === "all" ? "hidden md:flex" : "flex"}`}>
+          <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-card p-4">
+            <div className="flex min-w-0 items-center gap-3">
               <button
-                onClick={() => setCurrentRecipientId("all")}
-                className="md:hidden p-1 text-primary hover:text-primary/80 transition"
-                aria-label="Back to chat list"
+                type="button"
+                onClick={() => {
+                  setCurrentId("all");
+                  router.push(pathname);
+                }}
+                className="rounded-md p-1 text-primary transition hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+                aria-label="Back to conversations"
               >
-                <ChevronLeft className="w-6 h-6" />
+                <ChevronLeft className="h-6 w-6" aria-hidden="true" />
               </button>
-              {currentRecipientId !== "all" &&
-                recipientUser?.profileImage?.link && (
-                  <CustomAvatar
-                    senderName={recipientUser.firstName}
-                    image={
-                      `${recipientUser?.profileImage?.link}` ||
-                      "/placeholder.svg"
-                    }
-                  />
-                )}
-              <div className="flex flex-col">
-                <h2 className="font-bold text-xl text-gray-800">
-                  {headerTitle}
-                </h2>
-                <p className="text-sm text-gray-500">{headerSubtitle}</p>
+              <div className="min-w-0">
+                <h2 className="truncate text-lg font-bold text-foreground">{title}</h2>
+                <p className="text-sm text-muted-foreground">{subtitle}</p>
               </div>
             </div>
-
-            <div className="relative hidden sm:block w-56">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <div className="relative hidden w-56 sm:block">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
               <input
-                type="text"
-                placeholder="Search messages..."
+                type="search"
                 value={messageSearch}
                 onChange={(e) => setMessageSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary transition bg-gray-50"
+                placeholder="Search messages..."
+                aria-label="Search messages"
+                className="w-full rounded-lg border border-input bg-muted/40 py-2 pl-10 pr-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
-          </div>
+          </header>
 
-          <div
-            className={`flex-1 p-6 overflow-y-scroll space-y-4 bg-gray-50 custom-scrollbar`}
-          >
-            {displayedMessages.length > 0 ? (
-              displayedMessages.map((message) => {
-                const isSent = message.senderId === user?.id;
-                const senderUser = members.find(
-                  (u: Member) => u?.id === message?.senderId,
-                );
-                const senderName = senderUser
-                  ? `${senderUser.firstName}`
-                  : "Unknown";
-                const senderImage =
-                  senderUser?.profileImage?.link ?? "/placeholder.svg";
-
-                return (
-                  <div
-                    key={message.id}
-                    className={`flex gap-3 w-full ${
-                      isSent ? "justify-end" : "justify-start"
-                    }`}
-                  >
-                    {!isSent && (
-                      <CustomAvatar
-                        image={senderImage}
-                        senderName={senderName}
-                      />
-                    )}
-
-                    <div
-                      className={`flex flex-col max-w-sm sm:max-w-lg ${
-                        isSent ? "items-end" : "items-start"
-                      }`}
-                    >
-                      <div
-                        className={`py-2 px-4 rounded-2xl shadow-md transition-all duration-300 ${
-                          isSent
-                            ? "bg-primary text-white rounded-br-none"
-                            : "bg-white text-gray-800 rounded-tl-none border border-gray-100"
-                        }`}
-                      >
-                        {currentRecipientId === "all" && !isSent && (
-                          <p className="text-xs font-bold mb-1 opacity-90 text-blue-200">
-                            {senderName}
-                          </p>
-                        )}
-                        <p className="text-sm wrap-break-word whitespace-pre-wrap">
-                          {message.message}
-                        </p>
-                      </div>
-                      <p className={`text-xs mt-1 text-gray-500`}>
-                        {dayjs(message.createdAt).fromNow()}
-                      </p>
-                    </div>
-
-                    {isSent && (
-                      <CustomAvatar
-                        image={senderImage}
-                        senderName={senderName}
-                      />
-                    )}
-                  </div>
-                );
-              })
-            ) : (
-              <div className="flex h-full w-full justify-center items-center text-gray-500 italic">
-                <div className="text-center p-16">
-                  <MessageSquare className="w-10 h-10 mx-auto mb-3 text-blue-300" />
-                  <p>
-                    {messageSearch
-                      ? "No messages match your search."
-                      : "No messages yet, send one to start the conversation!"}
-                  </p>
-                </div>
+          <div className="flex-1 space-y-4 overflow-y-auto bg-muted/30 p-4 sm:p-6">
+            {loadingMessages && (
+              <p className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Loading messages...
+              </p>
+            )}
+            {!loadingMessages && displayedMessages.length === 0 && (
+              <div className="flex h-full flex-col items-center justify-center gap-3 p-10 text-center text-muted-foreground">
+                <MessageSquare className="h-10 w-10 text-primary/40" aria-hidden="true" />
+                <p className="text-sm">{messageSearch ? "No messages match your search." : "No messages yet. Send one to start the conversation."}</p>
               </div>
             )}
-            <div ref={messagesEndRef} />
+            {!loadingMessages &&
+              displayedMessages.map((message) => {
+                const mine = message.sender_id === user?.id;
+                const name = mine ? "You" : fullName(message.sender);
+                return (
+                  <article key={message.id} className={`flex w-full gap-3 ${mine ? "justify-end" : "justify-start"}`}>
+                    {!mine && <Avatar name={name} src={message.sender?.avatar_path} />}
+                    <div className={`flex max-w-[85%] flex-col sm:max-w-lg ${mine ? "items-end" : "items-start"}`}>
+                      {!mine && currentId === "all" && <span className="mb-1 text-xs font-semibold text-primary">{name}</span>}
+                      <p
+                        className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-2 text-sm shadow-sm ${
+                          mine ? "rounded-br-none bg-primary text-primary-foreground" : "rounded-tl-none border border-border bg-card text-foreground"
+                        }`}
+                      >
+                        {message.content}
+                      </p>
+                      <time dateTime={message.created_at} className="mt-1 text-xs text-muted-foreground">
+                        {dayjs(message.created_at).fromNow()}
+                      </time>
+                    </div>
+                    {mine && <Avatar name={name} src={message.sender?.avatar_path} />}
+                  </article>
+                );
+              })}
+            <div ref={endRef} />
           </div>
 
-          <div className="p-4 border-t border-gray-200 bg-white shrink-0">
-            <form
-              onSubmit={handleSubmit}
-              className="flex items-center space-x-3"
+          <form onSubmit={handleSubmit} className="flex shrink-0 items-center gap-3 border-t border-border bg-card p-4">
+            <label htmlFor="message-draft" className="sr-only">
+              Message
+            </label>
+            <input
+              id="message-draft"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder={`Message ${title}...`}
+              autoComplete="off"
+              className="flex-1 rounded-xl border border-input bg-background p-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <button
+              type="submit"
+              disabled={!draft.trim() || send.isPending || !activeConversation}
+              className="rounded-xl bg-primary p-3 text-primary-foreground shadow-sm transition hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Send message"
             >
-              <input
-                type="text"
-                placeholder={`Message ${headerTitle}...`}
-                value={messageInput}
-                onChange={(e) => setMessageInput(e.target.value)}
-                className="flex-1 p-3 border border-gray-300 rounded-xl focus:ring-primary focus:border-primary transition"
-              />
-              <button
-                type="submit"
-                disabled={!messageInput.trim()}
-                className="p-3 bg-primary text-white rounded-xl shadow-lg hover:bg-primary transition disabled:bg-blue-300 disabled:cursor-not-allowed"
-              >
-                <Send className="w-5 h-5" />
-              </button>
-            </form>
-          </div>
-        </div>
+              {send.isPending ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : <Send className="h-5 w-5" aria-hidden="true" />}
+            </button>
+          </form>
+        </section>
       </div>
     </div>
   );
-};
+}
 
-export default ChatInterface;
+export const dynamic = "force-dynamic";

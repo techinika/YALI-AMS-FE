@@ -1,7 +1,7 @@
 export type NavItem = {
   segment: string;
   title: string;
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
   action?: React.ReactNode;
   children?: NavItem[];
   onlyAdmin: boolean;

@@ -1,181 +1,158 @@
-import { useAddNewGroupMutation } from "@/lib/features/chatSlice";
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Search, X } from "lucide-react";
+import { createGroupConversation } from "@/lib/data/chat";
+import { listProfiles } from "@/lib/data/profiles";
 import { toastError, toastSuccess } from "@/lib/toast";
-import { Plus, X } from "lucide-react";
-import React, { useEffect, useState } from "react";
+
+type MemberLike = {
+  id: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+};
+
+function memberName(member: MemberLike) {
+  return [member.firstName ?? member.first_name, member.lastName ?? member.last_name].filter(Boolean).join(" ") || "Member";
+}
 
 function CreateGroupChat({
   setShowCreateModal,
-  user,
   members = [],
-  source = "ai",
-  groupRefetching,
+  onCreated,
 }: {
   setShowCreateModal: React.Dispatch<React.SetStateAction<boolean>>;
-  user: any;
-  members: any[];
-  source: string;
-  groupRefetching?: any;
+  user?: unknown;
+  members?: MemberLike[];
+  source?: string;
+  groupRefetching?: unknown;
+  onCreated?: (conversationId: string) => void;
 }) {
-  const [newGroupName, setNewGroupName] = useState("");
-  const [selectedMembers, setSelectedMembers] = useState<any[]>([]);
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const [addNewGroup] = useAddNewGroupMutation();
+  const [name, setName] = useState("");
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<string[]>([]);
 
   useEffect(() => {
-    if (source === "ai" && members && members.length > 0) {
-      setSelectedMembers(members);
-    }
-  }, [source, members]);
+    setSelected(members.map((m) => m.id));
+  }, [members]);
 
-  const handleCreateGroup = async () => {
-    setIsSubmitting(true);
-    if (!newGroupName.trim() || !user) return;
-    try {
-      const membersToAdd = selectedMembers.length
-        ? selectedMembers.map((m) => m.id)
-        : [];
-      console.log(membersToAdd);
-      const newGroupData = {
-        name: newGroupName,
-        createdBy: user.id,
-        memberIds: membersToAdd,
-        interests: source === "ai" ? "AI Match" : "Manual Creation",
-      };
+  const { data: directory = [] } = useQuery({
+    queryKey: ["chat", "directory", "group", search],
+    enabled: search.trim().length > 0,
+    queryFn: async () => {
+      const { data } = await listProfiles({ search: search.trim(), limit: 8 });
+      return data ?? [];
+    },
+  });
 
-      await addNewGroup(newGroupData).unwrap();
+  const candidates = useMemo(() => {
+    const map = new Map<string, MemberLike>();
+    for (const member of members) map.set(member.id, member);
+    for (const profile of directory as unknown as MemberLike[]) map.set(profile.id, profile);
+    return Array.from(map.values());
+  }, [members, directory]);
 
+  const create = useMutation({
+    mutationFn: () =>
+      createGroupConversation({
+        name,
+        memberIds: selected,
+      }),
+    onSuccess: (conversationId) => {
       toastSuccess("Group created successfully!");
-
       setShowCreateModal(false);
-      setNewGroupName("");
-      setSelectedMembers([]);
-      groupRefetching();
-    } catch (err) {
-      console.error("Create Group Error:", err);
-      toastError(
-        "Failed to create group. Please try again or contact support."
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const toggleMemberSelection = (member: any) => {
-    setSelectedMembers((prev) =>
-      prev.find((m) => m.id === member.id)
-        ? prev.filter((m) => m.id !== member.id)
-        : [...prev, member]
-    );
-  };
+      onCreated?.(conversationId);
+    },
+    onError: (error: Error) => toastError(error.message || "Failed to create the group."),
+  });
 
   return (
-    <div
-      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4"
-      onClick={() => setShowCreateModal(false)}
-    >
-      <div
-        className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="create-group-title">
+      <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-card shadow-2xl">
+        <div className="flex items-start justify-between border-b border-border p-5">
           <div>
-            <h3 className="text-lg font-bold text-gray-900">
-              New Collaborative Group
-            </h3>
-            <p className="text-xs text-gray-500">Assemble your dream team</p>
+            <h3 id="create-group-title" className="text-lg font-bold text-foreground">New group</h3>
+            <p className="text-xs text-muted-foreground">Bring members together around shared interests.</p>
           </div>
-          <button
-            onClick={() => setShowCreateModal(false)}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400"
-          >
-            <X className="w-5 h-5" />
+          <button type="button" onClick={() => setShowCreateModal(false)} className="rounded-full p-2 text-muted-foreground transition hover:bg-accent" aria-label="Close">
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="space-y-5 p-5">
           <div>
-            <label className="text-xs font-bold text-gray-400 uppercase tracking-widest block mb-3">
-              Group Identity
+            <label htmlFor="group-name" className="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Group name
             </label>
             <input
-              type="text"
+              id="group-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Next-Gen SaaS Founders"
-              className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:ring-2 focus:ring-primary focus:bg-white transition-all outline-none"
-              value={newGroupName}
-              onChange={(e) => setNewGroupName(e.target.value)}
+              className="w-full rounded-xl border border-input bg-background px-4 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <label
-                htmlFor="user"
-                className="text-xs font-bold text-gray-400 uppercase tracking-widest"
-              >
-                Select Members
+            <div className="mb-2 flex items-center justify-between">
+              <label htmlFor="group-member-search" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Members
               </label>
-              <span className="text-[10px] font-bold text-primary bg-blue-50 px-2 py-0.5 rounded-full">
-                {selectedMembers.length} Selected
-              </span>
+              <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-bold text-primary">{selected.length} selected</span>
             </div>
-            <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-              {members.map((member: any) => {
-                const isSelected = selectedMembers.find(
-                  (m: any) => m.id === member.id
-                );
-                if (member.id === user.id) return null;
+            <div className="relative mb-2">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <input
+                id="group-member-search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search members..."
+                className="w-full rounded-xl border border-input bg-background py-2 pl-10 pr-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <ul className="max-h-48 space-y-2 overflow-y-auto pr-1">
+              {candidates.length === 0 && <li className="py-3 text-center text-xs italic text-muted-foreground">No members found.</li>}
+              {candidates.map((member) => {
+                const isSelected = selected.includes(member.id);
                 return (
-                  <button
-                    key={member.id}
-                    onClick={() => toggleMemberSelection(member)}
-                    className={`w-full flex items-center p-3 rounded-2xl border transition-all ${
-                      isSelected
-                        ? "bg-blue-50 border-blue-200 shadow-sm"
-                        : "bg-white border-gray-100 hover:border-gray-200"
-                    }`}
-                  >
-                    <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold mr-3`}
-                    >
-                      {member.firstName.charAt(0)}
-                    </div>
-                    <div className="text-left flex-1">
-                      <p className="text-xs font-bold text-gray-900">
-                        {member.firstName} {member.lastName}
-                      </p>
-                      <p className="text-[10px] text-gray-500">Member</p>
-                    </div>
-                    <div
-                      className={`w-5 h-5 rounded-full border flex items-center justify-center ${
-                        isSelected
-                          ? "bg-primary border-primary text-white"
-                          : "border-gray-200"
+                  <li key={member.id}>
+                    <button
+                      type="button"
+                      onClick={() => setSelected((prev) => (isSelected ? prev.filter((id) => id !== member.id) : [...prev, member.id]))}
+                      aria-pressed={isSelected}
+                      className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition ${
+                        isSelected ? "border-primary bg-brand-50" : "border-border hover:bg-accent"
                       }`}
                     >
-                      {isSelected && <Plus className="w-3 h-3 rotate-45" />}
-                    </div>
-                  </button>
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground" aria-hidden="true">
+                        {memberName(member).charAt(0)}
+                      </span>
+                      <span className="flex-1 text-xs font-semibold text-foreground">{memberName(member)}</span>
+                      <span className={`flex h-5 w-5 items-center justify-center rounded-full border text-[10px] ${isSelected ? "border-primary bg-primary text-primary-foreground" : "border-border"}`} aria-hidden="true">
+                        {isSelected ? "✓" : ""}
+                      </span>
+                    </button>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           </div>
         </div>
 
-        <div className="p-6 flex items-center justify-end gap-3">
-          <button
-            onClick={() => setShowCreateModal(false)}
-            className="px-6 py-2.5 text-xs font-bold text-gray-500 hover:text-gray-700 transition-colors border border-gray-300 rounded-xl hover:bg-gray-100"
-          >
+        <div className="flex items-center justify-end gap-3 border-t border-border p-5">
+          <button type="button" onClick={() => setShowCreateModal(false)} className="rounded-xl border border-border px-4 py-2 text-xs font-bold text-muted-foreground transition hover:bg-accent">
             Cancel
           </button>
           <button
-            onClick={handleCreateGroup}
-            disabled={!newGroupName.trim()}
-            className="px-8 py-2.5 bg-primary text-white rounded-xl text-xs font-bold hover:bg-primary/80 shadow-lg shadow-blue-100 transition-all disabled:opacity-50"
+            type="button"
+            onClick={() => create.mutate()}
+            disabled={!name.trim() || create.isPending}
+            className="rounded-xl bg-primary px-6 py-2 text-xs font-bold text-primary-foreground shadow-sm transition hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isSubmitting ? "Creating Group..." : "Create Group"}
+            {create.isPending ? "Creating..." : "Create group"}
           </button>
         </div>
       </div>

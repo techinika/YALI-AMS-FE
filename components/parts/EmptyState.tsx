@@ -16,8 +16,8 @@ export const EmptyState = ({ isFiltered }: { isFiltered: boolean }) => (
         <MdPeopleOutline className="w-12 h-12 mb-4" />
         <h3 className="text-xl font-semibold mb-2">Member List is Empty</h3>
         <p className="text-center max-w-sm">
-          It looks like no users have been added yet. Click the "Invite New
-          User" button above to get started!
+          It looks like no users have been added yet. Click the &ldquo;Invite New
+          User&rdquo; button above to get started!
         </p>
       </>
     )}

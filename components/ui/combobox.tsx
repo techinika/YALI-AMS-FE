@@ -241,3 +241,5 @@ export const Combobox = React.memo(
     );
   },
 );
+
+Combobox.displayName = "Combobox";
