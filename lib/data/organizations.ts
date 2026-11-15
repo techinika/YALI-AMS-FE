@@ -52,19 +52,39 @@ export async function getOrganizationById(id: string) {
 
 export async function listUserOrganizations(userId: string) {
   const supabase = getSupabaseBrowserClient();
-  const res = await supabase
-    .from("user_organizations")
-    .select(
-      `id, user_id, organization_id, relation, position, created_at, updated_at,
-       organization:organizations(${ORG_SELECT}),
-       user_organization_working_sectors(working_sector:working_sectors(id, name))`
-    )
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false });
+  const [res, sectorsRes] = await Promise.all([
+    supabase
+      .from("user_organizations")
+      .select(
+        `id, user_id, organization_id, relation, position, created_at, updated_at,
+         organization:organizations(${ORG_SELECT})`
+      )
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false }),
+    // There is no foreign key between user_organizations and
+    // user_organization_working_sectors (they share user_id + organization_id),
+    // so PostgREST cannot embed the sectors directly. Fetch and merge them here.
+    supabase
+      .from("user_organization_working_sectors")
+      .select("organization_id, working_sector:working_sectors(id, name)")
+      .eq("user_id", userId),
+  ]);
+
+  const sectorLinks = (sectorsRes.data ?? []) as Array<{
+    organization_id: string;
+    working_sector: { id: string; name: string } | null;
+  }>;
+  const sectorsByOrganization = new Map<string, { id: string; name: string }[]>();
+  for (const link of sectorLinks) {
+    if (!link.organization_id || !link.working_sector) continue;
+    const sectors = sectorsByOrganization.get(link.organization_id) ?? [];
+    sectors.push(link.working_sector);
+    sectorsByOrganization.set(link.organization_id, sectors);
+  }
 
   const data = (res.data ?? []).map((row: any) => {
     const org = mapOrganizationRow(row.organization);
-    const linkSectors = row.user_organization_working_sectors?.map((x: any) => x.working_sector).filter(Boolean) ?? [];
+    const linkSectors = sectorsByOrganization.get(row.organization_id) ?? [];
     return {
       ...org,
       ...row,
@@ -78,7 +98,7 @@ export async function listUserOrganizations(userId: string) {
       organization: org,
     };
   });
-  return { ...res, data };
+  return { ...res, data, error: res.error ?? sectorsRes.error ?? null };
 }
 
 export async function createOrganization(input: OrganizationInput & { addedById?: string | null }) {
